@@ -3,6 +3,7 @@ import json
 import logging
 import datetime
 from functools import lru_cache
+from importlib import resources
 
 import requests
 import pymongo
@@ -14,46 +15,12 @@ SEP_TYPE = 'Pipe'
 CUBE_ATTRS = ['name', 'image_link', 'color_identity_name', 'type', 'cmc', 'subtypes', 'cube_sort_order']
 SET_ATTRS = ['name_with_image_link', 'set_template_sort_order', 'color_identity_name', 'type', 'rarity', 'cmc', 'subtypes', 'power', 'toughness', 'oracle_one_line']
 
-COLOR_NAME_MAP = {
-    "W":    "White",
-    "U":    "Blue",
-    "B":    "Black",
-    "R":    "Red",
-    "G":    "Green",
-    "UW":   "Azorius",
-    "BU":   "Dimir",
-    "BR":   "Rakdos",
-    "GR":   "Gruul",
-    "GW":   "Selesnya",
-    'BW':   "Orzhov",
-    "BG":   "Golgari",
-    "GU":   "Simic",
-    "RU":   "Izzet",
-    "RW":   "Boros",
-    "BUW":  "Esper",
-    "BRU":  "Grixis",
-    "BGR":  "Jund",
-    "GRW":  "Naya",
-    "GUW":  "Bant",
-    "BGW":  "Abzan",
-    "BGU":  "Sultai",
-    "GRU":  "Temur",
-    "RUW":  "Jeskai",
-    "BRW":  "Mardu",
-    "GRUW": "Non-Black",
-    "BGUW": "Non-Red",
-    "BGRUW":    "Five-Color",
-    "":     "Colorless",
-}
-
 RARITY_ORDER = [
     'common',
     'uncommon',
     'rare',
     'mythic'
 ]
-
-COLOR_IDENTITY_NAME_ORDER = list(COLOR_NAME_MAP.values())
 
 TYPE_ORDER = [
     "Creature",
@@ -71,11 +38,15 @@ TYPE_ORDER = [
 SET_TEMPLATE_RANK = ['rarity_rank', 'color_identity_rank', 'type_rank', 'cmc', 'name']
 CUBE_RANK = ['color_identity_rank', 'type_rank', 'cmc', 'name']
 
-@lru_cache(maxsize=1)
-def get_overrides():
-    with open('cache/overrides.json') as overrides:
-        return json.load(overrides)
-
+@lru_cache(maxsize=10)
+def get_config(property=None):
+    config_path = resources.files('magic_data_utils.config') / 'scryfall_config.json'
+    with open(config_path) as config:
+        config = json.load(config)
+    if property is None:
+        return config
+    else:
+        return config[property]
 
 def sort_order_string(rank_list):
     # if string, keep as is. if double, convert to 2 digit string, if
@@ -143,8 +114,10 @@ def mtgo_name(card):
 
 
 def get_attr(card, attr):
+    color_name_map = get_config('color_name_map')
     card = dict(card)
-    overrides = get_overrides()['attrs']
+
+    overrides = get_config('overrides')['attrs']
     if attr != 'name' and attr in overrides.get(get_attr(card, 'name'), {}):
         return overrides[get_attr(card, 'name')][attr]
 
@@ -167,8 +140,8 @@ def get_attr(card, attr):
             return ''
     if attr == 'color_identity_name':
         col_id = format_attr(get_attr(card, 'color_identity'))
-        if col_id in COLOR_NAME_MAP:
-            return COLOR_NAME_MAP[format_attr(get_attr(card, 'color_identity'))]
+        if col_id in color_name_map:
+            return color_name_map[format_attr(get_attr(card, 'color_identity'))]
         return col_id
     if attr == 'image_tag':
         return image_tag_from_card(card)
@@ -188,7 +161,7 @@ def get_attr(card, attr):
     if attr == 'color_identity_rank':
         return rank_by_order(
             get_attr(card, 'color_identity_name'),
-            COLOR_IDENTITY_NAME_ORDER
+            get_config('color_name_order')
         )
     if attr == 'rarity_rank':
         return rank_by_order(
@@ -251,7 +224,7 @@ def get_card_by_id(client, mtgo_id):
 def get_card(client, card_name, set=None):
     cards_en = client.scryfall.cards_en
 
-    overrides = get_overrides()
+    overrides = get_config('overrides')
     card_name = overrides['names'].get(card_name, card_name)
 
     base_query = {
