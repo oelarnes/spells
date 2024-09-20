@@ -1,0 +1,24 @@
+[project]
+name = "magic-data-utils"
+version = "0.1.0"
+description = "Default template for PDM package"
+authors = [
+    {name = "Joel Barnes", email = "oelarnes@gmail.com"},
+]
+dependencies = [
+    "requests>=2.32.3",
+    "pymongo>=4.9.1",
+]
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[tool.pdm.scripts]
+get_cards = "python ./scripts/get_cards.py"
