@@ -1,9 +1,7 @@
 import argparse
-from importlib import resources
 from mdu.cache_17l import load_config, download_data_set
 
 parser = argparse.ArgumentParser(description='Download 17Lands public datasets')
-
 parser.add_argument('sets', metavar='sets', nargs='+',
                     help='Sets to download. (Download all configured sets if none provided)')
 parser.add_argument('-t', default='draft',

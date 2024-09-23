@@ -6,9 +6,11 @@ authors = [
     {name = "Joel Barnes", email = "oelarnes@gmail.com"},
 ]
 dependencies = [
-    "requests>=2.32.3",
     "pymongo>=4.9.1",
-    "ipython>=8.27.0",
+    "pyspark>=3.5.2",
+    "pandas>=2.2.3",
+    "numpy>=2.1.1",
+    "requests>=2.32.3",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
@@ -23,3 +25,9 @@ distribution = true
 
 [tool.pdm.scripts]
 get_cards = "python ./scripts/get_cards.py"
+
+[tool.pdm.dev-dependencies]
+dev = [
+    "ipython>=8.27.0",
+    "pytest>=8.3.3",
+]

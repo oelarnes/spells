@@ -1,5 +1,4 @@
 import urllib.request, tomllib, os, gzip, shutil, re
-import sqlite3
 
 from functools import lru_cache
 from importlib import resources
@@ -34,36 +33,3 @@ def download_data_set(set_code, dataset_type, force_download=False, target_dir=D
             shutil.copyfileobj(f_in, f_out) 
     
     os.remove(target_path)
-
-def create_draft_table_script(num_draftable_cards=MAX_DRAFTABLE_CARDS):
-    pack_card_headers = [f'pack_card_{n}' for n in range(num_draftable_cards)]
-    pool_headers = [f'pool_{n}' for n in range(num_draftable_cards)]
-
-    return f"""
-CREATE TABLE draft_picks(
-    expansion, 
-    event_type, 
-    draft_id, 
-    draft_time, 
-    rank, 
-    event_match_wins, 
-    event_match_losses, 
-    pack_number, 
-    pick_number,
-    pick,
-    pick_maindeck_rate,
-    pick_sideboard_in_rate,
-    {',\n    '.join(pack_card_headers)}, 
-    {',\n    '.join(pool_headers)},
-    user_n_games_bucket, 
-    user_game_win_rate_bucket
-)
-    """
-
-def write_to_sql(set_code, dataset_type, target_dir=DEFAULT_DIR):
-    download_data_set(set_code, dataset_type, force_download=False, target_dir=target_dir)
-    
-    db_path = os.path.join(DB_DIR, 'sqlite.db')
-    conn = sqlite3.connect(db_path)
-
-
