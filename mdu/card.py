@@ -74,9 +74,12 @@ class Card():
         return self.type_line.split(' — ')[1].split(' // ')[0] if '—' in self.type_line else ''
     
     @property
+    def color_identity_str(self):
+        return _format_attr(self.color_identity)
+    
+    @property
     def color_identity_name(self):
-        col_id = _format_attr(self.color_identity)
-        return config.COLOR_NAME_MAP.get(col_id, col_id)
+        return config.COLOR_NAME_MAP.get(self.color_identity_str, self.color_identity_str)
 
     @property
     def color_identity_rank(self):
@@ -134,6 +137,10 @@ class Card():
     @property
     def cube_sort_order(self):
         return self.sort_order(config.CUBE_RANK)
+    
+    @property
+    def cmc(self):
+        return int(self.__dict__['cmc'])
     
     def attr_line(self, attrs):
         return _join_line([_format_attr(getattr(self, attr)) for attr in attrs], self.SEP_TYPE)
