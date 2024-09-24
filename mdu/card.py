@@ -1,6 +1,9 @@
 import re
 import mdu.config.scryfall_cfg as config
 
+CUBE_ATTRS = ['name', 'image_link', 'color_identity_name', 'type', 'cmc', 'subtypes', 'cube_sort_order']
+SET_ATTRS = ['name_with_image_link', 'set_template_sort_order', 'color_identity_name', 'type', 'rarity', 'cmc', 'subtypes', 'power', 'toughness', 'oracle_one_line']
+
 def _sort_order_string(rank_list):
     # if string, keep as is. if double, convert to 2 digit string, if
     def convert_el(el):
@@ -144,6 +147,14 @@ class Card():
     
     def attr_line(self, attrs):
         return _join_line([_format_attr(getattr(self, attr)) for attr in attrs], self.SEP_TYPE)
+    
+    @property
+    def cube_attr_line(self):
+        return self.attr_line(CUBE_ATTRS)
+    
+    @property
+    def set_attr_line(self):
+        return self.attr_line(SET_ATTRS)
 
     def __getattr__(self, attr):
         return ''

@@ -136,7 +136,7 @@ class Scryfall:
 
         return Card(card)
 
-def card_attr_line(card_input, attrs):
+def cube_attr_line(card_input):
     split = card_input.strip('\n').split('|')
     card_name = split[0].strip()
 
@@ -148,7 +148,5 @@ def card_attr_line(card_input, attrs):
     scryfall = Scryfall()
 
     card = scryfall.get_card(card_name, set=set)
-    return card.attr_line(attrs)
-
-
+    return card.cube_attr_line
 
