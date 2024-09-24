@@ -200,7 +200,6 @@ DRAFT_SET_SYMBOL_MAP = {
     "OTJ": ["otj", "otp", "big", "spg"]
 }
 
-
 CUBE_ATTRS = ['name', 'image_link', 'color_identity_name', 'type', 'cmc', 'subtypes', 'cube_sort_order']
 SET_ATTRS = ['name_with_image_link', 'set_template_sort_order', 'color_identity_name', 'type', 'rarity', 'cmc', 'subtypes', 'power', 'toughness', 'oracle_one_line']
 

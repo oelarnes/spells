@@ -1,8 +1,7 @@
 import urllib.request, os, gzip, shutil, re, logging, csv
 
 from mdu.scryfall import Scryfall
-from mdu.config.scryfall_cfg import DRAFT_SET_SYMBOL_MAP
-from mdu.config.cache_17l import config
+from mdu.config.cache_17l import URLS, DRAFT_SET_SYMBOL_MAP
 
 DEFAULT_DIR = os.path.join('data', '17l-files')
     
@@ -10,10 +9,10 @@ def unzipped_path(zipped_path):
     return re.split('.gz$', zipped_path)[0]
 
 def zipped_path(set_code, dataset_type, target_dir):
-    return os.path.join(target_dir, os.path.split(config[set_code][dataset_type])[1])
+    return os.path.join(target_dir, os.path.split(URLS[set_code][dataset_type])[1])
 
 def download_data_set(set_code, dataset_type, force_download=False, target_dir=DEFAULT_DIR):
-    file_url = config[set_code][dataset_type]
+    file_url = URLS[set_code][dataset_type]
     
     download_path = zipped_path(set_code, dataset_type, target_dir)
     final_path = unzipped_path(download_path)
