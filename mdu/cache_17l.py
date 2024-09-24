@@ -69,7 +69,8 @@ def write_card_file(draft_set_code, target_dir=DEFAULT_DIR):
         card_file_rows.append(str(index) + ', ' + card.attr_line(card_attrs) + '\n')
     
     filename = f'{draft_set_code}_card_file.csv'
-    with open(filename, 'w') as f:
+    filepath = os.path.join(target_dir, filename)
+    with open(filepath, 'w') as f:
         f.writelines(card_file_rows)
 
     
