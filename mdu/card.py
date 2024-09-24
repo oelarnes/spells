@@ -1,30 +1,5 @@
 import re
-
-CUBE_ATTRS = ['name', 'image_link', 'color_identity_name', 'type', 'cmc', 'subtypes', 'cube_sort_order']
-SET_ATTRS = ['name_with_image_link', 'set_template_sort_order', 'color_identity_name', 'type', 'rarity', 'cmc', 'subtypes', 'power', 'toughness', 'oracle_one_line']
-
-RARITY_ORDER = [
-    'common',
-    'uncommon',
-    'rare',
-    'mythic'
-]
-
-TYPE_ORDER = [
-    "Creature",
-    "Artifact Creature",
-    "Enchantment Creature",
-    "Planeswalker",
-    "Instant",
-    "Sorcery",
-    "Artifact",
-    "Enchantment",
-    "Enchantment Artifact",
-    "Land",
-]
-
-SET_TEMPLATE_RANK = ['rarity_rank', 'color_identity_rank', 'type_rank', 'cmc', 'name']
-CUBE_RANK = ['color_identity_rank', 'type_rank', 'cmc', 'name']
+import mdu.config.scryfall_cfg as config
 
 def _sort_order_string(rank_list):
     # if string, keep as is. if double, convert to 2 digit string, if
@@ -44,28 +19,27 @@ def _strip_supertype(type_line):
     supertypes = ['Basic', 'Legendary', 'Ongoing', 'Snow', 'World']
     for type in supertypes:
         type_line = type_line.replace(type + ' ', '')
-    return(type_line)
+    return type_line
 
 
 def _format_attr(attr):
     if type(attr)== type([]):
-        return(''.join(attr))
+        return ''.join(attr)
     return str(attr)
 
 def _join_line(line, sep_type):
     if sep_type == 'Pipe':
-        return('|'.join(line))
-    if sep_type == 'Quotes and Comma':
-        return('"' + '", "'.join(line) + '"')
-    if sep_type == 'Tab':
-        return('\t'.join(line))
+        return '|'.join(line)
+    if sep_type == "Comma":
+        line = [token if "," not in token else f'"{token}"' for token in line]
+        return ", ".join(line)
 
 class Card():
     IMAGE_SIZE_DEFAULT = 'normal'
     SHORT_ORACLE_LENGTH = 64
-    SEP_TYPE = 'Pipe'
+    SEP_TYPE = 'Comma'
 
-    def __init__(self, card_data, scryfall):
+    def __init__(self, card_data, overrides=config.OVERRIDES['attrs']):
         self.__dict__ = dict(card_data)
 
         # take some attributes from the front face including name
@@ -76,14 +50,13 @@ class Card():
             front.update(self.__dict__)
             self.__dict__ = front
 
-        self._scryfall = scryfall
+        self._overrides = overrides
 
-        self.image_link_large = self.image_uris['large']
+        self.image_link_large = self.image_uris['large'] if 'large' in self.image_uris else ''
 
-        overrides = self._scryfall.config['overrides']['attrs'].get(self.name)
-        for attr in overrides:
-            setattr(self, attr, overrides[attr])
-        
+        if self.name in self._overrides:
+            for attr in overrides:
+                setattr(self, attr, overrides[attr])
 
     @property
     def type(self):
@@ -94,7 +67,7 @@ class Card():
     
     @property
     def type_rank(self):
-        self.type_rank = _rank_by_order(self.type, TYPE_ORDER)
+        self.type_rank = _rank_by_order(self.type, config.TYPE_ORDER)
     
     @property
     def subtype(self):
@@ -103,15 +76,15 @@ class Card():
     @property
     def color_identity_name(self):
         col_id = _format_attr(self.color_identity)
-        return self._scryfall.config['color_name_map'].get(col_id, col_id)
+        return config.COLOR_NAME_MAP.get(col_id, col_id)
 
     @property
     def color_identity_rank(self):
-        return _rank_by_order(self.color_identity_name, self._scryfall.config['color_name_order'])
+        return _rank_by_order(self.color_identity_name, config.COLOR_NAME_ORDER)
         
     @property
     def oracle_one_line(self):
-        text = self.oracle_text.replace('\n', '; ')
+        text = self.oracle_text.replace('\n', ' / ')
         reminder_text_re = r'\(.*?\)'
         return re.sub(reminder_text_re, '', text)
     
@@ -142,28 +115,28 @@ class Card():
 
     @property
     def mtgo_name(self):
-        if len(self.card_faces > 0) and self.layout == 'split':
+        if len(self.card_faces) > 0 and self.layout == 'split':
             names = [self.card_faces[i]['name'] for i in [0,1]]
             return '/'.join(names)
         return self.name
     
     @property
     def rarity_rank(self):
-        return _rank_by_order(self.rarity, RARITY_ORDER)
+        return _rank_by_order(self.rarity, config.RARITY_ORDER)
     
     def sort_order(self, ranking):
-        _sort_order_string([getattr(self, rank_attr) for rank_attr in ranking])
+        return _sort_order_string([getattr(self, rank_attr) for rank_attr in ranking])
 
     @property
     def set_template_sort_order(self):
-        return self.sort_order(SET_TEMPLATE_RANK)
+        return self.sort_order(config.SET_TEMPLATE_RANK)
     
     @property
     def cube_sort_order(self):
-        return self.sort_order(CUBE_RANK)
+        return self.sort_order(config.CUBE_RANK)
     
     def attr_line(self, attrs):
-        return _join_line([_format_attr(getattr(self, attr) for attr in attrs)], self.SEP_TYPE)
+        return _join_line([_format_attr(getattr(self, attr)) for attr in attrs], self.SEP_TYPE)
 
     def __getattr__(self, attr):
         return ''

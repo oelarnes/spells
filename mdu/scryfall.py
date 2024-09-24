@@ -7,18 +7,15 @@ from importlib import resources
 import requests
 import pymongo
 
+from mdu.config.scryfall_cfg import OVERRIDES
 from mdu.card import Card
 
 API_URL = 'https://api.scryfall.com/bulk-data/default_cards'
 
 class Scryfall:
-    def __init__(self, sets=[]):
-        config_path = resources.files('mdu.config') / 'scryfall_config.json'
-        with open(config_path) as config:
-            self._config = json.load(config)
-
+    def __init__(self, sets=None):
         self._client = pymongo.MongoClient()
-        self._cards_en = self.client.scryfaall.cards_en
+        self._cards_en = self._client.scryfall.cards_en
         self._sets = sets # only query for these sets
     
     def _fetch_cards():
@@ -54,8 +51,7 @@ class Scryfall:
         print(f'{self._cards_en.count_documents({})} cards inserted')
     
     def get_card(self, card_name, set=None):
-        overrides = self._config.overries
-        card_name = overrides['names'].get(card_name, card_name)
+        card_name = OVERRIDES['names'].get(card_name, card_name)
 
         base_query = {
             'frame_effects': {'$nin': ['showcase', 'extendedart', 'borderless']},
@@ -63,7 +59,7 @@ class Scryfall:
 
         if set is not None:
             base_query['set'] = set
-        elif len(self._sets):
+        elif self._sets is not None:
             base_query['set'] = {'$in': self._sets}
         else:
             base_query['set_type'] = {'$in': ['draft_innovation', 'expansion', 'commander', 'core', 'starter', 'funny']}
@@ -107,7 +103,7 @@ class Scryfall:
 
             if set is not None:
                 query['set'] = set
-            elif len(self._sets):
+            elif self._sets is not None:
                 query['set'] = {'$in': self._sets}
 
             card = self._cards_en.find_one(query, sort=[('released_at', pymongo.ASCENDING), ('collector_number', pymongo.ASCENDING)])
@@ -116,9 +112,10 @@ class Scryfall:
             error_message = 'No match for card name {}'.format(card_name)
             if set is not None:
                 error_message = error_message + ' and set {}'.format(set)
-            logging.error(error_message)
+            logging.warning(error_message)
+            return Card({'name': card_name})
 
-        return Card(card, self)
+        return Card(card)
     
 
     def get_card_by_id(self, mtgo_id):
@@ -137,7 +134,7 @@ class Scryfall:
             error_message = 'No match for card id {}'.format(mtgo_id)
             logging.error(error_message)
 
-        return Card(card, self)
+        return Card(card)
 
 def card_attr_line(card_input, attrs):
     split = card_input.strip('\n').split('|')
