@@ -1,30 +1,18 @@
-import urllib.request, tomllib, os, gzip, shutil, re, logging, csv
-
-from functools import lru_cache
-from importlib import resources
+import urllib.request, os, gzip, shutil, re, logging, csv
 
 from mdu.scryfall import Scryfall
 from mdu.config.scryfall_cfg import DRAFT_SET_SYMBOL_MAP
+from mdu.config.cache_17l import config
 
 DEFAULT_DIR = os.path.join('data', '17l-files')
-DB_DIR = 'db'
-MAX_DRAFTABLE_CARDS = 400
-
-@lru_cache(maxsize=1)
-def load_config():
-    config_path = resources.files('mdu.config') / 'cache_17l.toml'
-    with open(config_path, 'rb') as config:
-        return tomllib.load(config)
     
 def unzipped_path(zipped_path):
     return re.split('.gz$', zipped_path)[0]
 
 def zipped_path(set_code, dataset_type, target_dir):
-    config = load_config()
     return os.path.join(target_dir, os.path.split(config[set_code][dataset_type])[1])
 
 def download_data_set(set_code, dataset_type, force_download=False, target_dir=DEFAULT_DIR):
-    config = load_config()
     file_url = config[set_code][dataset_type]
     
     download_path = zipped_path(set_code, dataset_type, target_dir)
@@ -72,5 +60,3 @@ def write_card_file(draft_set_code, target_dir=DEFAULT_DIR):
     filepath = os.path.join(target_dir, filename)
     with open(filepath, 'w') as f:
         f.writelines(card_file_rows)
-
-    
