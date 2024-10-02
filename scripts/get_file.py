@@ -1,5 +1,5 @@
 import argparse
-from mdu.cache_17l import load_config, download_data_set
+from mdu.cache_17l import download_data_set
 
 parser = argparse.ArgumentParser(description='Download 17Lands public datasets')
 parser.add_argument('sets', metavar='sets', nargs='+',
@@ -10,10 +10,9 @@ parser.add_argument('-f', default='n', help='force download even if exists')
 
 args = parser.parse_args()
 
-config = load_config()
 
 if len(args.sets) == 0:
-    sets = list(config.keys())
+    raise "Supply set code"
 else:
     sets = args.sets
 

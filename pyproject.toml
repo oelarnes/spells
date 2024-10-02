@@ -7,10 +7,10 @@ authors = [
 ]
 dependencies = [
     "pymongo>=4.9.1",
-    "pyspark>=3.5.2",
     "pandas>=2.2.3",
     "numpy>=2.1.1",
     "requests>=2.32.3",
+    "dask[dataframe]>=2024.9.1",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
