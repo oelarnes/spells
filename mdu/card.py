@@ -15,8 +15,10 @@ def _sort_order_string(rank_list):
 
     return ''.join([convert_el(el) for el in rank_list])
 
+
 def _rank_by_order(attr, order):
     return order.index(attr) if attr in order else len(order) + 1
+
 
 def _strip_supertype(type_line):
     supertypes = ['Basic', 'Legendary', 'Ongoing', 'Snow', 'World']
@@ -35,7 +37,7 @@ def _join_line(line, sep_type):
         return '|'.join(line)
     if sep_type == "Comma":
         line = [token if "," not in token else f'"{token}"' for token in line]
-        return ", ".join(line)
+        return ",".join(line)
 
 class Card():
     IMAGE_SIZE_DEFAULT = 'normal'

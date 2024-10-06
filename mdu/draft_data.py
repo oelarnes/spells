@@ -1,4 +1,5 @@
 import os
+import re
 from enum import Enum, auto
 
 import dask.dataframe as dd
@@ -7,63 +8,45 @@ from mdu.config.cache_17l import FILES
 from mdu.cache_17l import data_dir_path, card_file_name
 import mdu.filter as filter
 
-class DataSetType(Enum):
-    PANDAS_DF = auto()
+PACK_CARD_PREFIX = 'pack_card_'
+POOL_PREFIX = 'pool_'
 
-class SeriesType(Enum):
-    PANDAS_SERIES = auto()
+def _draft_meta_view(draft_df: dd.DataFrame):
+    meta_view = draft_df[['draft_id', 'draft_time', 'rank', 'event_match_wins', 'event_match_losses', 'user_n_games_bucket', 'user_game_win_rate_bucket']]
+    meta_view = meta_view.drop_duplicates()
+    return meta_view
 
-class GroupBys(Enum):
-    EVENT_TYPE = 'event_type'
-    RANK = 'rank'
-    DRAFT_DATE = 'draft_date'
-    PICK_NUM = 'pick_num'
-    PACK_NUM = 'pack_num'
-    USER_N_GAMES_BUCKET = 'user_n_games_bucket'
-    USER_GAME_WIN_RATE_BUCKET = 'user_game_win_rate_bucket'
-    NAME = 'name'
-    CARD_INDEX = 'card_index'
-    COLOR = 'color'
-    RARITY = 'rarity'
-    TYPE = 'type'
-    SUBTYPE = 'subtype'
-    CMC = 'cmc'
+def _draft_pick_view(draft_df: dd.DataFrame):
+    pattern = f'^{PACK_CARD_PREFIX}' 
 
-class AGG_METRICS(Enum):
-    COUNT = 'count'
-    APWR = 'apwr' # as-picked winrate
-    ATA = 'ata' # average taken at
-    ALSA = 'alsa' # average last seen at
-    ASA = 'asa' # average seen at
-    GP_PCT = 'gp%' # play rate
-    PICK_RATE = 'pick%' # the times a card matching the group by condition was chosen divided by the total matches on that condition
+    unpivot_cols = tuple(name for name in draft_df.columns if re.search(pattern, name) is not None)
 
+    melted_df = dd.reshape.melt(draft_df, ['draft_id', 'pack_number', 'pick_number', 'pick'], unpivot_cols, 'name', 'num_in_pack')
+
+    melted_df['name'] = melted_df['name'].map(lambda name: re.split(pattern, name)[1], meta=('name', 'object'))
+    melted_df['is_pick'] = (melted_df['name'] == melted_df['pick'])
+    melted_df = melted_df.drop('pick', axis=1)
+    melted_df = melted_df[melted_df['num_in_pack'] > 0]
+
+    return melted_df
 
 class DraftData:
     def __init__(
         self,
         set_code: str, 
-        start_date: str = '0000', 
-        end_date: str = '9999',
-        additional_filter: any = None
+        filter_spec: any = None
     ):
         data_dir = data_dir_path()
 
         self.set_code = set_code.upper()
         
-        date_filter = filter.allof([
-            filter.base('draft_time', start_date, '>='),
-            filter.base('draft_time', end_date, '<=')
-        ])
+        self.set_filter(filter_spec)
 
-        if additional_filter:
-            self.filter = filter.all_of(additional_filter, date_filter)
-        else:
-            self.filter = date_filter
-
-        self._draft_df = dd.read_csv(os.path.join(data_dir, FILES[set_code]['draft']))
+        self._draft_df = dd.read_csv(os.path.join(data_dir, FILES[set_code]['draft']['target'])).set_index('draft_id_idx', sorted=True)
         self._card_df = dd.read_csv(os.path.join(data_dir, card_file_name(set_code)))
-        self._game_df = dd.read_csv(os.path.join(data_dir, FILES[set_code]['game']))
+        self._game_df = dd.read_csv(os.path.join(data_dir, FILES[set_code]['game']['target']))
+
+        # self._draft_pick_view = _draft_pick_view(self._draft_df)
     
     def set_filter(self, filter_spec: any):
         if type(filter_spec) == dict:

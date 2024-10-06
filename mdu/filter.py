@@ -20,7 +20,7 @@ def base(lhs, rhs, op='='):
     recommended to import as "filter.base" for clarity
 
     usage:
-    df.where(filter.base('A', 5)) == df[df['A'] == 5]
+    df.loc[filter.base('A', 5)] == df[df['A'] == 5]
     """
     def _filter_eq(ds):
         return ds[lhs] == rhs
@@ -101,7 +101,7 @@ def from_spec(filter_spec):
     """
     for filter_type in BUILDER_MAP:
         if filter_value := filter_spec.get(filter_type):
-            assert len(filter_spec) == 1
+            assert len(filter_spec) == 1, f"Operator {filter_type} incompatible with additional keys."
             if type(filter_value) == list:
                 arg = tuple(map(from_spec, filter_value))
             else:
