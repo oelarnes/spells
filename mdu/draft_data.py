@@ -4,7 +4,6 @@ from enum import Enum, auto
 
 import dask.dataframe as dd
 
-from mdu.config.cache_17l import FILES
 from mdu.cache_17l import data_dir_path, card_file_name
 import mdu.filter as filter
 
