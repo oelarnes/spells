@@ -27,14 +27,15 @@ def data_dir_path():
 
 def data_file_path(set_code, dataset_type, event_type=EventType.PREMIER, zipped=False):
     if dataset_type == 'card':
-        return os.path.join(DATA_DIR, f"{set_code}_card.csv")
+        return os.path.join(data_dir_path(), f"{set_code}_card.csv")
     
-    return os.path.join(DATA_DIR, "{set_code}_{event_type}_{dataset_type}.csv{suffix}".format(
+    return os.path.join(data_dir_path(), "{set_code}_{event_type}_{dataset_type}.csv{suffix}".format(
         suffix=".gz" if zipped else "", 
         event_type=event_type.value,
         set_code=set_code, 
         dataset_type=dataset_type
     ))
+
 
 def process_zipped_file(target_path_zipped, target_path):
     with gzip.open(target_path_zipped, 'rt', newline='') as f_in:
@@ -82,7 +83,6 @@ def write_card_file(draft_set_code):
 
     Gets names from the 17lands headers and card information from a cache of Scryfall in local mongo.
     """
-    data_dir = data_dir_path()
     draft_filepath = data_file_path(draft_set_code, 'draft')
 
     if not os.path.isfile(draft_filepath):
@@ -97,7 +97,7 @@ def write_card_file(draft_set_code):
 
     card_file_rows = [','.join(card_attrs) + '\n']
     sf = Scryfall(DRAFT_SET_SYMBOL_MAP[draft_set_code])
-    for index, name in enumerate(names):
+    for name in names:
         card = sf.get_card(name)
         card_file_rows.append(card.attr_line(card_attrs) + '\n')
     
