@@ -10,78 +10,57 @@ import mdu.filter as filter
 
 PACK_CARD_PREFIX = 'pack_card_'
 POOL_PREFIX = 'pool_'
+NUM_CARDS_IN_PACK = 13
 
-def _draft_meta_view(draft_df: dd.DataFrame):
-    meta_view = draft_df[['draft_id', 'draft_time', 'rank', 'event_match_wins', 'event_match_losses', 'user_n_games_bucket', 'user_game_win_rate_bucket']]
-    meta_view = meta_view.drop_duplicates()
-    return meta_view
-
-def _draft_pick_view(draft_df: dd.DataFrame):
-    pattern = f'^{PACK_CARD_PREFIX}' 
-
-    unpivot_cols = tuple(name for name in draft_df.columns if re.search(pattern, name) is not None)
-
-    melted_df = dd.reshape.melt(draft_df, ['draft_id_idx', 'draft_id', 'pack_number', 'pick_number', 'pick'], unpivot_cols, 'name', 'num_in_pack')
-
-    melted_df['name'] = melted_df['name'].map(lambda name: re.split(pattern, name)[1], meta=('name', 'object'))
-    melted_df['is_pick'] = (melted_df['name'] == melted_df['pick'])
-    melted_df = melted_df.drop('pick', axis=1)
-    melted_df = melted_df[melted_df['num_in_pack'] > 0]
-
-    return melted_df
-
-def alsa(draft_pick_view: dd.DataFrame, groupby='name'):
-    """
-    map_partitions to group by draft_id
-
-    ungodly slow, try something else
-    """
-    if groupby != 'name':
-        raise NotImplementedError(f'groupby {groupby} not implemented yet')
-    
-    last_seen = draft_pick_view \
-        .set_index('draft_id_idx', sorted=True) \
-        .map_partitions(lambda df: df.groupby(['draft_id', 'pack_number', 'name']).pick_number.max() + 1) \
-    
-    return last_seen.groupby('name').mean().compute()
 
 def ata(draft_df: dd.DataFrame, groupby='name'):
     return draft_df.groupby('picked').pick_number.mean().compute().rename(columns={'picked': 'name'})
+
 
 def apwr(draft_df: dd.DataFrame, groupby='name'):
     df = draft_df.copy()
     df['event_matches'] = df['event_match_wins'] + df['event_match_losses']
     return df.groupby('name')[['event_matches', 'event_match_wins']].sum() 
 
-def alsa2(draft_df: dd.DataFrame, groupby='name'):
+
+def alsa(draft_df: dd.DataFrame, groupby='name'):
     if groupby != 'name':
         raise NotImplementedError(f'groupby {groupby} not implemented yet')
+    pattern = f'^{PACK_CARD_PREFIX}'
 
-    pack_card_cols = [c for c in draft_df.columns if c.startswith('pack_card_')]
-    draft_df.loc[pack_card_cols] = dd.min(draft_df[pack_card_cols], 1)
-
+    pack_card_cols = [c for c in draft_df.columns if c.startswith(PACK_CARD_PREFIX)]
+    pack_seen_cols = [f"num_{c}" for c in pack_card_cols]
+    is_seen_cols = [f"count_{c}" for c in pack_card_cols]
+    names = [re.split(pattern, col)[1] for col in pack_card_cols]
+        
     def alsa_lambda(df):
         is_seen_df = numpy.minimum(df[pack_card_cols], 1)
         pack_seen_df = is_seen_df.mul(df['pick_number'] + 1, axis=0)
 
-        pack_seen_cols = [f"num_{c}" for c in pack_card_cols]
-        is_seen_cols = [f"count_{c}" for c in pack_card_cols]
-        
         data_df = pandas.concat([
-            df[['draft_id']],
+            df[['draft_id', 'pack_number']],
             is_seen_df.rename(columns=dict(zip(pack_card_cols, is_seen_cols))),
             pack_seen_df.rename(columns=dict(zip(pack_card_cols, pack_seen_cols)))
         ], axis=1)
 
-        pack_max_df = data_df.groupby(['draft_id', 'pack_number']).max()
-        pack_count_df = data_df.groupby(['draft_id', 'pack_number']).count()
+        grouped_df = pandas.concat(
+            [
+                data_df.groupby(['draft_id', 'pack_number']).max(), 
+                pandas.DataFrame({'pick_count': data_df.groupby(['draft_id', 'pack_number']).draft_id.count()})
+            ], axis=1
+        )
 
-        grouped_df = pack_seen_df.groupby(['draft_id', 'pack_number']).agg({''})
+        return grouped_df[grouped_df['pick_count'] == NUM_CARDS_IN_PACK]
+
+    last_seen_agg = draft_df \
+        .map_partitions(alsa_lambda) \
+        .sum().compute()
     
-    last_seen = draft_df \
-        .set_index('draft_id_idx', sorted - True) \
-        .map_partitions(lambda df: )
-        
+    return pandas.Series(
+        last_seen_agg[pack_seen_cols].values / last_seen_agg[is_seen_cols].values,
+        index=names
+    )
+
 
 class DraftData:
     def __init__(
@@ -103,3 +82,14 @@ class DraftData:
         if type(filter_spec) == dict:
             filter_spec = filter.from_spec(filter_spec)
         self._filter = filter_spec
+
+    def set_index(self):
+        self._draft_df.set_index('draft_id_idx', sorted=True)
+
+    def alsa(self):
+        self.set_index()
+        if self._filter is not None:
+            df = self._draft_df.loc[self._filter]
+        else:
+            df = self._draft_df
+        return alsa(df)
