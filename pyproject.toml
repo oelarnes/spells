@@ -11,6 +11,7 @@ dependencies = [
     "numpy>=2.1.1",
     "requests>=2.32.3",
     "dask[dataframe]>=2024.9.1",
+    "matplotlib>=3.9.2",
 ]
 requires-python = ">=3.12"
 readme = "README.md"
