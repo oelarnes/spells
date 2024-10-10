@@ -18,6 +18,7 @@ class Scryfall:
         self._cards_en = self._client.scryfall.cards_en
         self._sets = sets # only query for these sets
     
+    @staticmethod
     def _fetch_cards():
         bulk_data_result = requests.get(API_URL)
         download_uri = bulk_data_result.json()['download_uri']

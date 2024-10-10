@@ -1,4 +1,4 @@
-from mdu.scryfall import populate_cache
+from mdu.scryfall import Scryfall
 
 if __name__ == '__main__':
-    populate_cache()
+    Scryfall().refresh_cache()

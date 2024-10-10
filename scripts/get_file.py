@@ -20,5 +20,5 @@ force_download = (args.f.lower() == 'y')
 
 for set_code in sets:
     print(f'Downloading {file_type} file for set {set_code}')
-    download_data_set(set_code, file_type, force_download )
+    download_data_set(set_code, file_type, force_download=force_download )
     write_card_file(set_code)
