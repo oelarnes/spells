@@ -32,6 +32,7 @@ def extend_draft_columns(draft_df: dd.DataFrame):
     draft_df['player_cohort'] = draft_df.apply(player_cohort, axis=1, meta=pandas.Series(dtype="object"))
     draft_df['date'] = draft_df['draft_time'].apply(lambda t: str(t[0:10]), meta=pandas.Series(dtype="object"))
     draft_df['week'] = draft_df['date'].apply(week_from_date, meta=pandas.Series(dtype="object"))
+    draft_df['event_matches'] = draft_df['event_match_wins'] + draft_df['event_match_losses']
 
     return draft_df
 
@@ -40,9 +41,7 @@ def ata(draft_df: dd.DataFrame, groupby='name'):
     return draft_df.groupby('picked').pick_number.mean().compute().rename(columns={'picked': 'name'})
 
 
-def apwr(draft_df: dd.DataFrame, groupby='name'):
-    df = draft_df.copy()
-    df['event_matches'] = df['event_match_wins'] + df['event_match_losses']
+def draft_df_basic_aggs(draft_df: dd.DataFrame):
     return df.groupby('name')[['event_matches', 'event_match_wins']].sum() 
 
 
