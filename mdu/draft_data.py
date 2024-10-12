@@ -37,12 +37,17 @@ def extend_draft_columns(draft_df: dd.DataFrame):
     return draft_df
 
 
-def ata(draft_df: dd.DataFrame, groupby='name'):
-    return draft_df.groupby('picked').pick_number.mean().compute().rename(columns={'picked': 'name'})
+def draft_basic_aggs(draft_view: dd.DataFrame):
+    df = draft_view.groupby('pick')[['event_matches', 'event_match_wins', 'pick_number']]\
+        .agg({'event_matches': 'sum', 'event_match_wins': 'sum', 'pick_number': ['sum', 'count']})\
+        .compute()
+    df['taken_count'] = df[('pick_number', 'count')]
+    df['num_matches'] = df[('event_matches', 'sum')]
+    df['ata'] = df[('pick_number', 'sum')] / df['taken_count'] + 1
+    df['apmwr'] = df[('event_match_wins', 'sum')] / df['num_matches']
+    df.index.name = 'name'
 
-
-def draft_df_basic_aggs(draft_df: dd.DataFrame):
-    return df.groupby('name')[['event_matches', 'event_match_wins']].sum() 
+    return df[['taken_count', 'ata', 'num_matches', 'apmwr']]
 
 
 def alsa(draft_df: dd.DataFrame, groupby='name'):
