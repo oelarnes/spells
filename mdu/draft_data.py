@@ -37,37 +37,38 @@ def extend_draft_columns(draft_df: dd.DataFrame):
     return draft_df
 
 
-def draft_basic_aggs(draft_view: dd.DataFrame):
+def picked_stats(draft_view: dd.DataFrame):
     df = draft_view.groupby('pick')[['event_matches', 'event_match_wins', 'pick_number']]\
         .agg({'event_matches': 'sum', 'event_match_wins': 'sum', 'pick_number': ['sum', 'count']})\
         .compute()
-    df['taken_count'] = df[('pick_number', 'count')]
+    df['num_picked'] = df[('pick_number', 'count')]
     df['num_matches'] = df[('event_matches', 'sum')]
-    df['ata'] = df[('pick_number', 'sum')] / df['taken_count'] + 1
+    df['ata'] = df[('pick_number', 'sum')] / df['num_picked'] + 1
     df['apmwr'] = df[('event_match_wins', 'sum')] / df['num_matches']
+
+    df = df[['num_picked', 'ata', 'num_matches', 'apmwr']].sort_index()
+    df.columns = ['num_picked', 'ata', 'num_matches', 'apmwr'] # remove multiindex
     df.index.name = 'name'
 
-    return df[['taken_count', 'ata', 'num_matches', 'apmwr']]
+    return df
 
 
-def alsa(draft_df: dd.DataFrame, groupby='name'):
-    if groupby != 'name':
-        raise NotImplementedError(f'groupby {groupby} not implemented yet')
+def seen_stats(draft_view: dd.DataFrame):
     pattern = f'^{PACK_CARD_PREFIX}'
 
-    pack_card_cols = [c for c in draft_df.columns if c.startswith(PACK_CARD_PREFIX)]
-    pack_seen_cols = [f"num_{c}" for c in pack_card_cols]
+    pack_card_cols = [c for c in draft_view.columns if c.startswith(PACK_CARD_PREFIX)]
+    pick_num_seen_cols = [f"num_{c}" for c in pack_card_cols]
     is_seen_cols = [f"count_{c}" for c in pack_card_cols]
     names = [re.split(pattern, col)[1] for col in pack_card_cols]
         
     def alsa_lambda(df):
         is_seen_df = numpy.minimum(df[pack_card_cols], 1)
-        pack_seen_df = is_seen_df.mul(df['pick_number'] + 1, axis=0)
+        pick_num_seen_df = is_seen_df.mul(df['pick_number'] + 1, axis=0)
 
         data_df = pandas.concat([
             df[['draft_id', 'pack_number']],
             is_seen_df.rename(columns=dict(zip(pack_card_cols, is_seen_cols))),
-            pack_seen_df.rename(columns=dict(zip(pack_card_cols, pack_seen_cols)))
+            pick_num_seen_df.rename(columns=dict(zip(pack_card_cols, pick_num_seen_cols)))
         ], axis=1)
 
         grouped_df = pandas.concat(
@@ -79,16 +80,19 @@ def alsa(draft_df: dd.DataFrame, groupby='name'):
 
         return grouped_df[grouped_df['pick_count'] == NUM_CARDS_IN_PACK]
 
-    last_seen_agg = draft_df \
+    last_seen_agg = draft_view \
         .map_partitions(alsa_lambda) \
         .sum().compute()
+
+    num_seen_sum = draft_view[pack_card_cols].sum().compute()
     
     return pandas.DataFrame(
         {
-            'alsa': last_seen_agg[pack_seen_cols].values / last_seen_agg[is_seen_cols].values,
-            'num_seen': last_seen_agg[is_seen_cols].values
+            'alsa': last_seen_agg[pick_num_seen_cols].values / last_seen_agg[is_seen_cols].values,
+            'num_packs_seen': last_seen_agg[is_seen_cols].values,
+            'num_seen': num_seen_sum.values,
         },
-        index=names
+        index=pandas.Index(names, name='name')
     )
 
 
@@ -126,5 +130,9 @@ class DraftData:
     def set_index(self):
         self._draft_df.set_index('draft_id_idx', sorted=True)
 
-    def alsa(self):
-        return alsa(self.draft_view)
+    def seen_stats(self):
+        return seen_stats(self.draft_view)
+    
+    def picked_stats(self):
+        return picked_stats(self.draft_view)
+ 
