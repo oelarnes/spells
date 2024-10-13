@@ -7,11 +7,12 @@ import numpy
 import pandas
 
 from mdu.cache_17l import data_dir_path, data_file_path
+from mdu.config.mdu_cfg import CARDS_PER_PACK_MAP
 import mdu.filter as filter
 
 PACK_CARD_PREFIX = 'pack_card_'
 POOL_PREFIX = 'pool_'
-NUM_CARDS_IN_PACK = 13
+
 
 def player_cohort(row):
     if row['user_n_games_bucket'] < 100:
@@ -53,7 +54,7 @@ def picked_stats(draft_view: dd.DataFrame):
     return df
 
 
-def seen_stats(draft_view: dd.DataFrame):
+def seen_stats(draft_view: dd.DataFrame, cards_per_pack: int):
     pattern = f'^{PACK_CARD_PREFIX}'
 
     pack_card_cols = [c for c in draft_view.columns if c.startswith(PACK_CARD_PREFIX)]
@@ -78,7 +79,7 @@ def seen_stats(draft_view: dd.DataFrame):
             ], axis=1
         )
 
-        return grouped_df[grouped_df['pick_count'] == NUM_CARDS_IN_PACK]
+        return grouped_df[grouped_df['pick_count'] == cards_per_pack]
 
     last_seen_agg = draft_view \
         .map_partitions(alsa_lambda) \
@@ -131,7 +132,7 @@ class DraftData:
         self._draft_df.set_index('draft_id_idx', sorted=True)
 
     def seen_stats(self):
-        return seen_stats(self.draft_view)
+        return seen_stats(self.draft_view, CARDS_PER_PACK_MAP[self.set_code])
     
     def picked_stats(self):
         return picked_stats(self.draft_view)

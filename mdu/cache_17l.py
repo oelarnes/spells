@@ -2,15 +2,12 @@ import urllib.request, os, gzip, shutil, re, logging, csv
 from enum import Enum
 
 from mdu.scryfall import Scryfall
+from mdu.config.mdu_cfg import DRAFT_SET_SYMBOL_MAP
 
 DATA_DIR = os.path.join('data', '17l-files')
 
 URL_TEMPLATE = "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
 
-DRAFT_SET_SYMBOL_MAP = {
-    "BLB": ["blb", "spg"],
-    "OTJ": ["otj", "otp", "big", "spg"]
-}
 
 class EventType(Enum):
     PREMIER = "PremierDraft"
