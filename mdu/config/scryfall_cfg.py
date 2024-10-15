@@ -195,14 +195,6 @@ COLOR_NAME_ORDER = [
     "Colorless"
 ]
 
-DRAFT_SET_SYMBOL_MAP = {
-    "BLB": ["blb", "spg"],
-    "OTJ": ["otj", "otp", "big", "spg"]
-}
-
-CUBE_ATTRS = ['name', 'image_link', 'color_identity_name', 'type', 'cmc', 'subtypes', 'cube_sort_order']
-SET_ATTRS = ['name_with_image_link', 'set_template_sort_order', 'color_identity_name', 'type', 'rarity', 'cmc', 'subtypes', 'power', 'toughness', 'oracle_one_line']
-
 RARITY_ORDER = [
     'common',
     'uncommon',
