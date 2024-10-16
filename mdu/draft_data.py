@@ -124,32 +124,41 @@ class DraftData:
     def picked_stats(self):
         return picked_counts(self.draft_view)
  
-    def game_stats(self, game_view: pandas.DataFrame):
+    def game_rates(self, game_counts: pandas.DataFrame):
         """
-        A data frame of statistics easily aggregated from the 'game' file.
-        Generally, statistics are "card-weighted", meaning two copies of a card in a deck contribute two games and two wins, etc
-
-        num_in_pool
-        num_wins_in_pool
         in_pool_gwr             := num_win_in_pool / num_in_pool
-        num_in_deck
-        num_wins_in_deck
         gpwr                    := num_wins_in_deck / num_in_deck
         gp_pct                  := num_games_in_deck / num_games_in_pool
-        num_oh                  # number of appearances in opening hand after mulligans
         ohwr                    := <num_wins_oh> / num_oh
-        num_drawn               # number of appearances as drawn after OH but not tutored
         gdwr                    := <num_wins_drawn> / num_drawn
-        num_gih                 := num_oh + num_drawn                                       # "Game In Hand"
         gihwr                   := <num_wins_gih> / num_gih
-        num_gns                 := num_games_in_deck - num_gih - <num_tutored>
         gnswr                   := <num_wins_gns> / num_gns
         iwd                     := gihwr - gnswr                                            # "Improvement When Drawn"
         ihd                     := gihwr - gpwr                                             # "In-Hand Delta
-        mull_in_deck            # mulligans in deck
         mull_rate               := mull_in_deck / num_in_deck
-        turns_in_deck           # total turns taken with card in deck
         turns_per_game          := turns_in_deck / num_in_deck
+        """
+        pass
+
+    def game_counts(self, game_view: pandas.DataFrame):
+        """
+        A data frame of counts easily aggregated from the 'game' file.
+        Card-attribute groupbys can be applied after this stage to be filtered through a rates aggregator.
+
+        num_in_pool
+        num_wins_in_pool
+        num_in_deck
+        num_wins_in_deck
+        num_oh                  # number of appearances in opening hand after mulligans
+        num_wins_oh
+        num_drawn               # number of appearances as drawn after OH but not tutored
+        num_wins_drawn
+        num_gih                 := num_oh + num_drawn                                       # "Game In Hand"
+        num_wins_gih
+        num_gns                 := num_games_in_deck - num_gih - <num_tutored>
+        num_wins_gns
+        mull_in_deck            # mulligans in deck
+        turns_in_deck           # total turns taken with card in deck
         """
 
         names = self.card_names
@@ -197,7 +206,5 @@ class DraftData:
                 'num_win_tutored': win_result[names_by_type['tutored']].values,
                 'num_mull': games_result[names_by_type['mull']].values,
                 'num_turns': games_result[names_by_type['turn']].values
-                
-
             }
         )
