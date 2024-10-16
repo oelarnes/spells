@@ -11,8 +11,14 @@ from mdu.cache_17l import data_file_path
 from mdu.config.mdu_cfg import CARDS_PER_PACK_MAP
 import mdu.filter as filter
 
-PACK_CARD_PREFIX = 'pack_card_'
-POOL_PREFIX = 'pool_'
+SUPPORTED_GROUPBYS = {
+    'draft': {'name', 'rank', 'pack_number', 'pick_number', 'user_n_games_bucket', 'user_game_win_rate_bucket', 'player_cohort', 
+              'draft_date', 'draft_week'},
+    'game': {'name', 'build_index', 'match_number', 'game_number', 'rank', 'opp_rank', 'main_colors', 'splash_colors', 'on_play', 
+             'num_mulligans', 'opp_num_mulligans', 'opp_colors', 'user_n_games_bucket', 'user_game_win_rate_bucket', 'player_cohort', 
+             'draft_date', 'draft_week', 'game_length'},
+    'card': {'rarity', 'color_identity_str', 'type', 'cmc'}
+}
 
 def player_cohort(row):
     if row['user_n_games_bucket'] < 100:
@@ -24,79 +30,47 @@ def player_cohort(row):
     return 'Middle'
 
 
+def game_length(num_turns):
+    if num_turns < 6: 
+        return 'Very Short'
+    if num_turns < 9:
+        return 'Short'
+    if num_turns < 12:
+        return 'Medium'
+    return 'Long'
+        
+
 def week_from_date(date_str):
     date = datetime.date.fromisoformat(date_str)
     return (date - datetime.timedelta(days = date.weekday())).isoformat()
 
 def extend_shared_columns(df: dd.DataFrame):
     df['player_cohort'] = df.apply(player_cohort, axis=1, meta=pandas.Series(dtype="object"))
-    df['date'] = df['draft_time'].apply(lambda t: str(t[0:10]), meta=pandas.Series(dtype="object"))
-    df['week'] = df['date'].apply(week_from_date, meta=pandas.Series(dtype="object"))
+    df['draft_date'] = df['draft_time'].apply(lambda t: str(t[0:10]), meta=pandas.Series(dtype="object"))
+    df['draft_week'] = df['draft_date'].apply(week_from_date, meta=pandas.Series(dtype="object"))
 
 def extend_draft_columns(draft_df: dd.DataFrame):
     extend_shared_columns(draft_df)
     draft_df['event_matches'] = draft_df['event_match_wins'] + draft_df['event_match_losses']
+    draft_df['name'] = draft_df['pick']
 
 def extend_game_columns(game_df: dd.DataFrame):
     extend_shared_columns(game_df)
+    game_df['game_length'] = game_df['num_turns'].apply(game_length)
     
-def picked_stats(draft_view: dd.DataFrame):
-    df = draft_view.groupby('pick')[['event_matches', 'event_match_wins', 'pick_number']]\
+def picked_counts(draft_view: dd.DataFrame, groupbys=['name']):
+    df = draft_view.groupby(groupbys)[['event_matches', 'event_match_wins', 'pick_number']]\
         .agg({'event_matches': 'sum', 'event_match_wins': 'sum', 'pick_number': ['sum', 'count']})\
         .compute()
     df['num_picked'] = df[('pick_number', 'count')]
     df['num_matches'] = df[('event_matches', 'sum')]
-    df['ata'] = df[('pick_number', 'sum')] / df['num_picked'] + 1
-    df['apmwr'] = df[('event_match_wins', 'sum')] / df['num_matches']
+    df['sum_pick_num'] = df[('pick_number', 'sum')] + df['num_picked']
+    df['num_match_wins'] = df[('event_match_wins', 'sum')]
 
-    df = df[['num_picked', 'ata', 'num_matches', 'apmwr']].sort_index()
-    df.columns = ['num_picked', 'ata', 'num_matches', 'apmwr'] # remove multiindex
-    df.index.name = 'name'
+    df = df[['num_picked', 'sum_pick_num', 'num_matches', 'num_match_wins']].sort_index()
+    df.columns = ['num_picked', 'sum_pick_num', 'num_matches', 'num_match_wins'] # remove multiindex
 
     return df
-
-
-def seen_stats(draft_view: dd.DataFrame, cards_per_pack: int):
-    pattern = f'^{PACK_CARD_PREFIX}'
-
-    pack_card_cols = [c for c in draft_view.columns if c.startswith(PACK_CARD_PREFIX)]
-    pick_num_seen_cols = [f"num_{c}" for c in pack_card_cols]
-    is_seen_cols = [f"count_{c}" for c in pack_card_cols]
-    names = [re.split(pattern, col)[1] for col in pack_card_cols]
-        
-    def alsa_lambda(df):
-        is_seen_df = numpy.minimum(df[pack_card_cols], 1)
-        pick_num_seen_df = is_seen_df.mul(df['pick_number'] + 1, axis=0)
-
-        data_df = pandas.concat([
-            df[['draft_id', 'pack_number']],
-            is_seen_df.rename(columns=dict(zip(pack_card_cols, is_seen_cols))),
-            pick_num_seen_df.rename(columns=dict(zip(pack_card_cols, pick_num_seen_cols)))
-        ], axis=1)
-
-        grouped_df = pandas.concat(
-            [
-                data_df.groupby(['draft_id', 'pack_number']).max(), 
-                pandas.DataFrame({'pick_count': data_df.groupby(['draft_id', 'pack_number']).draft_id.count()})
-            ], axis=1
-        )
-
-        return grouped_df[grouped_df['pick_count'] == cards_per_pack]
-
-    last_seen_agg = draft_view \
-        .map_partitions(alsa_lambda) \
-        .sum().compute()
-
-    num_seen_sum = draft_view[pack_card_cols].sum().compute()
-    
-    return pandas.DataFrame(
-        {
-            'alsa': last_seen_agg[pick_num_seen_cols].values / last_seen_agg[is_seen_cols].values,
-            'num_packs_seen': last_seen_agg[is_seen_cols].values,
-            'num_seen': num_seen_sum.values,
-        },
-        index=pandas.Index(names, name='name')
-    )
 
 
 class DraftData:
@@ -147,14 +121,8 @@ class DraftData:
             filter_spec = filter.from_spec(filter_spec)
         self._filter = filter_spec
 
-    def set_index(self):
-        self._draft_df.set_index('draft_id_idx', sorted=True)
-
-    def seen_stats(self):
-        return seen_stats(self.draft_view, CARDS_PER_PACK_MAP[self.set_code])
-    
     def picked_stats(self):
-        return picked_stats(self.draft_view)
+        return picked_counts(self.draft_view)
  
     def game_stats(self, game_view: pandas.DataFrame):
         """
