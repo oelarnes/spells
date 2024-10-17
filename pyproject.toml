@@ -25,7 +25,8 @@ build-backend = "pdm.backend"
 distribution = true
 
 [tool.pdm.scripts]
-get_cards = "python ./scripts/get_cards.py"
+get_cards = "python scripts/get_cards.py"
+imdu = "ipython -i scripts/interactive.py"
 
 [tool.pdm.dev-dependencies]
 dev = [
