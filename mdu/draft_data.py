@@ -10,6 +10,7 @@ import pandas
 from mdu.cache_17l import data_file_path
 from mdu.config.mdu_cfg import CARDS_PER_PACK_MAP
 import mdu.filter
+from mdu.get_dytpes import get_dtypes
 
 SUPPORTED_GROUPBYS = {
     'draft': {'name', 'rank', 'pack_number', 'pick_number', 'user_n_games_bucket', 'user_game_win_rate_bucket', 'player_cohort', 
@@ -72,9 +73,13 @@ class DraftData:
         
         self.set_filter(filter_spec)
 
-        self._draft_df = dd.read_csv(data_file_path(set_code, 'draft'))
+        draft_path = data_file_path(set_code, 'draft')
+        self._draft_df = dd.read_csv(draft_path, dtype=get_dtypes(draft_path))
+        
+        game_path = data_file_path(set_code, 'game')
+        self._game_df = dd.read_csv(game_path, dtype=get_dtypes(game_path))
+
         self._card_df = pandas.read_csv(data_file_path(set_code, 'card'))
-        self._game_df = dd.read_csv(data_file_path(set_code, 'game'))
         self._dv = None
         self._gv = None
 
@@ -129,11 +134,12 @@ class DraftData:
         """
         pass
 
-    def game_counts(self, game_view: pandas.DataFrame, groupbys:list =['name'], use_index=True):
+    def game_counts(self, groupbys:list =['name'], use_index=True):
         """
         A data frame of counts easily aggregated from the 'game' file.
         Card-attribute groupbys can be applied after this stage to be filtered through a rates aggregator.
         """
+        game_view = self.game_view
         names = self.card_names
         nonname_groupbys = [c for c in groupbys if c != 'name']
 
@@ -144,7 +150,9 @@ class DraftData:
             'drawn': 'drawn_',
             'tutored': 'tutored_',
             'mull': 'mull_',
-            'turn': 'turn_'
+            'turn': 'turn_',
+            'oh_totals': 'numoh_',
+            'drawn_totals': 'numdr_',
         }
 
         count_types = list(prefix_by_type.keys())
@@ -153,16 +161,26 @@ class DraftData:
             t: [f"{prefix_by_type[t]}{name}" for name in names] for t in count_types
         }
 
-        df = game_view.copy()
-        df[names_by_type['mull']] = df[names_by_type['deck']] * df['num_mulligans']
-        df[names_by_type['turn']] = df[names_by_type['deck']] * df['num_turns']
+        mull_df = game_view[names_by_type['deck']].mul(game_view['num_mulligans'], axis=0)
+        mull_df.columns = names_by_type['mull']
+
+        turns_df = game_view[names_by_type['deck']].mul(game_view['num_turns'], axis=0)
+        turns_df.columns = names_by_type['turn']
+
+        oh_totals = game_view[names_by_type['deck']].mul(game_view[names_by_type['oh']].sum(axis=1), axis=0)
+        oh_totals.columns = names_by_type['oh_totals']
+        
+        drawn_totals = game_view[names_by_type['deck']].mul(game_view[names_by_type['drawn']].sum(axis=1), axis=0)
+        drawn_totals.columns = names_by_type['drawn_totals']
+
+        df = dd.concat([game_view, mull_df, turns_df, oh_totals, drawn_totals], axis=1)
 
         games_df = df[
             functools.reduce(lambda curr, prev: prev + curr, names_by_type.values()) +
             nonname_groupbys
         ]
 
-        win_df = games_df[df['won']]
+        win_df = games_df.mul(df['won'], axis=0) # watch out for filtering before groupby and recombine
 
         if nonname_groupbys:
             games_result = games_df.groupby(nonname_groupbys).sum().compute()
@@ -183,7 +201,9 @@ class DraftData:
         # grab the indexes from the last one, they are all the same
         index_df = melt_df.reset_index().drop('value', axis='columns')
 
-        by_name_df = pandas.DataFrame(count_cols, index=pandas.MultiIndex.from_frame(index_df))
+        by_name_df = pandas.DataFrame(count_cols, dtype=numpy.int64)
+        by_name_df.index = pandas.MultiIndex.from_frame(index_df)
+
         if 'name' in groupbys:
             return by_name_df
         
