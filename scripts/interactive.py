@@ -21,8 +21,7 @@ print(f"""
     $MDU_PROJECT_DIR    = {os.environ['MDU_PROJECT_DIR']}
     set_code            = {(set_code := "BLB")}
     ddo, self           = {(ddo := draft_data.DraftData(set_code))}
-    groupbys            = {(groupbys := ['main_colors'])}
-    names               = {(names := (ddo.card_names))}
+    groupbys            = {(groupbys := ['name'])}
     myn                 = {(myn := ['Cache Grab', 'Carrot Cake', 'Savor', 'Take Out the Trash', 'Shore Up'])}
 """)
 print("%============================================================%")
