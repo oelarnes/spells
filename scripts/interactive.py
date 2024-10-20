@@ -1,4 +1,4 @@
-# launch `ipython -i scripts/interactive.py` or use `from scripts.interactive import *` in Jupyter
+# launch `ipython -i scripts/interactive.py [test]` or use `from scripts.interactive import *` in Jupyter
 
 import os, sys, functools, re
 
@@ -11,12 +11,19 @@ import mdu.draft_data as draft_data
 import mdu.filter
 import mdu.cache_17l as c17
 
-os.environ['MDU_PROJECT_DIR'] = '/Users/Joel/Projects/magic-data-utils/tests'
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    os.environ['MDU_PROJECT_DIR'] = '/Users/Joel/Projects/magic-data-utils/tests'
+else:
+    os.environ['MDU_PROJECT_DIR'] = '/Users/Joel/Projects/magic-data-utils'
+
 print("%============================================================%")
 print(f"""
-    set_code            = {(set_code := "BLB")}
-    ddo                 = {(ddo := draft_data.DraftData(set_code))}
     $MDU_PROJECT_DIR    = {os.environ['MDU_PROJECT_DIR']}
+    set_code            = {(set_code := "BLB")}
+    ddo, self           = {(ddo := draft_data.DraftData(set_code))}
+    groupbys            = {(groupbys := ['main_colors'])}
+    names               = {(names := (ddo.card_names))}
+    myn                 = {(myn := ['Cache Grab', 'Carrot Cake', 'Savor', 'Take Out the Trash', 'Shore Up'])}
 """)
 print("%============================================================%")
 self = ddo

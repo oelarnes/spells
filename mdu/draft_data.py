@@ -35,19 +35,24 @@ def week_from_date(date_str):
     date = datetime.date.fromisoformat(date_str)
     return (date - datetime.timedelta(days = date.weekday())).isoformat()
 
+
 def extend_shared_columns(df: dd.DataFrame):
     df['player_cohort'] = df.apply(player_cohort, axis=1, meta=pandas.Series(dtype="object"))
     df['draft_date'] = df['draft_time'].apply(lambda t: str(t[0:10]), meta=pandas.Series(dtype="object"))
     df['draft_week'] = df['draft_date'].apply(week_from_date, meta=pandas.Series(dtype="object"))
+
 
 def extend_draft_columns(draft_df: dd.DataFrame):
     extend_shared_columns(draft_df)
     draft_df['event_matches'] = draft_df['event_match_wins'] + draft_df['event_match_losses']
     draft_df['name'] = draft_df['pick']
 
+
 def extend_game_columns(game_df: dd.DataFrame):
     extend_shared_columns(game_df)
-    
+    return None    
+
+
 def picked_counts(draft_view: dd.DataFrame, groupbys=['name']):
     df = draft_view.groupby(groupbys)[['event_matches', 'event_match_wins', 'pick_number']]\
         .agg({'event_matches': 'sum', 'event_match_wins': 'sum', 'pick_number': ['sum', 'count']})\
@@ -71,7 +76,9 @@ class DraftData:
     ):
         self.set_code = set_code.upper()
         
-        self.set_filter(filter_spec)
+        if isinstance(filter_spec, dict):
+            filter_spec = mdu.filter.from_spec(filter_spec)
+        self._filter = filter_spec
 
         draft_path = data_file_path(set_code, 'draft')
         self._draft_df = dd.read_csv(draft_path, dtype=get_dtypes(draft_path))
@@ -110,11 +117,6 @@ class DraftData:
             self._gv = gv
         return self._gv
     
-    def set_filter(self, filter_spec: any):
-        if type(filter_spec) == dict:
-            filter_spec = mdu.filter.from_spec(filter_spec)
-        self._filter = filter_spec
-
     def picked_stats(self):
         return picked_counts(self.draft_view)
  
@@ -175,18 +177,17 @@ class DraftData:
 
         df = dd.concat([game_view, mull_df, turns_df, oh_totals, drawn_totals], axis=1)
 
-        games_df = df[
-            functools.reduce(lambda curr, prev: prev + curr, names_by_type.values()) +
-            nonname_groupbys
-        ]
+        all_count_df = df[functools.reduce(lambda curr, prev: prev + curr, names_by_type.values())]
+        win_count_df = all_count_df.where(df['won'], other=0)
 
-        win_df = games_df.mul(df['won'], axis=0) # watch out for filtering before groupby and recombine
+        all_df = dd.concat([all_count_df, df[nonname_groupbys]], axis=1)
+        win_df = dd.concat([win_count_df, df[nonname_groupbys]], axis=1)
 
         if nonname_groupbys:
-            games_result = games_df.groupby(nonname_groupbys).sum().compute()
+            games_result = all_df.groupby(nonname_groupbys).sum().compute()
             win_result = win_df.groupby(nonname_groupbys).sum().compute()
         else:
-            games_sum = games_df.sum().compute()
+            games_sum = all_df.sum().compute()
             games_result = pandas.DataFrame(numpy.expand_dims(games_sum.values, 0), columns=games_sum.index)
             win_sum = win_df.sum().compute()
             win_result = pandas.DataFrame(numpy.expand_dims(win_sum.values, 0), columns=win_sum.index)
