@@ -17,7 +17,7 @@ def _and(bool_fn1, bool_fn2):
 
 def base(lhs, rhs, op='='):
     """
-    recommended to import as "filter.base" for clarity
+    recommended to import as "mdu.filter.base" for clarity
 
     usage:
     df.loc[filter.base('A', 5)] == df[df['A'] == 5]
@@ -98,7 +98,12 @@ def from_spec(filter_spec):
             }
         ]
     }
+
+    an empty input returns None, which represents a trivial filter 
     """
+    if not filter_spec:
+        return None
+
     for filter_type in BUILDER_MAP:
         if filter_value := filter_spec.get(filter_type):
             assert len(filter_spec) == 1, f"Operator {filter_type} incompatible with additional keys."

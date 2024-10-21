@@ -10,6 +10,7 @@ import pandas
 from mdu.cache_17l import data_file_path
 from mdu.config.mdu_cfg import CARDS_PER_PACK_MAP
 import mdu.filter
+import mdu.caching
 from mdu.get_dytpes import get_dtypes
 
 SUPPORTED_GROUPBYS = {
@@ -72,13 +73,12 @@ class DraftData:
     def __init__(
         self,
         set_code: str, 
-        filter_spec: any = None
+        filter_spec: dict = None
     ):
         self.set_code = set_code.upper()
         
-        if isinstance(filter_spec, dict):
-            filter_spec = mdu.filter.from_spec(filter_spec)
-        self._filter = filter_spec
+        self._filter = mdu.filter.from_spec(filter_spec)
+        self.filter_str = str(filter_spec) # todo: standardize representation for sensible hashing
 
         draft_path = data_file_path(set_code, 'draft')
         self._draft_df = dd.read_csv(draft_path, dtype=get_dtypes(draft_path))
@@ -136,7 +136,17 @@ class DraftData:
         """
         pass
 
-    def game_counts(self, groupbys:list =['name'], use_index=True):
+    def game_counts(self, groupbys:list = ['name'], read_cache=True, write_cache=True):
+        if read_cache:
+            cache_key = mdu.caching.cache_key(self, groupbys)
+            if md.caching.cache_exists(cache_key):
+                return md.caching.read_cache(cache_key)
+        gc = self._game_counts(groupbys=groupbys)
+        if write_cache:
+            md.caching.write_cache(cache_key, gc)
+        return gc
+
+    def _game_counts(self, groupbys:list =['name']):
         """
         A data frame of counts easily aggregated from the 'game' file.
         Card-attribute groupbys can be applied after this stage to be filtered through a rates aggregator.
