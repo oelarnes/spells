@@ -206,6 +206,8 @@ class DraftData:
         by_name_df.index = pandas.MultiIndex.from_frame(index_df)
 
         if 'name' in groupbys:
+            if len(groupbys) == 1:
+                by_name_df.index = by_name_df.index.droplevel()
             return by_name_df
         
         return by_name_df.groupby(groupbys).sum()
