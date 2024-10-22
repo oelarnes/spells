@@ -5,16 +5,16 @@ import numpy
 
 from pandas.testing import assert_frame_equal
 
+import mdu.cache
 import mdu.draft_data as draft_data
 
 os.environ['MDU_PROJECT_DIR'] = 'tests' # will only work from project directory
-
 
 def test_game_counts():
     ddo = draft_data.DraftData('BLB')
 
     assert_frame_equal(
-        ddo.game_counts().head(),
+        ddo.game_counts(read_cache=False, write_cache=False).head(),
         pandas.DataFrame(
             {
                 'deck_all': [6, 0, 0, 0, 0],

@@ -10,17 +10,27 @@ import pandas
 from mdu.cache_17l import data_file_path
 from mdu.config.mdu_cfg import CARDS_PER_PACK_MAP
 import mdu.filter
-import mdu.caching
+import mdu.cache
 from mdu.get_dytpes import get_dtypes
 
 SUPPORTED_GROUPBYS = {
-    'draft': {'name', 'rank', 'pack_number', 'pick_number', 'user_n_games_bucket', 'user_game_win_rate_bucket', 'player_cohort', 
-              'draft_date', 'draft_week'},
-    'game': {'name', 'build_index', 'match_number', 'game_number', 'rank', 'opp_rank', 'main_colors', 'splash_colors', 'on_play', 
+    'draft': ['name', 'rank', 'pack_number', 'pick_number', 'user_n_games_bucket', 'user_game_win_rate_bucket', 'player_cohort', 
+              'draft_date', 'draft_week'],
+    'game': ['name', 'build_index', 'match_number', 'game_number', 'rank', 'opp_rank', 'main_colors', 'splash_colors', 'on_play', 
              'num_mulligans', 'opp_num_mulligans', 'opp_colors', 'user_n_games_bucket', 'user_game_win_rate_bucket', 'player_cohort', 
-             'draft_date', 'draft_week'},
-    'card': {'rarity', 'color_identity_str', 'type', 'cmc'}
+             'draft_date', 'draft_week'],
+    'card': ['color_identity_str', 'rarity', 'type', 'cmc']
 }
+
+
+def cache_key(ddo, *args, **kwargs):
+    set_code = ddo.set_code
+    filter_spec = ddo.filter_str
+    arg_str = str(args) + str(kwargs)
+    
+    hash_num = (set_code + filter_spec + arg_str).__hash__()
+    return hex(hash_num)[3:]
+
 
 def player_cohort(row):
     if row['user_n_games_bucket'] < 100:
@@ -106,6 +116,7 @@ class DraftData:
                 dv = dv.loc[self._filter]
             self._dv = dv
         return self._dv
+
     
     @property
     def game_view(self):
@@ -117,9 +128,7 @@ class DraftData:
             self._gv = gv
         return self._gv
     
-    def picked_stats(self):
-        return picked_counts(self.draft_view)
- 
+
     def game_rates(self, game_counts: pandas.DataFrame):
         """
         in_pool_gwr             := num_win_in_pool / num_in_pool
@@ -136,17 +145,26 @@ class DraftData:
         """
         pass
 
-    def game_counts(self, groupbys:list = ['name'], read_cache=True, write_cache=True):
-        if read_cache:
-            cache_key = mdu.caching.cache_key(self, groupbys)
-            if md.caching.cache_exists(cache_key):
-                return md.caching.read_cache(cache_key)
-        gc = self._game_counts(groupbys=groupbys)
-        if write_cache:
-            md.caching.write_cache(cache_key, gc)
-        return gc
 
-    def _game_counts(self, groupbys:list =['name']):
+    def game_counts(self, groupbys:list = ['name'], read_cache:bool = True, write_cache:bool = True) -> pandas.DataFrame:
+        method_name = "game_counts"
+        calc_method = self._game_counts
+
+        return self.fetch_or_get(method_name, calc_method, read_cache=read_cache, write_cache=write_cache, groupbys=groupbys)
+
+
+    def fetch_or_get(self, method_name: str, calc_method, read_cache: bool, write_cache: bool, **kwargs):
+        if read_cache:
+            key = cache_key(self, method_name, **kwargs)
+            if mdu.cache.cache_exists(self.set_code, key):
+                return mdu.cache.read_cache(self.set_code, key)
+        result = calc_method(**kwargs)
+        if write_cache:
+            mdu.cache.write_cache(self.set_code, key, result)
+        return result
+
+
+    def _game_counts(self, groupbys:list =['name']) -> pandas.DataFrame:
         """
         A data frame of counts easily aggregated from the 'game' file.
         Card-attribute groupbys can be applied after this stage to be filtered through a rates aggregator.

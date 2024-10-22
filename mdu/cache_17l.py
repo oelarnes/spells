@@ -3,8 +3,10 @@ from enum import Enum
 
 from mdu.scryfall import Scryfall
 from mdu.config.mdu_cfg import DRAFT_SET_SYMBOL_MAP
+from mdu.cache import data_dir_path
 
-DATA_DIR = os.path.join('data', '17l-files')
+DATA = 'data'
+C17_EXT = '17l-files'
 
 URL_TEMPLATE = "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
 
@@ -13,20 +15,12 @@ class EventType(Enum):
     PREMIER = "PremierDraft"
     TRADITIONAL = "TradDraft"
 
-def data_dir_path():
-    """
-    Where 17Lands data is stored. MDU_DATA_DIR environment variable is used, if it exists, otherwise the cwd is used
-    """
-    if project_dir := os.environ.get('MDU_PROJECT_DIR'):
-        return os.path.join(project_dir, DATA_DIR)
-    return DATA_DIR
-
 
 def data_file_path(set_code, dataset_type, event_type=EventType.PREMIER, zipped=False):
     if dataset_type == 'card':
-        return os.path.join(data_dir_path(), f"{set_code}_card.csv")
+        return os.path.join(data_dir_path(C17_EXT), f"{set_code}_card.csv")
     
-    return os.path.join(data_dir_path(), "{set_code}_{event_type}_{dataset_type}.csv{suffix}".format(
+    return os.path.join(data_dir_path(C17_EXT), "{set_code}_{event_type}_{dataset_type}.csv{suffix}".format(
         suffix=".gz" if zipped else "", 
         event_type=event_type.value,
         set_code=set_code, 
@@ -58,7 +52,7 @@ def process_zipped_file(target_path_zipped, target_path):
     
 
 def download_data_set(set_code, dataset_type, event_type=EventType.PREMIER, force_download=False):
-    target_dir = data_dir_path()
+    target_dir = data_dir_path(C17_EXT)
     if not os.path.isdir(target_dir):
         os.makedirs(target_dir)
     
