@@ -32,4 +32,6 @@ imdu = "ipython -i scripts/interactive.py"
 dev = [
     "ipython>=8.27.0",
     "pytest>=8.3.3",
+    "pylint>=3.3.1",
+    "black>=24.10.0",
 ]
