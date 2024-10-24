@@ -31,6 +31,7 @@ from mdu.cache_17l import data_file_path
 import mdu.filter
 import mdu.cache
 from mdu.get_dytpes import get_dtypes
+from mdu.extensions import game_counts_extensions
 
 SUPPORTED_GROUPBYS = {
     "draft": [
@@ -221,7 +222,9 @@ class DraftData:
             mdu.cache.write_cache(self.set_code, key, result)
         return result
 
-    def _game_counts(self, groupbys: list | None = None) -> pandas.DataFrame:
+    def _game_counts(
+        self, groupbys: list | None = None, custom_extensions: list | tuple = ()
+    ) -> pandas.DataFrame:
         """
         A data frame of counts easily aggregated from the 'game' file.
         Card-attribute groupbys can be applied after this stage to be filtered
@@ -230,49 +233,39 @@ class DraftData:
         if not groupbys:
             groupbys = ["name"]
 
+        extensions = game_counts_extensions + tuple(custom_extensions)
+
         game_view = self.game_view
         names = self.card_names
         nonname_groupbys = [c for c in groupbys if c != "name"]
 
-        prefix_by_type = {
-            "deck": "deck_",
-            "sb": "sideboard_",
-            "oh": "opening_hand_",
-            "drawn": "drawn_",
-            "tutored": "tutored_",
-            "mull": "mull_",
-            "turn": "turn_",
-            "oh_totals": "numoh_",
-            "drawn_totals": "numdr_",
-        }
+        prefixes = [
+            "deck",
+            "sideboard",
+            "opening_hand",
+            "drawn",
+            "tutored",
+        ]
 
-        count_types = list(prefix_by_type.keys())
+        prefix_names = {prefix: [f"{prefix}_{name}" for name in names] for prefix in prefixes}
 
-        names_by_type = {t: [f"{prefix_by_type[t]}{name}" for name in names] for t in count_types}
+        df_components = [game_view]
+        for ext in extensions:
+            df = ext["calc"](game_view, prefix_names)
+            ext_names = [f"{ext['prefix']}_{name}" for name in names]
+            prefix_names[ext["prefix"]] = ext_names
+            df.columns = ext_names
+            df_components.extend(df)
 
-        mull_df = game_view[names_by_type["deck"]].mul(game_view["num_mulligans"], axis=0)
-        mull_df.columns = names_by_type["mull"]
+        concat_df = dd.concat(df_components, axis=1)
 
-        turns_df = game_view[names_by_type["deck"]].mul(game_view["num_turns"], axis=0)
-        turns_df.columns = names_by_type["turn"]
-
-        oh_totals = game_view[names_by_type["deck"]].mul(
-            game_view[names_by_type["oh"]].sum(axis=1), axis=0
-        )
-        oh_totals.columns = names_by_type["oh_totals"]
-
-        drawn_totals = game_view[names_by_type["deck"]].mul(
-            game_view[names_by_type["drawn"]].sum(axis=1), axis=0
-        )
-        drawn_totals.columns = names_by_type["drawn_totals"]
-
-        df = dd.concat([game_view, mull_df, turns_df, oh_totals, drawn_totals], axis=1)
-
-        all_count_df = df[functools.reduce(lambda curr, prev: prev + curr, names_by_type.values())]
+        all_count_df = concat_df[
+            functools.reduce(lambda curr, prev: prev + curr, prefix_names.values())
+        ]
         win_count_df = all_count_df.where(df["won"], other=0)
 
-        all_df = dd.concat([all_count_df, df[nonname_groupbys]], axis=1)
-        win_df = dd.concat([win_count_df, df[nonname_groupbys]], axis=1)
+        all_df = dd.concat([all_count_df, concat_df[nonname_groupbys]], axis=1)
+        win_df = dd.concat([win_count_df, concat_df[nonname_groupbys]], axis=1)
 
         if nonname_groupbys:
             games_result = all_df.groupby(nonname_groupbys).sum().compute()
@@ -288,12 +281,12 @@ class DraftData:
             )
 
         count_cols = {}
-        for count_type in count_types:
+        for prefix in prefixes:
             for outcome, df in {"all": games_result, "win": win_result}.items():
-                count_df = df[names_by_type[count_type]]
+                count_df = df[prefix_names[prefix]]
                 count_df.columns = names
                 melt_df = pandas.melt(count_df, var_name="name", ignore_index=False)
-                count_cols[f"{count_type}_{outcome}"] = melt_df["value"].reset_index(drop=True)
+                count_cols[f"{prefix}_{outcome}"] = melt_df["value"].reset_index(drop=True)
         # grab the indexes from the last one, they are all the same
         index_df = melt_df.reset_index().drop("value", axis="columns")
 
