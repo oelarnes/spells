@@ -77,27 +77,6 @@ def cache_key(ddo, *args, **kwargs):
     return hex(hash_num)[3:]
 
 
-def player_cohort(row):
-    if row["user_n_games_bucket"] < 100:
-        return "All"
-    if row["user_game_win_rate_bucket"] < 0.49:
-        return "Bottom"
-    if row["user_game_win_rate_bucket"] > 0.57:
-        return "Top"
-    return "Middle"
-
-
-def week_from_date(date_str):
-    date = datetime.date.fromisoformat(date_str)
-    return (date - datetime.timedelta(days=date.weekday())).isoformat()
-
-
-def extend_shared_columns(df: dd.DataFrame):
-    df["player_cohort"] = df.apply(player_cohort, axis=1, meta=pandas.Series(dtype="object"))
-    df["draft_date"] = df["draft_time"].apply(
-        lambda t: str(t[0:10]), meta=pandas.Series(dtype="object")
-    )
-    df["draft_week"] = df["draft_date"].apply(week_from_date, meta=pandas.Series(dtype="object"))
 
 
 def extend_draft_columns(draft_df: dd.DataFrame) -> None:
