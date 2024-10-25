@@ -77,8 +77,6 @@ def cache_key(ddo, *args, **kwargs):
     return hex(hash_num)[3:]
 
 
-
-
 def extend_draft_columns(draft_df: dd.DataFrame) -> None:
     extend_shared_columns(draft_df)
     draft_df["event_matches"] = draft_df["event_match_wins"] + draft_df["event_match_losses"]
