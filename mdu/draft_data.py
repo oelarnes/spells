@@ -20,52 +20,14 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
-import functools
-import datetime
-
-import dask.dataframe as dd
-import numpy
+import polars as pl
 import pandas
 
 from mdu.cache_17l import data_file_path
-import mdu.filter
+from mdu.get_schema import schema
 import mdu.cache
-from mdu.get_dytpes import get_dtypes
-from mdu.extensions import game_counts_extensions
-
-SUPPORTED_GROUPBYS = {
-    "draft": [
-        "name",
-        "rank",
-        "pack_number",
-        "pick_number",
-        "user_n_games_bucket",
-        "user_game_win_rate_bucket",
-        "player_cohort",
-        "draft_date",
-        "draft_week",
-    ],
-    "game": [
-        "name",
-        "build_index",
-        "match_number",
-        "game_number",
-        "rank",
-        "opp_rank",
-        "main_colors",
-        "splash_colors",
-        "on_play",
-        "num_mulligans",
-        "opp_num_mulligans",
-        "opp_colors",
-        "user_n_games_bucket",
-        "user_game_win_rate_bucket",
-        "player_cohort",
-        "draft_date",
-        "draft_week",
-    ],
-    "card": ["color_identity_str", "rarity", "type", "cmc"],
-}
+import mdu.filter
+from mdu import columns
 
 
 def cache_key(ddo, *args, **kwargs):
@@ -77,57 +39,33 @@ def cache_key(ddo, *args, **kwargs):
     return hex(hash_num)[3:]
 
 
-def extend_draft_columns(draft_df: dd.DataFrame) -> None:
-    extend_shared_columns(draft_df)
-    draft_df["event_matches"] = draft_df["event_match_wins"] + draft_df["event_match_losses"]
-    draft_df["name"] = draft_df["pick"]
-
-
-def extend_game_columns(game_df: dd.DataFrame) -> None:
-    extend_shared_columns(game_df)
-
-
-def picked_counts(draft_view: dd.DataFrame, groupbys=None):
-    if not groupbys:
-        groupbys = ["name"]
-
-    df = (
-        draft_view.groupby(groupbys)[["event_matches", "event_match_wins", "pick_number"]]
-        .agg({"event_matches": "sum", "event_match_wins": "sum", "pick_number": ["sum", "count"]})
-        .compute()
-    )
-    df["num_picked"] = df[("pick_number", "count")]
-    df["num_matches"] = df[("event_matches", "sum")]
-    df["sum_pick_num"] = df[("pick_number", "sum")] + df["num_picked"]
-    df["num_match_wins"] = df[("event_match_wins", "sum")]
-
-    df = df[["num_picked", "sum_pick_num", "num_matches", "num_match_wins"]].sort_index()
-    df.columns = [
-        "num_picked",
-        "sum_pick_num",
-        "num_matches",
-        "num_match_wins",
-    ]  # remove multiindex
-
-    return df
-
-
 class DraftData:
-    def __init__(self, set_code: str, filter_spec: dict = None):
+    def __init__(
+        self, 
+        set_code: str, 
+        filter_spec: dict | None = None, 
+        column_specs: list[dict] | None = None
+    ):
         self.set_code = set_code.upper()
 
-        self._filter = mdu.filter.from_spec(filter_spec)
-        self.filter_str = str(filter_spec)  # todo: standardize representation for sensible hashing
-
+        if filter_spec:
+            self.set_filter(filter_spec)
         draft_path = data_file_path(set_code, "draft")
-        self._draft_df = dd.read_csv(draft_path, dtype=get_dtypes(draft_path))
-
         game_path = data_file_path(set_code, "game")
-        self._game_df = dd.read_csv(game_path, dtype=get_dtypes(game_path))
+        self._base_dfs = {
+            columns.View.DRAFT: pl.scan_csv(draft_path, schema=schema(draft_path)),
+            columns.View.GAME: pl.scan_csv(game_path, schema=schema(draft_path)),
+        }
 
-        self._card_df = pandas.read_csv(data_file_path(set_code, "card"))
-        self._dv = None
-        self._gv = None
+        self._card_df = pl.read_csv(data_file_path(set_code, "card"))
+
+        self._extension_map = {}
+        if column_specs:
+            for spec in column_specs:
+                self.register_column(spec)
+
+    def register_column(self, spec):
+        self._extension_map[spec.view][spec.name] = columns.DDColumn(**spec)
 
     @property
     def card_names(self):
@@ -135,46 +73,30 @@ class DraftData:
         The card file is generated from the draft data file, so this is exactly the
         list of card names used in the datasets
         """
-        return list(self._card_df["name"].values)
+        return list(self._card_df["name"])
 
-    @property
-    def draft_view(self):
-        if self._dv is None:
-            dv = self._draft_df.copy()
-            extend_draft_columns(dv)
-            if self._filter is not None:
-                dv = dv.loc[self._filter]
-            self._dv = dv
-        return self._dv
-
-    @property
-    def game_view(self):
-        if self._gv is None:
-            gv = self._game_df.copy()
-            extend_game_columns(gv)
-            if self._filter is not None:
-                gv = gv.loc[self._filter]
-            self._gv = gv
-        return self._gv
-
-    def game_rates(self, game_counts: pandas.DataFrame):
+    def set_filter(self, filter_spec: dict):
+        self._filter = mdu.filter.from_spec(filter_spec)
+        self.filter_str = str(filter_spec)  # todo: standardize representation for sensible hashing
+       
+    def extended_view(self, view_name: columns.View, col_names: list[str]):
         """
-        in_pool_gwr             := num_win_in_pool / num_in_pool
-        gpwr                    := num_wins_in_deck / num_in_deck
-        gp_pct                  := num_games_in_deck / num_games_in_pool
-        ohwr                    := <num_wins_oh> / num_oh
-        gdwr                    := <num_wins_drawn> / num_drawn
-        gihwr                   := <num_wins_gih> / num_gih
-        gnswr                   := <num_wins_gns> / num_gns
-        iwd                     := gihwr - gnswr
-        ihd                     := gihwr - gpwr
-        mull_rate               := mull_in_deck / num_in_deck
-        turns_per_game          := turns_in_deck / num_in_deck
+        extend the base df with the provided columns, which must be defined in columns.py 
+        or registered via self.register_column()
         """
-        pass
+        base_df = self._base_dfs[view_name]
+
+        required_columns = [self._column_map[view_name][col] for col in col_names]
+
+        not_applied = [col for col in required if col.col is not None]
+
+        while len(not_applied):
+            for col in not_applied:
+                if any([c in not_applied for c in col.dependencies]):
+                    
 
     def game_counts(
-        self, groupbys: list | None = None, read_cache: bool = True, write_cache: bool = True
+        self, groupbys: list[str], col_names: list[str], read_cache: bool = True, write_cache: bool = True
     ) -> pandas.DataFrame:
         method_name = "game_counts"
         calc_method = self._game_counts
@@ -182,38 +104,42 @@ class DraftData:
         return self.fetch_or_get(
             method_name,
             calc_method,
+            groupbys,
+            col_names,
             read_cache=read_cache,
             write_cache=write_cache,
-            groupbys=groupbys,
         )
 
     def fetch_or_get(
-        self, method_name: str, calc_method, read_cache: bool, write_cache: bool, **kwargs
+        self, method_name: str, calc_method, groupbys: list[str], col_names: list[str], read_cache: bool, write_cache: bool 
     ):
+        key = cache_key(self, method_name, groupbys, col_names)
         if read_cache:
-            key = cache_key(self, method_name, **kwargs)
             if mdu.cache.cache_exists(self.set_code, key):
                 return mdu.cache.read_cache(self.set_code, key)
-        result = calc_method(**kwargs)
+        result = calc_method(groupbys, col_names)
         if write_cache:
             mdu.cache.write_cache(self.set_code, key, result)
         return result
 
     def _game_counts(
-        self, groupbys: list | None = None, custom_extensions: list | tuple = ()
+        self, groupbys = list[str], col_names = list[str]
     ) -> pandas.DataFrame:
         """
         A data frame of counts easily aggregated from the 'game' file.
         Card-attribute groupbys can be applied after this stage to be filtered
         through a rates aggregator.
         """
+        gv = self._game_df.copy()
+        if self._filter is not None:
+            gv = gv.loc[self._filter]
         if not groupbys:
             groupbys = ["name"]
 
-        extensions = game_counts_extensions + tuple(custom_extensions)
-
-        game_view = self.game_view
         names = self.card_names
+
+        gv = self.apply_extensions(gv, extensions)
+
         nonname_groupbys = [c for c in groupbys if c != "name"]
 
         prefixes = [

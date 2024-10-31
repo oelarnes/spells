@@ -18,6 +18,7 @@ from enum import StrEnum
 
 import polars as pl
 
+
 class View(StrEnum):
     GAME = "game_view"
     DRAFT = "draft_view"

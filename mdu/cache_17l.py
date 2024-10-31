@@ -57,7 +57,7 @@ def process_zipped_file(target_path_zipped, target_path):
                 if row[draft_id_loc] != draft_id:
                     draft_id = row[draft_id_loc]
                     draft_id_idx += 1
-                row.insert(0, draft_id_idx)
+                row.insert(0, str(draft_id_idx))
                 writer.writerow(row)
 
     os.remove(target_path_zipped)

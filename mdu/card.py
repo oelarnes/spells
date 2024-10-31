@@ -158,5 +158,5 @@ class Card():
     def set_attr_line(self):
         return self.attr_line(SET_ATTRS)
 
-    def __getattr__(self, attr):
+    def __getattr__(self, _):
         return ''
