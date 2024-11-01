@@ -2,15 +2,6 @@ import datetime
 
 import polars as pl
 
-
-def draft_week(df: dd.DataFrame, _: list[str]):
-    def week(date_str):
-        date = datetime.date.fromisoformat(date_str)
-        return (date - datetime.timedelta(days=date.weekday())).isoformat()
-
-    return df["draft_date"].apply(week, meta=pandas.Series(dtype="object"))
-
-
 # game_counts_extensions take the game view data frame with previous
 # extensions and return a dataframe of named count columns, eg "deck_<card name>",
 # which will be renamed with the extension name as a prefix, e.g. "mull_<card name>"

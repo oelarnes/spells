@@ -27,7 +27,7 @@ from mdu.cache_17l import data_file_path
 from mdu.get_schema import schema
 import mdu.cache
 import mdu.filter
-from mdu import columns
+from mdu.columns import View, ColName, DDColumn, column_def_map, default_columns
 
 
 def cache_key(ddo, *args, **kwargs):
@@ -37,6 +37,63 @@ def cache_key(ddo, *args, **kwargs):
 
     hash_num = hash(set_code + filter_spec + arg_str)
     return hex(hash_num)[3:]
+
+
+def expand_columns(
+    view: View,
+    columns: set[str],
+    col_def_map: dict[View, dict],
+):
+    cols = set(columns)
+    expanded_cols = set(cols)
+    for col in columns:
+        col_def = col_def_map[view].get(col)
+        if col_def is not None:
+            for dep in col_def.dependencies:
+                expanded_cols.add(dep)
+
+    if cols == expanded_cols:
+        return cols
+    else:
+        return(expand_columns(view, expanded_cols, col_def_map))
+
+
+def metrics(
+    columns: list[str] | None = None, 
+    groupbys: list[str] | None = None, 
+    filter_spec: dict | None = None,
+    extensions: list[DDColumn] | None = None,
+):
+    if columns is None:
+        columns = list(default_columns)
+
+    if groupbys is None:
+        groupbys = [ColName.NAME]
+
+    if extensions is not None:
+        col_def_map = {
+            v: dict(column_def_map[v]) for v in View
+        }
+        for col in extensions:
+            if isinstance(col.view, tuple):
+                for i in (0,1):
+                    col_def_map[col.view[i]][col.name] = col
+            else:
+                col_def_map[col.view][col.name] = col
+    else:
+       col_def_map = column_def_map 
+
+    if filter_spec is None:
+        filter_spec = {}
+
+    filter_expr = mdu.filter.from_spec(filter_spec)
+
+    col_set = set(columns)
+    col_set.update(groupbys)
+    col_set.update(mdu.filter.get_leaf_lhs(filter_expr))
+
+    draft_col_set = expand_columns(View.DRAFT, col_set, col_def_map)
+    game_col_set = expand_columns(View.GAME, col_set, col_def_map)
 
 
 class DraftData:
@@ -53,8 +110,8 @@ class DraftData:
         draft_path = data_file_path(set_code, "draft")
         game_path = data_file_path(set_code, "game")
         self._base_dfs = {
-            columns.View.DRAFT: pl.scan_csv(draft_path, schema=schema(draft_path)),
-            columns.View.GAME: pl.scan_csv(game_path, schema=schema(draft_path)),
+            View.DRAFT: pl.scan_csv(draft_path, schema=schema(draft_path)),
+            View.GAME: pl.scan_csv(game_path, schema=schema(draft_path)),
         }
 
         self._card_df = pl.read_csv(data_file_path(set_code, "card"))
@@ -65,7 +122,7 @@ class DraftData:
                 self.register_column(spec)
 
     def register_column(self, spec):
-        self._extension_map[spec.view][spec.name] = columns.DDColumn(**spec)
+        self._extension_map[spec.view][spec.name] = DDColumn(**spec)
 
     @property
     def card_names(self):
@@ -79,7 +136,7 @@ class DraftData:
         self._filter = mdu.filter.from_spec(filter_spec)
         self.filter_str = str(filter_spec)  # todo: standardize representation for sensible hashing
        
-    def extended_view(self, view_name: columns.View, col_names: list[str]):
+    def extended_view(self, view_name: View, col_names: list[str]):
         """
         extend the base df with the provided columns, which must be defined in columns.py 
         or registered via self.register_column()
@@ -88,12 +145,6 @@ class DraftData:
 
         required_columns = [self._column_map[view_name][col] for col in col_names]
 
-        not_applied = [col for col in required if col.col is not None]
-
-        while len(not_applied):
-            for col in not_applied:
-                if any([c in not_applied for c in col.dependencies]):
-                    
 
     def game_counts(
         self, groupbys: list[str], col_names: list[str], read_cache: bool = True, write_cache: bool = True

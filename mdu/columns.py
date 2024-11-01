@@ -63,7 +63,7 @@ class DDColumn:
     name: str
     view: View | tuple[View, View]
     col_type: ColType | tuple[ColType, ColType]
-    col: pl.functions.col.Col | None = None
+    calc: pl.functions.col.Col | None = None
     dependencies: list[str] | None = None
 
 
@@ -77,43 +77,64 @@ class ColName(StrEnum):
     
     The definitions of the columns and how they may be used is defined in `column_defs`
     """
+    # shared
     #    EXPANSION = 'expansion'
     #    EVENT_TYPE = 'event_type'
     DRAFT_ID = "draft_id"
-    DRAFT_TIME = "draft_time"
-    DRAFT_DATE = "draft_date"
-    DRAFT_DAY_OF_WEEK = "draft_day_of_week"
-    DRAFT_HOUR = "draft_hour"
-    DRAFT_WEEK = "draft_week"
+    DRAFT_TIME = "draft_time" # modified, cast to time
     RANK = "rank"
+    # draft
     EVENT_MATCH_WINS = "event_match_wins"
     EVENT_MATCH_LOSSES = "event_match_losses"
     EVENT_MATCHES = "event_matches"
     IS_TROPHY = "is_trophy"
     PACK_NUMBER = "pack_number"
-    PACK_NUM = "pack_num" # plus 1
     PICK_NUMBER = "pick_number"
-    PICK_NUM = "pick_num" # plus 1
     PICKED = "picked"
-    NAME = "name" # special column for card name index
     PICK_MAINDECK_RATE = "pick_maindeck_rate"
     PICK_SIDEBOARD_IN_RATE = "pick_sideboard_in_rate"
     PACK_CARD = "pack_card"
-    PACK_NUM_CARD = "pack_num_card"
-    LAST_SEEN = "last_seen"
     POOL = "pool"
     USER_N_GAMES_BUCKET = "user_n_games_bucket"
     USER_GAME_WIN_RATE_BUCKET = "user_game_win_rate_bucket"
-    PLAYER_COHORT = "player_cohort"
     # game
     GAME_TIME = "game_time"
+    BUILD_INDEX = "build_index"
+    MATCH_NUMBER = "match_number"
+    GAME_NUMBER = "game_number"
+    OPP_RANK = "opp_rank" # not populated for recent sets
+    MAIN_COLORS = "main_colors"
+    SPLASH_COLORS = "splash_colors"
+    # extensions
+    DRAFT_DATE = "draft_date"
+    DRAFT_DAY_OF_WEEK = "draft_day_of_week"
+    DRAFT_HOUR = "draft_hour"
+    DRAFT_WEEK = "draft_week"
+    PACK_NUM = "pack_num" # pack_number plus 1
+    PICK_NUM = "pick_num" # pick_number plus 1
+    PACK_NUM_CARD = "pack_num_card"
+    LAST_SEEN = "last_seen"
+    NAME = "name" # special column for card name index
+    PLAYER_COHORT = "player_cohort"
     GAME_DATE = "game_date"
     GAME_DAY_OF_WEEK = "game_day_of_week"
     GAME_HOUR = "game_hour"
     GAME_WEEK = "game_week"
-    BUILD_INDEX = "build_index"
-    MATCH_NUMBER = "match_number"
+   
+    NUM_SEEN = "num_seen"
+    ALSA = "alsa"
+    NUM_PICKED = "num_picked"
+    ATA = "ata"
+    NUM_GP = "num_gp"
+    GP_PCT = "gp_pct"
+    GP_WR = "gp_wr"
 
+default_columns = [
+    ColName.ALSA,
+    ColName.PACK_CARD,
+    ColName.ATA,
+    ColName.NUM_PICKED,
+]
 
 column_defs = [
     DDColumn(
@@ -125,34 +146,34 @@ column_defs = [
         name = ColName.DRAFT_TIME,
         view = (View.GAME, View.DRAFT),
         col_type = ColType.FILTER_ONLY,
-        col = pl.col('draft_time').str.to_time("%+"),
+        calc = pl.col('draft_time').str.to_time("%+"),
     ),
     DDColumn(
         name = ColName.DRAFT_DATE,
         view = (View.GAME, View.DRAFT),
         col_type = ColType.GROUPBY,
-        col = pl.col('draft_time').dt.date(),
+        calc = pl.col('draft_time').dt.date(),
         dependencies = [ColName.DRAFT_TIME],
     ),
     DDColumn(
         name = ColName.DRAFT_DAY_OF_WEEK,
         view = (View.GAME, View.DRAFT),
         col_type = ColType.GROUPBY,
-        col = pl.col('draft_time').dt.weekday(),
+        calc = pl.col('draft_time').dt.weekday(),
         dependencies = [ColName.DRAFT_TIME],
     ),
     DDColumn(
         name = ColName.DRAFT_HOUR,
         view = (View.GAME, View.DRAFT),
         col_type = ColType.GROUPBY,
-        col = pl.col('draft_time').dt.hour(),
+        calc = pl.col('draft_time').dt.hour(),
         dependencies = [ColName.DRAFT_TIME],
     ),
     DDColumn(
         name = ColName.DRAFT_WEEK,
         view = (View.GAME, View.DRAFT),
         col_type = ColType.GROUPBY,
-        col = pl.col('draft_time').dt.week(),
+        calc = pl.col('draft_time').dt.week(),
         dependencies = [ColName.DRAFT_TIME],
     ),
     DDColumn(
@@ -174,13 +195,13 @@ column_defs = [
         name = ColName.EVENT_MATCHES,
         view = View.DRAFT,
         col_type = (ColType.GROUPBY, ColType.PICKED_SUM),
-        col = pl.col('event_match_wins') + pl.col('event_match_losses'),
+        calc = pl.col('event_match_wins') + pl.col('event_match_losses'),
     ),
     DDColumn(
         name = ColName.IS_TROPHY,
         view = View.DRAFT,
         col_type = (ColType.GROUPBY, ColType.PICKED_SUM),
-        col = pl.when(pl.col('event_type') == 'Traditional').then(pl.col('event_match_wins') == 3).otherwise(pl.col('event_match_wins') == 7),
+        calc = pl.when(pl.col('event_type') == 'Traditional').then(pl.col('event_match_wins') == 3).otherwise(pl.col('event_match_wins') == 7),
     ),
     DDColumn(
         name = ColName.PACK_NUMBER,
@@ -191,7 +212,7 @@ column_defs = [
         name = ColName.PACK_NUM,
         view = View.DRAFT,
         col_type = (ColType.GROUPBY, ColType.PICKED_SUM),
-        col = pl.col('pack_number') + 1
+        calc = pl.col('pack_number') + 1
     ),
     DDColumn(
         name = ColName.PICK_NUMBER,
@@ -202,7 +223,7 @@ column_defs = [
         name = ColName.PICK_NUM,
         view = View.DRAFT,
         col_type = (ColType.GROUPBY, ColType.PICKED_SUM),
-        col = pl.col('pick_number') + 1
+        calc = pl.col('pick_number') + 1
     ),
     DDColumn(
         name = ColName.PICKED,
@@ -234,13 +255,13 @@ column_defs = [
         name = ColName.PACK_NUM_CARD,
         view = View.DRAFT,
         col_type = ColType.NAME_SUM,
-        col = pl.col('^pack_card_.*$') * pl.col('pack_num')
+        calc = pl.col('^pack_card_.*$') * pl.col('pack_num')
     ),
     DDColumn(
         name = ColName.LAST_SEEN,
         view = View.DRAFT,
         col_type = ColType.NAME_SUM,
-        col = pl.col('^pack_card_.*$') * pl.min_horizontal('pack_num', 8)
+        calc = pl.col('^pack_card_.*$') * pl.min_horizontal('pack_num', 8)
     ),
     DDColumn(
         name = ColName.POOL,
@@ -261,7 +282,7 @@ column_defs = [
         name = ColName.PLAYER_COHORT,
         view = (View.DRAFT, View.GAME),
         col_type = ColType.GROUPBY,
-        col = pl.when(pl.col('user_n_games_bucket') < 100).then('All').otherwise(
+        calc = pl.when(pl.col('user_n_games_bucket') < 100).then('All').otherwise(
             pl.when(pl.col('user_game_win_rate_bucket') > 0.57).then('Top').otherwise(
                 pl.when(pl.col('user_game_win_rate_bucket') < 0.49).then('Bottom').otherwise('Middle')))
     ),
@@ -269,34 +290,34 @@ column_defs = [
         name = ColName.GAME_TIME,
         view = View.GAME,
         col_type = ColType.FILTER_ONLY,
-        col = pl.col('game_time').str.to_time("%+"),
+        calc = pl.col('game_time').str.to_time("%+"),
     ),
     DDColumn(
         name = ColName.GAME_DATE,
         view = View.GAME,
         col_type = ColType.GROUPBY,
-        col = pl.col('game_time').dt.date(),
+        calc = pl.col('game_time').dt.date(),
         dependencies = [ColName.GAME_TIME],
     ),
     DDColumn(
         name = ColName.GAME_DAY_OF_WEEK,
         view = View.GAME,
         col_type = ColType.GROUPBY,
-        col = pl.col('game_time').dt.weekday(),
+        calc = pl.col('game_time').dt.weekday(),
         dependencies = [ColName.GAME_TIME],
     ),
     DDColumn(
         name = ColName.GAME_HOUR,
         view = View.GAME,
         col_type = ColType.GROUPBY,
-        col = pl.col('game_time').dt.hour(),
+        calc = pl.col('game_time').dt.hour(),
         dependencies = [ColName.GAME_TIME],
     ),
     DDColumn(
         name = ColName.GAME_WEEK,
         view = View.GAME,
         col_type = ColType.GROUPBY,
-        col = pl.col('game_time').dt.week(),
+        calc = pl.col('game_time').dt.week(),
         dependencies = [ColName.GAME_TIME],
     ),
     DDColumn(
@@ -309,4 +330,29 @@ column_defs = [
         view = View.GAME,
         col_type = ColType.GROUPBY,
     ),
+    DDColumn(
+        name = ColName.GAME_NUMBER,
+        view = View.GAME,
+        col_type = ColType.GROUPBY,
+    ),
+    DDColumn(
+        name = ColName.OPP_RANK, 
+        view = View.GAME,
+        col_type = ColType.GROUPBY,
+    ),
+    DDColumn(
+        name = ColName.MAIN_COLORS, 
+        view = View.GAME,
+        col_type = ColType.GROUPBY,
+    ),
+    DDColumn(
+        name = ColName.SPLASH_COLORS, 
+        view = View.GAME,
+        col_type = ColType.GROUPBY,
+    ),
 ]
+
+column_def_map = {
+    v: {col.name: col for col in column_defs if col.view == v}
+    for v in View
+}
