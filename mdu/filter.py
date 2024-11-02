@@ -1,83 +1,97 @@
-from functools import reduce
+"""
+mdu.filter (don't import as builtin filter) returns a function from_spec
+that takes a dict-specified filter and returns a Filter object that records
+the dependent column names and contains a filter expression for use in polars.
+"""
 
-def _negate(bool_fn):
-    def negated(df):
-        return ~bool_fn(df)
-    return negated
+from dataclasses import dataclass
+import functools
 
-def _or(bool_fn1, bool_fn2):
-    def ored(df):
-        return bool_fn1(df) | bool_fn2(df)
-    return ored
+import polars as pl
 
-def _and(bool_fn1, bool_fn2):
-    def anded(df):
-        return bool_fn1(df) & bool_fn2(df)
-    return anded
 
-def base(lhs, rhs, op='='):
-    """
-    recommended to import as "mdu.filter.base" for clarity
+@dataclass
+class Filter:
+    expr: pl.Expr
+    lhs: frozenset[str]
 
-    usage:
-    df.loc[filter.base('A', 5)] == df[df['A'] == 5]
-    """
-    def _filter_eq(ds):
-        return ds[lhs] == rhs
 
-    def _filter_leq(ds):
-        return ds[lhs] <= rhs
+def _negate(f: Filter) -> Filter:
+    return Filter(expr=~f.expr, lhs=f.lhs)
 
-    def _filter_geq(ds):
-        return ds[lhs] >= rhs
-        
-    def _filter_in(ds):
-        return ds[lhs].isin(rhs)
 
-    fn_map = {
-        '=': _filter_eq,
-        '<=': _filter_leq,
-        '>=': _filter_geq,
-        'in': _filter_in,
-        '>': _negate(_filter_leq),
-        'nin': _negate(_filter_in),
-        '!=': _negate(_filter_eq),
-        '<': _negate(_filter_geq)
-    }
+def _or(f1: Filter, f2: Filter) -> Filter:
+    return Filter(expr=f1.expr | f2.expr, lhs=f1.lhs.union(f2.lhs))
 
-    filter_fn = fn_map[op]
 
-    filter_fn.lhs = lhs
-    filter_fn.rhs = rhs
-    filter_fn.op = op
+def _and(f1: Filter, f2: Filter) -> Filter:
+    return Filter(expr=f1.expr & f2.expr, lhs=f1.lhs.union(f2.lhs))
 
-    return filter_fn
 
-def all_of(filters):
-    filter_fn = reduce(_and, filters)
-    filter_fn.op = "$and"
-    filter_fn.children = filters
-    return filter_fn
+def _filter_eq(lhs: str, rhs: str) -> Filter:
+    return Filter(expr=pl.col(lhs) == rhs, lhs=frozenset(lhs))
 
-def any_of(filters):
-    filter_fn = reduce(_or, filters)
-    filter_fn.op = "$or"
-    filter_fn.children = filters
-    return filter_fn
 
-def negate(fil):
-    filter_fn = _negate(fil)
-    filter_fn.op = "$not"
-    filter_fn.children = [fil]
-    return filter_fn
+def _filter_leq(lhs: str, rhs: str) -> Filter:
+    return Filter(expr=pl.col(lhs) <= rhs, lhs=frozenset(lhs))
 
-BUILDER_MAP = {
-    '$and': all_of,
-    '$or': any_of,
-    '$not': negate
+
+def _filter_geq(lhs: str, rhs: str) -> Filter:
+    return Filter(expr=pl.col(lhs) >= rhs, lhs=frozenset(lhs))
+
+
+def _filter_in(lhs: str, rhs: str) -> Filter:
+    return Filter(expr=pl.col(lhs).is_in(rhs), lhs=frozenset(lhs))
+
+
+def _filter_gt(lhs: str, rhs: str) -> Filter:
+    return _negate(_filter_leq(lhs, rhs))
+
+
+def _filter_nin(lhs: str, rhs: str) -> Filter:
+    return _negate(_filter_in(lhs, rhs))
+
+
+def _filter_neq(lhs: str, rhs: str) -> Filter:
+    return _negate(_filter_eq(lhs, rhs))
+
+
+def _filter_lt(lhs: str, rhs: str) -> Filter:
+    return _negate(_filter_geq(lhs, rhs))
+
+
+filter_fn_map = {
+    "=": _filter_eq,
+    "<=": _filter_leq,
+    ">=": _filter_geq,
+    "in": _filter_in,
+    ">": _filter_gt,
+    "nin": _filter_nin,
+    "!=": _filter_neq,
+    "<": _filter_lt,
 }
 
-def from_spec(filter_spec):
+
+def base(lhs, rhs, op="=") -> Filter:
+    return filter_fn_map[op](lhs, rhs)
+
+
+def all_of(filters) -> Filter:
+    return functools.reduce(_and, filters)
+
+
+def any_of(filters) -> Filter:
+    return functools.reduce(_or, filters)
+
+
+def negate(fil) -> Filter:
+    return _negate(fil)
+
+
+BUILDER_MAP = {"$and": all_of, "$or": any_of, "$not": negate}
+
+
+def from_spec(filter_spec: dict) -> Filter | None:
     """
     filter_spec is a nested dictionary with the leaf-level consisting of specs of the form
     {'lhs': 'a', 'rhs': [1,2,3], 'op': 'in'}
@@ -99,34 +113,25 @@ def from_spec(filter_spec):
         ]
     }
 
-    an empty input returns None, which represents a trivial filter 
+    an empty input returns None, which represents a trivial filter
     """
     if not filter_spec:
         return None
 
-    for filter_type in BUILDER_MAP:
+    for filter_type, filter_fn in BUILDER_MAP.items():
         if filter_value := filter_spec.get(filter_type):
-            assert len(filter_spec) == 1, f"Operator {filter_type} incompatible with additional keys."
-            if type(filter_value) == list:
+            assert (
+                len(filter_spec) == 1
+            ), f"Operator {filter_type} incompatible with additional keys."
+            if isinstance(filter_value, list):
                 arg = tuple(map(from_spec, filter_value))
             else:
                 arg = from_spec(filter_value)
-            return BUILDER_MAP[filter_type](arg)
-    
+            return filter_fn(arg)
+
     if len(filter_spec) == 1:
         for lhs, rhs in filter_spec.items():
             return base(lhs, rhs)
-    
-    assert 'lhs' in filter_spec and 'rhs' in filter_spec
-    return base(filter_spec['lhs'], filter_spec['rhs'], filter_spec.get('op', '='))
-    
 
-def get_leaf_lhs(filter):
-    if hasattr(filter, 'lhs'):
-        return {filter.lhs}
-
-    lhs = set()
-    for child in filter.children:
-        lhs = lhs.union(get_leaf_lhs(child))
-    
-    return lhs
+    assert "lhs" in filter_spec and "rhs" in filter_spec
+    return base(filter_spec["lhs"], filter_spec["rhs"], filter_spec.get("op", "="))
