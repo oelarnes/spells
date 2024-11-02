@@ -91,7 +91,7 @@ def negate(fil) -> Filter:
 BUILDER_MAP = {"$and": all_of, "$or": any_of, "$not": negate}
 
 
-def from_spec(filter_spec: dict) -> Filter | None:
+def from_spec(filter_spec: dict | None) -> Filter | None:
     """
     filter_spec is a nested dictionary with the leaf-level consisting of specs of the form
     {'lhs': 'a', 'rhs': [1,2,3], 'op': 'in'}

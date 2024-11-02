@@ -30,7 +30,7 @@ import mdu.filter
 from mdu.columns import View, ColName, DDColumn, column_def_map, default_columns
 
 
-def cache_key(ddo, *args, **kwargs):
+def cache_key(ddo, *args, **kwargs) -> str:
     set_code = ddo.set_code
     filter_spec = ddo.filter_str
     arg_str = str(args) + str(kwargs)
@@ -41,9 +41,9 @@ def cache_key(ddo, *args, **kwargs):
 
 def expand_columns(
     view: View,
-    columns: set[str],
+    columns: frozenset[str],
     col_def_map: dict[View, dict],
-):
+) -> frozenset[str]:
     cols = set(columns)
     expanded_cols = set(cols)
     for col in columns:
@@ -83,14 +83,12 @@ def metrics(
     else:
        col_def_map = column_def_map 
 
-    if filter_spec is None:
-        filter_spec = {}
+    dd_filter = mdu.filter.from_spec(filter_spec)
 
-    filter_expr = mdu.filter.from_spec(filter_spec)
-
-    col_set = set(columns)
-    col_set.update(groupbys)
-    col_set.update(mdu.filter.get_leaf_lhs(filter_expr))
+    col_set = frozenset(columns)
+    col_set = col_set.union(groupbys)
+    if dd_filter is not None:
+        col_set = col_set.union(dd_filter.lhs)
 
     draft_col_set = expand_columns(View.DRAFT, col_set, col_def_map)
     game_col_set = expand_columns(View.GAME, col_set, col_def_map)
