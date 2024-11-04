@@ -1,114 +1,121 @@
-import mdu.filter as filter
+"""
+Test behavior of filters from dict specification
+"""
 
 import pytest
-import pandas
+import polars as pl
 
-ROW_0 = {'int': 1,      'float': 2.,    'text': 'hi'    }
-ROW_1 = {'int': 0,      'float': -0.4,  'text': 'foo'   }
-ROW_2 = {'int': -10,    'float': 3.14,  'text': 'bar'   }
+import mdu.filter
 
-TEST_DF = pandas.DataFrame([ ROW_0, ROW_1, ROW_2 ])
+ROW_0 = {"int": 1, "float": 2.0, "text": "hi"}
+ROW_1 = {"int": 0, "float": -0.4, "text": "foo"}
+ROW_2 = {"int": -10, "float": 3.14, "text": "bar"}
+
+TEST_DF = pl.DataFrame([ROW_0, ROW_1, ROW_2])
 
 
-@pytest.mark.parametrize('lhs, rhs, op, expected', [
-    ('int', 1, None, (True, False, False)),
-    ('int', 1, '<', (False, True, True)),
-    ('float', -0.4, '!=', (True, False, True)),
-    ('text', ['hi', 'ok', 'bar'], 'nin', (False, True, False))
-])
-def test_base(lhs, rhs, op, expected):
-    if op is None:
-        base_filter = filter.base(lhs, rhs)
+def format_test_string(test_string: str) -> str:
+    """
+    strip whitespace from each line to test pasted dataframe outputs
+    """
+    return "\n".join([l.strip() for l in test_string.splitlines() if l.strip()])
+
+
+@pytest.mark.parametrize(
+    "filter_spec, expected",
+    [
+        (None, None),
+        (
+            {"int": 1},
+            """
+shape: (1, 3)
+┌─────┬───────┬──────┐
+│ int ┆ float ┆ text │
+│ --- ┆ ---   ┆ ---  │
+│ i64 ┆ f64   ┆ str  │
+╞═════╪═══════╪══════╡
+│ 1   ┆ 2.0   ┆ hi   │
+└─────┴───────┴──────┘
+""",
+        ),
+        (
+            {"lhs": "float", "rhs": 3, "op": "<"},
+            """
+shape: (2, 3)
+┌─────┬───────┬──────┐
+│ int ┆ float ┆ text │
+│ --- ┆ ---   ┆ ---  │
+│ i64 ┆ f64   ┆ str  │
+╞═════╪═══════╪══════╡
+│ 1   ┆ 2.0   ┆ hi   │
+│ 0   ┆ -0.4  ┆ foo  │
+└─────┴───────┴──────┘
+        """,
+        ),
+        (
+            {"$not": {"$or": [{"text": "foo"}, {"int": 1}]}},
+            """
+shape: (1, 3)
+┌─────┬───────┬──────┐
+│ int ┆ float ┆ text │
+│ --- ┆ ---   ┆ ---  │
+│ i64 ┆ f64   ┆ str  │
+╞═════╪═══════╪══════╡
+│ -10 ┆ 3.14  ┆ bar  │
+└─────┴───────┴──────┘
+        """,
+        ),
+        (
+            {
+                "$and": [
+                    {"lhs": "text", "rhs": ["foo", "bar", "hi"], "op": "in"},
+                    {"lhs": "int", "rhs": [1, 2], "op": "nin"},
+                    {"lhs": "float", "rhs": 2.4, "op": "<"},
+                ]
+            },
+            """
+shape: (1, 3)
+┌─────┬───────┬──────┐
+│ int ┆ float ┆ text │
+│ --- ┆ ---   ┆ ---  │
+│ i64 ┆ f64   ┆ str  │
+╞═════╪═══════╪══════╡
+│ 0   ┆ -0.4  ┆ foo  │
+└─────┴───────┴──────┘
+            """,
+        ),
+    ],
+)
+def test_from_spec(filter_spec: dict | None, expected: str | None):
+    test_filter = mdu.filter.from_spec(filter_spec)
+
+    if expected is None:
+        assert test_filter is None
     else:
-        base_filter = filter.base(lhs, rhs, op)
-
-    assert (base_filter(TEST_DF) == pandas.Series(expected)).all()
-    assert (TEST_DF.loc[base_filter] == TEST_DF[pandas.Series(expected)]).all(None)
-    assert base_filter.lhs == lhs
-    assert base_filter.rhs == rhs
-    assert base_filter.op == (op if op else "=")
+        assert test_filter is not None
+        test_str = str(TEST_DF.filter(test_filter.expr))
+        print(test_str)
+        assert test_str == format_test_string(expected)
 
 
-@pytest.mark.parametrize('filters, expected', [
-    ((filter.base('int', 2, '<'), filter.base('float', 3.14)), (False, False, True)),
-    ((filter.base('int', 2, '<'), filter.base('int', 0, '>=')), (True, True, False)),
-    ((filter.base('text', ['bar'], 'in'), filter.base('int', 0, '!='), filter.base('float', 3.14, '<')), (False, False, False)),
-    ((filter.base('text', ['bar'], 'in'), filter.base('int', 0, '!='), filter.base('float', 3.14, '>=')), (False, False, True))
-])
-def test_all_of(filters, expected):
-    and_filter = filter.all_of(filters)
-
-    assert (and_filter(TEST_DF) == pandas.Series(expected)).all()
-    assert (TEST_DF.loc[and_filter] == TEST_DF[pandas.Series(expected)]).all(None)
-    assert and_filter.children == filters
-    assert and_filter.op == "$and"
-
-
-@pytest.mark.parametrize('filters, expected', [
-    ((filter.base('int', 2, '<'), filter.base('float', 3.14)), (True, True, True)),
-    ((filter.base('int', 2, '>'), filter.base('int', 0, '<=')), (False, True, True)),
-    ((filter.base('text', ['bar'], 'in'), filter.base('int', 0, '!='), filter.base('float', 3.14, '<')), (True, True, True)),
-    ((filter.base('text', ['bar'], 'in'), filter.base('int', 0, '!='), filter.base('float', 3.14, '>=')), (True, False, True))
-])
-def test_any_of(filters, expected):
-    and_filter = filter.any_of(filters)
-
-    assert (and_filter(TEST_DF) == pandas.Series(expected)).all()
-    assert and_filter.children == filters
-    assert and_filter.op == "$or"
-
-
-@pytest.mark.parametrize('test_filter, expected', [
-    (filter.all_of((filter.base('int', 2, '<'), filter.base('float', 3.14))), (True, True, False)),
-    (filter.any_of((filter.base('text', ['bar'], 'in'), filter.base('int', 0, '!='), filter.base('float', 3.14, '>='))), (False, True, False))
-])
-def test_not(test_filter, expected):
-    not_filter = filter.negate(test_filter)
-
-    assert (not_filter(TEST_DF) == pandas.Series(expected)).all()
-    assert not_filter.children == [test_filter]
-    assert not_filter.op == "$not"
-
-
-@pytest.mark.parametrize('filter_spec, expected', [
-    ({'int': 1}, (True, False, False)),
-    ({'lhs': 'float', 'rhs': 3, 'op': '<'}, (True, True, False)),
-    ({
-        '$not': {
-            '$or': [
-                {'text': 'foo'},
-                {'int': 1}
-            ]
-        }
-    }, (False, False, True)),
-    ({'$and': [
-        {'lhs': 'text', 'rhs': ['foo', 'bar', 'hi'], 'op': 'in'},
-        {'lhs': 'int', 'rhs': [1, 2], 'op': 'nin'},
-        {'lhs': 'float', 'rhs': 2.4, 'op': '<'}
-    ]}, (False, True, False))
-])
-def test_from_spec(filter_spec, expected):
-    test_filter = filter.from_spec(filter_spec)
-
-    assert (test_filter(TEST_DF) == pandas.Series(expected)).all()
-
-
-@pytest.mark.parametrize('test_filter, expected', [
-    (filter.from_spec({'int': 1}), {'int'}),
-    (filter.from_spec({
-        '$not': {
-            '$or': [
-                {'text': 'foo'},
-                {'int': 1}
-            ]
-        }
-    }), {'text', 'int'}),
-    (filter.from_spec({'$and': [
-        {'lhs': 'text', 'rhs': ['foo', 'bar', 'hi'], 'op': 'in'},
-        {'lhs': 'int', 'rhs': [1, 2], 'op': 'nin'},
-        {'lhs': 'float', 'rhs': 2.4, 'op': '<'}
-    ]}), {'int', 'float', 'text'})
-])
-def test_get_leaf_lhs(test_filter, expected):
-    assert filter.get_leaf_lhs(test_filter) == expected
-    
+@pytest.mark.parametrize(
+    "test_filter, expected",
+    [
+        (mdu.filter.from_spec({"int": 1}), {"int"}),
+        (mdu.filter.from_spec({"$not": {"$or": [{"text": "foo"}, {"int": 1}]}}), {"text", "int"}),
+        (
+            mdu.filter.from_spec(
+                {
+                    "$and": [
+                        {"lhs": "text", "rhs": ["foo", "bar", "hi"], "op": "in"},
+                        {"lhs": "int", "rhs": [1, 2], "op": "nin"},
+                        {"lhs": "float", "rhs": 2.4, "op": "<"},
+                    ]
+                }
+            ),
+            {"int", "float", "text"},
+        ),
+    ],
+)
+def test_lhs(test_filter, expected):
+    assert test_filter.lhs == expected

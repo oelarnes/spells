@@ -29,19 +29,19 @@ def _and(f1: Filter, f2: Filter) -> Filter:
 
 
 def _filter_eq(lhs: str, rhs: str) -> Filter:
-    return Filter(expr=pl.col(lhs) == rhs, lhs=frozenset(lhs))
+    return Filter(expr=pl.col(lhs) == rhs, lhs=frozenset({lhs}))
 
 
 def _filter_leq(lhs: str, rhs: str) -> Filter:
-    return Filter(expr=pl.col(lhs) <= rhs, lhs=frozenset(lhs))
+    return Filter(expr=pl.col(lhs) <= rhs, lhs=frozenset({lhs}))
 
 
 def _filter_geq(lhs: str, rhs: str) -> Filter:
-    return Filter(expr=pl.col(lhs) >= rhs, lhs=frozenset(lhs))
+    return Filter(expr=pl.col(lhs) >= rhs, lhs=frozenset({lhs}))
 
 
 def _filter_in(lhs: str, rhs: str) -> Filter:
-    return Filter(expr=pl.col(lhs).is_in(rhs), lhs=frozenset(lhs))
+    return Filter(expr=pl.col(lhs).is_in(rhs), lhs=frozenset({lhs}))
 
 
 def _filter_gt(lhs: str, rhs: str) -> Filter:
