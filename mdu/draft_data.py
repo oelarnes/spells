@@ -20,6 +20,8 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
+import functools
+
 import polars as pl
 import pandas
 
@@ -27,7 +29,9 @@ from mdu.cache_17l import data_file_path
 from mdu.get_schema import schema
 import mdu.cache
 import mdu.filter
-from mdu.columns import View, ColName, DDColumn, column_def_map, default_columns
+import mdu.columns as mcol
+from mdu.columns import DDColumn
+from mdu.enums import View, ColName
 
 
 def cache_key(ddo, *args, **kwargs) -> str:
@@ -39,59 +43,72 @@ def cache_key(ddo, *args, **kwargs) -> str:
     return hex(hash_num)[3:]
 
 
-def expand_columns(
-    view: View,
+def add_to_manifest(
     columns: frozenset[str],
-    col_def_map: dict[View, dict],
-) -> frozenset[str]:
-    cols = set(columns)
-    expanded_cols = set(cols)
+    manifest: dict[View, frozenset[str]],
+    col_def_map: dict[str, DDColumn],
+) -> dict[View, frozenset[str]]:
     for col in columns:
-        col_def = col_def_map[view].get(col)
-        if col_def is not None:
-            for dep in col_def.dependencies:
-                expanded_cols.add(dep)
+        cdef = col_def_map[col]
+        view = cdef.view
 
-    if cols == expanded_cols:
-        return cols
-    else:
-        return(expand_columns(view, expanded_cols, col_def_map))
+        if isinstance(view, tuple):
+            views = view
+        else:
+            views = (view,)
 
+        for v in views:
+            manifest[v] = manifest.get(v, frozenset()).union(col)
+
+    return manifest
+
+
+def get_manifest(
+    col_set: frozenset[str],
+    col_def_map: dict[str, DDColumn],
+) -> dict[View, frozenset[str]]:
+    added_cols = frozenset()
+    expanded_cols = col_set
+
+    manifest = {}
+    while expanded_cols != added_cols:
+        manifest = add_to_manifest(expanded_cols, {}, col_def_map)
+        added_cols = expanded_cols
+
+        for col in expanded_cols:
+            col_def = col_def_map[col]
+            deps = col_def.dependencies
+            if deps is not None:
+                expanded_cols = expanded_cols.union(deps)
+
+    return manifest
+        
 
 def metrics(
     columns: list[str] | None = None, 
     groupbys: list[str] | None = None, 
     filter_spec: dict | None = None,
     extensions: list[DDColumn] | None = None,
-):
-    if columns is None:
-        columns = list(default_columns)
+    as_pandas: bool = False,
+) -> pl.DataFrame | pd.DataFrame:
+    cols = tuple(mcol.default_columns ) if columns is None else tuple(columns)
+    gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
 
-    if groupbys is None:
-        groupbys = [ColName.NAME]
-
+    col_def_map = dict(mcol.column_def_map)
     if extensions is not None:
-        col_def_map = {
-            v: dict(column_def_map[v]) for v in View
-        }
         for col in extensions:
-            if isinstance(col.view, tuple):
-                for i in (0,1):
-                    col_def_map[col.view[i]][col.name] = col
-            else:
-                col_def_map[col.view][col.name] = col
-    else:
-       col_def_map = column_def_map 
+            col_def_map[col.name] = col
 
     dd_filter = mdu.filter.from_spec(filter_spec)
 
-    col_set = frozenset(columns)
-    col_set = col_set.union(groupbys)
+    col_set = frozenset(cols)
+    col_set = col_set.union(gbs)
     if dd_filter is not None:
         col_set = col_set.union(dd_filter.lhs)
 
-    draft_col_set = expand_columns(View.DRAFT, col_set, col_def_map)
-    game_col_set = expand_columns(View.GAME, col_set, col_def_map)
+    manifest = get_manifest(col_set, col_def_map)
+
+    return pl.DataFrame()
 
 
 class DraftData:
