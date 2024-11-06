@@ -287,6 +287,7 @@ column_defs = [
         view=View.GAME,
         col_type=ColType.GROUPBY,
     ),
+    DDColumn(),
 ]
 
 column_def_map = {col.name: col for col in column_defs}

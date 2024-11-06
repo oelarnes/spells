@@ -23,7 +23,7 @@ for performance.
 import functools
 
 import polars as pl
-import pandas
+import pandas as pd
 
 from mdu.cache_17l import data_file_path
 from mdu.get_schema import schema
@@ -58,7 +58,7 @@ def add_to_manifest(
             views = (view,)
 
         for v in views:
-            manifest[v] = manifest.get(v, frozenset()).union(col)
+            manifest[v] = manifest.get(v, frozenset()).union({col})
 
     return manifest
 
@@ -85,11 +85,13 @@ def get_manifest(
         
 
 def metrics(
+    set_code: str,
     columns: list[str] | None = None, 
     groupbys: list[str] | None = None, 
     filter_spec: dict | None = None,
     extensions: list[DDColumn] | None = None,
     as_pandas: bool = False,
+    use_streaming: bool = False,
 ) -> pl.DataFrame | pd.DataFrame:
     cols = tuple(mcol.default_columns ) if columns is None else tuple(columns)
     gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
@@ -107,6 +109,22 @@ def metrics(
         col_set = col_set.union(dd_filter.lhs)
 
     manifest = get_manifest(col_set, col_def_map)
+
+    base_views = frozenset()
+    for view in [View.DRAFT, View.GAME]:
+        for col in manifest[view]:
+            if col_def_map[col].view == view: # only found in this view
+                base_views = base_views.union({view})
+
+    for view in base_views:
+        df_path = data_file_path(set_code, view)
+        df = pl.scan_csv(df_path, schema=schema)
+
+        view_cols = [col_def_map[c] for c in manifest[view]]
+
+        basic_cols = {v for v in view_cols if v.col_type != ColType.NAME_SUM}
+        name_sum_cols = view_cols.
+        
 
     return pl.DataFrame()
 
@@ -163,7 +181,7 @@ class DraftData:
 
     def game_counts(
         self, groupbys: list[str], col_names: list[str], read_cache: bool = True, write_cache: bool = True
-    ) -> pandas.DataFrame:
+    ) -> pd.DataFrame:
         method_name = "game_counts"
         calc_method = self._game_counts
 
@@ -190,7 +208,7 @@ class DraftData:
 
     def _game_counts(
         self, groupbys = list[str], col_names = list[str]
-    ) -> pandas.DataFrame:
+    ) -> pd.DataFrame:
         """
         A data frame of counts easily aggregated from the 'game' file.
         Card-attribute groupbys can be applied after this stage to be filtered
@@ -241,11 +259,11 @@ class DraftData:
             win_result = win_df.groupby(nonname_groupbys).sum().compute()
         else:
             games_sum = all_df.sum().compute()
-            games_result = pandas.DataFrame(
+            games_result = pd.DataFrame(
                 numpy.expand_dims(games_sum.values, 0), columns=games_sum.index
             )
             win_sum = win_df.sum().compute()
-            win_result = pandas.DataFrame(
+            win_result = pd.DataFrame(
                 numpy.expand_dims(win_sum.values, 0), columns=win_sum.index
             )
 
@@ -254,13 +272,13 @@ class DraftData:
             for outcome, df in {"all": games_result, "win": win_result}.items():
                 count_df = df[prefix_names[prefix]]
                 count_df.columns = names
-                melt_df = pandas.melt(count_df, var_name="name", ignore_index=False)
+                melt_df = pd.melt(count_df, var_name="name", ignore_index=False)
                 count_cols[f"{prefix}_{outcome}"] = melt_df["value"].reset_index(drop=True)
         # grab the indexes from the last one, they are all the same
         index_df = melt_df.reset_index().drop("value", axis="columns")
 
-        by_name_df = pandas.DataFrame(count_cols, dtype=numpy.int64)
-        by_name_df.index = pandas.MultiIndex.from_frame(index_df)
+        by_name_df = pd.DataFrame(count_cols, dtype=numpy.int64)
+        by_name_df.index = pd.MultiIndex.from_frame(index_df)
 
         if "name" in groupbys:
             if len(groupbys) == 1:

@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import mdu.draft_data as draft_data
 import mdu.filter
 import mdu.cache_17l as c17
+import mdu.columns as mcol
+from mdu.enums import *
 
 if len(sys.argv) > 1 and sys.argv[1] == "test":
     os.environ["MDU_PROJECT_DIR"] = "/Users/Joel/Projects/magic-data-utils/tests"
@@ -28,7 +30,6 @@ print(
     f"""
     $MDU_PROJECT_DIR    = {os.environ['MDU_PROJECT_DIR']}
     set_code            = {(set_code := "BLB")}
-    ddo, self           = {(ddo := draft_data.DraftData(set_code))}
     groupbys            = {(groupbys := ['name'])}
     myn                 = {(myn := myn)}
 """
@@ -36,4 +37,3 @@ print(
 print(
     "%===============================================================================================%"
 )
-self = ddo
