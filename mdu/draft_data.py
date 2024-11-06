@@ -31,7 +31,7 @@ import mdu.cache
 import mdu.filter
 import mdu.columns as mcol
 from mdu.columns import DDColumn
-from mdu.enums import View, ColName
+from mdu.enums import View, ColName, ColType
 
 
 def cache_key(ddo, *args, **kwargs) -> str:
@@ -118,12 +118,20 @@ def metrics(
 
     for view in base_views:
         df_path = data_file_path(set_code, view)
-        df = pl.scan_csv(df_path, schema=schema)
+        df = pl.scan_csv(df_path, schema=schema(df_path))
 
         view_cols = [col_def_map[c] for c in manifest[view]]
 
-        basic_cols = {v for v in view_cols if v.col_type != ColType.NAME_SUM}
-        name_sum_cols = view_cols.
+        basic_cols = [v for v in view_cols if v.col_type != ColType.NAME_SUM]
+        name_sum_cols = [v for v in view_cols if v.col_type == ColType.NAME_SUM]
+
+        concat_list = [df.select([col.expr for col in basic_cols])]
+        for col in name_sum_cols:
+            col_df = df.select(col.expr)
+            col_df.columns = 
+            concat_list.append(df.select(col.expr))
+
+        calc_df = pl.concat(concat_list, how="horizontal")
         
 
     return pl.DataFrame()
