@@ -31,7 +31,7 @@ import mdu.cache
 import mdu.filter
 import mdu.columns as mcol
 from mdu.columns import DDColumn
-from mdu.enums import View, ColName, ColType
+from mdu.enums import View, ColName
 
 
 def cache_key(ddo, *args, **kwargs) -> str:
@@ -43,26 +43,6 @@ def cache_key(ddo, *args, **kwargs) -> str:
     return hex(hash_num)[3:]
 
 
-def add_to_manifest(
-    columns: frozenset[str],
-    manifest: dict[View, frozenset[str]],
-    col_def_map: dict[str, DDColumn],
-) -> dict[View, frozenset[str]]:
-    for col in columns:
-        cdef = col_def_map[col]
-        view = cdef.view
-
-        if isinstance(view, tuple):
-            views = view
-        else:
-            views = (view,)
-
-        for v in views:
-            manifest[v] = manifest.get(v, frozenset()).union({col})
-
-    return manifest
-
-
 def get_manifest(
     col_set: frozenset[str],
     col_def_map: dict[str, DDColumn],
@@ -72,7 +52,9 @@ def get_manifest(
 
     manifest = {}
     while expanded_cols != added_cols:
-        manifest = add_to_manifest(expanded_cols, {}, col_def_map)
+        for col in expanded_cols:
+            for v in col_def_map[col].base_views:
+                manifest[v] = manifest.get(v, frozenset()).union({col})
         added_cols = expanded_cols
 
         for col in expanded_cols:
@@ -80,9 +62,37 @@ def get_manifest(
             deps = col_def.dependencies
             if deps is not None:
                 expanded_cols = expanded_cols.union(deps)
+            if col_def.is_picked_sum:
+                expanded_cols = expanded_cols.union({ColName.PICKED})
 
     return manifest
         
+
+def base_view_df(
+    set_code: str,
+    view: View,
+    columns: frozenset[str],
+    col_defs: dict[str, DDColumn],
+    dd_filter: mdu.filter.Filter | None,
+) -> pl.LazyFrame:
+    df_path = data_file_path(set_code, view)
+    df = pl.scan_csv(df_path, schema=schema(df_path))
+
+    view_cols = [col_defs[c] for c in columns]
+
+    basic_cols = [v for v in view_cols if not v.is_name_sum]
+    name_sum_cols = [v for v in view_cols if v.is_name_sum]
+
+    concat_list = [df.select([col.expr for col in basic_cols])]
+    for col in name_sum_cols:
+        concat_list.append(df.select(col.expr))
+
+    df = pl.concat(concat_list, how="horizontal")
+    if dd_filter is not None:
+        return df.filter(dd_filter.expr)
+    else:
+        return df
+
 
 def metrics(
     set_code: str,
@@ -92,7 +102,7 @@ def metrics(
     extensions: list[DDColumn] | None = None,
     as_pandas: bool = False,
     use_streaming: bool = False,
-) -> pl.DataFrame | pd.DataFrame:
+) -> pl.DataFrame | pd.DataFrame | None:
     cols = tuple(mcol.default_columns ) if columns is None else tuple(columns)
     gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
 
@@ -113,28 +123,17 @@ def metrics(
     base_views = frozenset()
     for view in [View.DRAFT, View.GAME]:
         for col in manifest[view]:
-            if col_def_map[col].view == view: # only found in this view
+            if col_def_map[col].base_views == (view,): # only found in this view
                 base_views = base_views.union({view})
 
     for view in base_views:
-        df_path = data_file_path(set_code, view)
-        df = pl.scan_csv(df_path, schema=schema(df_path))
-
-        view_cols = [col_def_map[c] for c in manifest[view]]
-
-        basic_cols = [v for v in view_cols if v.col_type != ColType.NAME_SUM]
-        name_sum_cols = [v for v in view_cols if v.col_type == ColType.NAME_SUM]
-
-        concat_list = [df.select([col.expr for col in basic_cols])]
-        for col in name_sum_cols:
-            col_df = df.select(col.expr)
-            col_df.columns = 
-            concat_list.append(df.select(col.expr))
-
-        calc_df = pl.concat(concat_list, how="horizontal")
+        view_cols = manifest[view]
+        if dd_filter is not None:
+            if len(dd_filter.lhs.difference(view_cols)):
+                raise ValueError("All filter columns must appear in both base views used as dependencies")
+        df = base_view_df(set_code, view, manifest[view], col_def_map, dd_filter)
         
 
-    return pl.DataFrame()
 
 
 class DraftData:

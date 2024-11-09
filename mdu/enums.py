@@ -11,14 +11,6 @@ class View(StrEnum):
     AGG = "agg"  # post-sum calculations such as averages use this regardless of dependencies
 
 
-class ColType(StrEnum):
-    FILTER_ONLY = "filter_only"  # use in filters or calcs, but don't groupby or aggregate
-    GROUPBY = "groupby"  # the base view may be grouped by this column
-    NAME_SUM = "name_sum"  # columns of the form prefix_[card name], which are summed and unpivoted
-    PICKED_SUM = "picked_sum"  # single columns which are grouped by card name and summed
-    AGG_CALC = "agg_calc"  # post-sum calculations such as averages.
-
-
 class ColName(StrEnum):
     """
     A list of all available columns, including built-in extensions.
