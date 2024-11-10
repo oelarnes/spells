@@ -6,9 +6,8 @@ from enum import StrEnum
 
 
 class View(StrEnum):
-    GAME = "game_view"
-    DRAFT = "draft_view"
-    AGG = "agg"  # post-sum calculations such as averages use this regardless of dependencies
+    GAME = "game"
+    DRAFT = "draft"
 
 
 class ColName(StrEnum):
@@ -35,7 +34,7 @@ class ColName(StrEnum):
     IS_TROPHY = "is_trophy"
     PACK_NUMBER = "pack_number"
     PICK_NUMBER = "pick_number"
-    PICKED = "picked"
+    PICK = "pick"
     PICK_MAINDECK_RATE = "pick_maindeck_rate"
     PICK_SIDEBOARD_IN_RATE = "pick_sideboard_in_rate"
     PACK_CARD = "pack_card"

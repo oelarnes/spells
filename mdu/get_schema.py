@@ -12,6 +12,7 @@ from typing import Dict
 
 COLUMN_TYPES = (
 	# Metadata
+    (re.compile(r"^draft_id_idx$"), pl.Int64()),
 	(re.compile(r"^user_n_games_bucket$"), pl.Int16()),
 	(re.compile(r"^user_game_win_rate_bucket$"), pl.Float64),
 	(re.compile(r"^expansion$"), pl.String()),

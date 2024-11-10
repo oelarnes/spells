@@ -30,7 +30,7 @@ from mdu.get_schema import schema
 import mdu.cache
 import mdu.filter
 import mdu.columns as mcol
-from mdu.columns import DDColumn
+from mdu.columns import ColumnDefinition
 from mdu.enums import View, ColName
 
 
@@ -45,7 +45,7 @@ def cache_key(ddo, *args, **kwargs) -> str:
 
 def get_manifest(
     col_set: frozenset[str],
-    col_def_map: dict[str, DDColumn],
+    col_def_map: dict[str, ColumnDefinition],
 ) -> dict[View, frozenset[str]]:
     added_cols = frozenset()
     expanded_cols = col_set
@@ -62,8 +62,8 @@ def get_manifest(
             deps = col_def.dependencies
             if deps is not None:
                 expanded_cols = expanded_cols.union(deps)
-            if col_def.is_picked_sum:
-                expanded_cols = expanded_cols.union({ColName.PICKED})
+            if col_def.is_pick_sum:
+                expanded_cols = expanded_cols.union({ColName.PICK})
 
     return manifest
         
@@ -72,20 +72,20 @@ def base_view_df(
     set_code: str,
     view: View,
     columns: frozenset[str],
-    col_defs: dict[str, DDColumn],
+    col_defs: dict[str, ColumnDefinition],
     dd_filter: mdu.filter.Filter | None,
 ) -> pl.LazyFrame:
     df_path = data_file_path(set_code, view)
     df = pl.scan_csv(df_path, schema=schema(df_path))
 
-    view_cols = [col_defs[c] for c in columns]
+    all_defs = [col_defs[c] for c in columns]
 
-    basic_cols = [v for v in view_cols if not v.is_name_sum]
-    name_sum_cols = [v for v in view_cols if v.is_name_sum]
+    basic_defs = [d for d in all_defs if not d.is_name_sum]
+    name_sum_defs = [d for d in all_defs if d.is_name_sum]
 
-    concat_list = [df.select([col.expr for col in basic_cols])]
-    for col in name_sum_cols:
-        concat_list.append(df.select(col.expr))
+    concat_list = [df.select([cdef.expr for cdef in basic_defs])]
+    for cdef in name_sum_defs:
+        concat_list.append(df.select(cdef.expr))
 
     df = pl.concat(concat_list, how="horizontal")
     if dd_filter is not None:
@@ -99,7 +99,7 @@ def metrics(
     columns: list[str] | None = None, 
     groupbys: list[str] | None = None, 
     filter_spec: dict | None = None,
-    extensions: list[DDColumn] | None = None,
+    extensions: list[ColumnDefinition] | None = None,
     as_pandas: bool = False,
     use_streaming: bool = False,
 ) -> pl.DataFrame | pd.DataFrame | None:
@@ -162,7 +162,7 @@ class DraftData:
                 self.register_column(spec)
 
     def register_column(self, spec):
-        self._extension_map[spec.view][spec.name] = DDColumn(**spec)
+        self._extension_map[spec.view][spec.name] = ColumnDefinition(**spec)
 
     @property
     def card_names(self):

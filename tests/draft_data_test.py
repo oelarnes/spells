@@ -28,13 +28,13 @@ pandas.options.display.max_columns = 100
         (
             frozenset({ColName.DRAFT_WEEK, ColName.PICK_NUM}),
             {
-                View.DRAFT: frozenset({ColName.DRAFT_TIME, ColName.DRAFT_WEEK, ColName.PICK_NUM}),
+                View.DRAFT: frozenset({ColName.DRAFT_TIME, ColName.DRAFT_WEEK, ColName.PICK_NUM, ColName.PICK}),
                 View.GAME: frozenset({ColName.DRAFT_TIME, ColName.DRAFT_WEEK}),
             }
         )
     ]
 )
-def test_expand_columns(columns, expected):
+def test_get_manifest(columns, expected):
     cols_by_view = draft_data.get_manifest(columns, mcol.column_def_map)
 
     assert cols_by_view == expected
