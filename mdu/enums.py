@@ -57,6 +57,7 @@ class ColName(StrEnum):
     PACK_NUM = "pack_num"  # pack_number plus 1
     PICK_NUM = "pick_num"  # pick_number plus 1
     PACK_NUM_CARD = "pack_num_card"
+    PICK_NUM_CARD = "pick_num_card"
     LAST_SEEN = "last_seen"
     NAME = "name"  # special column for card name index
     PLAYER_COHORT = "player_cohort"

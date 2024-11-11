@@ -53,7 +53,7 @@ column_defs = [
     ColumnDefinition(
         name=ColName.DRAFT_TIME,
         base_views=(View.GAME, View.DRAFT),
-        expr=pl.col("draft_time").str.to_time("%Y-%m-%d %H:%M:%S"),
+        expr=pl.col("draft_time").str.to_datetime("%Y-%m-%d %H:%M:%S"),
     ),
     ColumnDefinition(
         name=ColName.DRAFT_DATE,
@@ -173,9 +173,23 @@ column_defs = [
         is_name_sum=True,
     ),
     ColumnDefinition(
+        name=ColName.PICK_NUM_CARD,
+        base_views=(View.DRAFT,),
+        expr=pl.col("^pack_card_.*$") * pl.col("pick_num"),
+        dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
+        is_name_sum=True,
+    ),
+    ColumnDefinition(
         name=ColName.LAST_SEEN,
         base_views=(View.DRAFT,),
         expr=pl.col("^pack_card_.*$") * pl.min_horizontal("pick_num", 8),
+        dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
+        is_name_sum=True,
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_SEEN,
+        base_views=(View.DRAFT,),
+        expr=pl.col("^pack_card_.$") * (pl.col("pick_num")<=8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
         is_name_sum=True,
     ),
@@ -215,7 +229,7 @@ column_defs = [
     ColumnDefinition(
         name=ColName.GAME_TIME,
         base_views=(View.GAME,),
-        expr=pl.col("game_time").str.to_time("%+"),
+        expr=pl.col("game_time").str.to_datetime("%Y-%m-%d %H-%M-%S"),
     ),
     ColumnDefinition(
         name=ColName.GAME_DATE,
@@ -289,16 +303,19 @@ def name_sum_rename(
     return cdef.name + '_' + card_name
 
 
-for column in column_defs:
-    if column.expr is not None:
-        if column.is_name_sum:
-            column.expr = column.expr.name.map(functools.partial(name_sum_rename, column))
-        else:
-            column.expr = column.expr.alias(column.name)
-    else:
-        if column.is_name_sum:
-            column.expr = pl.col(f"^{column.name}_.*$")
-        else:
-            column.expr = pl.col(column.name)
+col_def_map = {col.name: col for col in column_defs}
 
-column_def_map = {col.name: col for col in column_defs}
+for cdef in column_defs:
+    if cdef.expr is not None:
+        if cdef.is_name_sum:
+            if not cdef.dependencies or not col_def_map[cdef.dependencies[0]].is_name_sum:
+                raise ValueError("dependency 0 of a name_sum column with an expr must be a name_sum column to derive names")
+            cdef.expr = cdef.expr.name.map(functools.partial(name_sum_rename, cdef))
+        else:
+            cdef.expr = cdef.expr.alias(cdef.name)
+    else:
+        if cdef.is_name_sum:
+            cdef.expr = pl.col(f"^{cdef.name}_.*$")
+        else:
+            cdef.expr = pl.col(cdef.name)
+

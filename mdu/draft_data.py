@@ -34,39 +34,74 @@ from mdu.columns import ColumnDefinition
 from mdu.enums import View, ColName
 
 
-def cache_key(ddo, *args, **kwargs) -> str:
-    set_code = ddo.set_code
-    filter_spec = ddo.filter_str
+def cache_key(*args, **kwargs) -> str:
     arg_str = str(args) + str(kwargs)
-
-    hash_num = hash(set_code + filter_spec + arg_str)
+    hash_num = hash(arg_str)
     return hex(hash_num)[3:]
 
 
-def get_manifest(
+def resolve_base_view_cols(
     col_set: frozenset[str],
     col_def_map: dict[str, ColumnDefinition],
 ) -> dict[View, frozenset[str]]:
-    added_cols = frozenset()
-    expanded_cols = col_set
+    """
+    For each base view ('game' and 'draft'), return the columns
+    that must be present at the aggregation step. 'name' need not be
+    included. Dependencies within base views will be resolved by
+    `base_view_df`.
+    """
+    unresolved_cols = col_set
+    view_resolution = {}
 
-    manifest = {}
-    while expanded_cols != added_cols:
-        for col in expanded_cols:
-            for v in col_def_map[col].base_views:
-                manifest[v] = manifest.get(v, frozenset()).union({col})
-        added_cols = expanded_cols
+    iter = 0
+    while unresolved_cols and iter<100:
+        iter += 1
+        next_cols = frozenset()
+        for col in unresolved_cols:
+            cdef = col_def_map[col]
+            if cdef.base_views:
+                for view in cdef.base_views:
+                    view_resolution[view] = view_resolution.get(view, frozenset()).union({col})
+            else:
+                if cdef.dependencies is None:
+                    raise ValueError(
+                        f"Invalid column def: {col} has neither base views nor dependencies!"
+                    )
+                for dep in cdef.dependencies:
+                    next_cols = next_cols.union({dep})
+        unresolved_cols = next_cols
 
-        for col in expanded_cols:
-            col_def = col_def_map[col]
-            deps = col_def.dependencies
-            if deps is not None:
-                expanded_cols = expanded_cols.union(deps)
-            if col_def.is_pick_sum:
-                expanded_cols = expanded_cols.union({ColName.PICK})
-
-    return manifest
+    if iter >= 100:
+        raise ValueError("broken dependency chain in column spec, loop probable")
         
+    return view_resolution
+
+
+def col_df(
+    df: pl.LazyFrame,
+    col: str,
+    col_def_map: dict[str, ColumnDefinition],
+    is_base_view: bool,
+):
+    cdef = col_def_map[col]
+    if not cdef.dependencies:
+        return df.select(cdef.expr)
+
+    root_col_exprs = []
+    col_dfs = []
+    for dep in cdef.dependencies:
+        dep_def = col_def_map[dep]
+        if dep_def.dependencies is None or is_base_view and len(dep_def.base_views):
+            root_col_exprs.append(dep_def.expr)
+        else:
+            col_dfs.append(col_df(df, dep, col_def_map, is_base_view))
+
+    if root_col_exprs:
+        col_dfs.append(df.select(root_col_exprs))
+
+    dep_df = pl.concat(col_dfs, how="horizontal")
+    return dep_df.select(cdef.expr)
+
 
 def base_view_df(
     set_code: str,
@@ -90,23 +125,23 @@ def base_view_df(
     df = pl.concat(concat_list, how="horizontal")
     if dd_filter is not None:
         return df.filter(dd_filter.expr)
-    else:
-        return df
+
+    return df
 
 
 def metrics(
     set_code: str,
-    columns: list[str] | None = None, 
-    groupbys: list[str] | None = None, 
+    columns: list[str] | None = None,
+    groupbys: list[str] | None = None,
     filter_spec: dict | None = None,
     extensions: list[ColumnDefinition] | None = None,
     as_pandas: bool = False,
     use_streaming: bool = False,
 ) -> pl.DataFrame | pd.DataFrame | None:
-    cols = tuple(mcol.default_columns ) if columns is None else tuple(columns)
+    cols = tuple(mcol.default_columns) if columns is None else tuple(columns)
     gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
 
-    col_def_map = dict(mcol.column_def_map)
+    col_def_map = dict(mcol.col_def_map)
     if extensions is not None:
         for col in extensions:
             col_def_map[col.name] = col
@@ -118,178 +153,32 @@ def metrics(
     if dd_filter is not None:
         col_set = col_set.union(dd_filter.lhs)
 
-    manifest = get_manifest(col_set, col_def_map)
+    base_view_cols = resolve_base_view_cols(col_set, col_def_map)
 
     base_views = frozenset()
     for view in [View.DRAFT, View.GAME]:
-        for col in manifest[view]:
-            if col_def_map[col].base_views == (view,): # only found in this view
+        for col in base_view_cols[view]:
+            if col_def_map[col].base_views == (view,):  # only found in this view
                 base_views = base_views.union({view})
 
+    base_dfs = []
+
     for view in base_views:
-        view_cols = manifest[view]
+        view_cols = base_view_cols[view]
         if dd_filter is not None:
             if len(dd_filter.lhs.difference(view_cols)):
-                raise ValueError("All filter columns must appear in both base views used as dependencies")
-        df = base_view_df(set_code, view, manifest[view], col_def_map, dd_filter)
-        
+                raise ValueError(
+                    "All filter columns must appear in both base views used as dependencies"
+                )
+        df_path = data_file_path(set_code, view)
+        base_view_df = pl.scan_csv(df_path, schema=schema(df_path))
+        col_dfs = [col_df(base_view_df, col, col_def_map, is_base_view=True) for col in view_cols]
+        base_df = pl.concat(col_dfs, how="horizontal")
+        base_df_filtered = base_df.filter(dd_filter.expr)
+        base_dfs.append(base_df_filtered)
 
+    if not base_dfs:
+        return None
 
-
-class DraftData:
-    def __init__(
-        self, 
-        set_code: str, 
-        filter_spec: dict | None = None, 
-        column_specs: list[dict] | None = None
-    ):
-        self.set_code = set_code.upper()
-
-        if filter_spec:
-            self.set_filter(filter_spec)
-        draft_path = data_file_path(set_code, "draft")
-        game_path = data_file_path(set_code, "game")
-        self._base_dfs = {
-            View.DRAFT: pl.scan_csv(draft_path, schema=schema(draft_path)),
-            View.GAME: pl.scan_csv(game_path, schema=schema(draft_path)),
-        }
-
-        self._card_df = pl.read_csv(data_file_path(set_code, "card"))
-
-        self._extension_map = {}
-        if column_specs:
-            for spec in column_specs:
-                self.register_column(spec)
-
-    def register_column(self, spec):
-        self._extension_map[spec.view][spec.name] = ColumnDefinition(**spec)
-
-    @property
-    def card_names(self):
-        """
-        The card file is generated from the draft data file, so this is exactly the
-        list of card names used in the datasets
-        """
-        return list(self._card_df["name"])
-
-    def set_filter(self, filter_spec: dict):
-        self._filter = mdu.filter.from_spec(filter_spec)
-        self.filter_str = str(filter_spec)  # todo: standardize representation for sensible hashing
-       
-    def extended_view(self, view_name: View, col_names: list[str]):
-        """
-        extend the base df with the provided columns, which must be defined in columns.py 
-        or registered via self.register_column()
-        """
-        base_df = self._base_dfs[view_name]
-
-        required_columns = [self._column_map[view_name][col] for col in col_names]
-
-
-    def game_counts(
-        self, groupbys: list[str], col_names: list[str], read_cache: bool = True, write_cache: bool = True
-    ) -> pd.DataFrame:
-        method_name = "game_counts"
-        calc_method = self._game_counts
-
-        return self.fetch_or_get(
-            method_name,
-            calc_method,
-            groupbys,
-            col_names,
-            read_cache=read_cache,
-            write_cache=write_cache,
-        )
-
-    def fetch_or_get(
-        self, method_name: str, calc_method, groupbys: list[str], col_names: list[str], read_cache: bool, write_cache: bool 
-    ):
-        key = cache_key(self, method_name, groupbys, col_names)
-        if read_cache:
-            if mdu.cache.cache_exists(self.set_code, key):
-                return mdu.cache.read_cache(self.set_code, key)
-        result = calc_method(groupbys, col_names)
-        if write_cache:
-            mdu.cache.write_cache(self.set_code, key, result)
-        return result
-
-    def _game_counts(
-        self, groupbys = list[str], col_names = list[str]
-    ) -> pd.DataFrame:
-        """
-        A data frame of counts easily aggregated from the 'game' file.
-        Card-attribute groupbys can be applied after this stage to be filtered
-        through a rates aggregator.
-        """
-        gv = self._game_df.copy()
-        if self._filter is not None:
-            gv = gv.loc[self._filter]
-        if not groupbys:
-            groupbys = ["name"]
-
-        names = self.card_names
-
-        gv = self.apply_extensions(gv, extensions)
-
-        nonname_groupbys = [c for c in groupbys if c != "name"]
-
-        prefixes = [
-            "deck",
-            "sideboard",
-            "opening_hand",
-            "drawn",
-            "tutored",
-        ]
-
-        prefix_names = {prefix: [f"{prefix}_{name}" for name in names] for prefix in prefixes}
-
-        df_components = [game_view]
-        for ext in extensions:
-            df = ext["calc"](game_view, prefix_names)
-            ext_names = [f"{ext['prefix']}_{name}" for name in names]
-            prefix_names[ext["prefix"]] = ext_names
-            df.columns = ext_names
-            df_components.extend(df)
-
-        concat_df = dd.concat(df_components, axis=1)
-
-        all_count_df = concat_df[
-            functools.reduce(lambda curr, prev: prev + curr, prefix_names.values())
-        ]
-        win_count_df = all_count_df.where(df["won"], other=0)
-
-        all_df = dd.concat([all_count_df, concat_df[nonname_groupbys]], axis=1)
-        win_df = dd.concat([win_count_df, concat_df[nonname_groupbys]], axis=1)
-
-        if nonname_groupbys:
-            games_result = all_df.groupby(nonname_groupbys).sum().compute()
-            win_result = win_df.groupby(nonname_groupbys).sum().compute()
-        else:
-            games_sum = all_df.sum().compute()
-            games_result = pd.DataFrame(
-                numpy.expand_dims(games_sum.values, 0), columns=games_sum.index
-            )
-            win_sum = win_df.sum().compute()
-            win_result = pd.DataFrame(
-                numpy.expand_dims(win_sum.values, 0), columns=win_sum.index
-            )
-
-        count_cols = {}
-        for prefix in prefixes:
-            for outcome, df in {"all": games_result, "win": win_result}.items():
-                count_df = df[prefix_names[prefix]]
-                count_df.columns = names
-                melt_df = pd.melt(count_df, var_name="name", ignore_index=False)
-                count_cols[f"{prefix}_{outcome}"] = melt_df["value"].reset_index(drop=True)
-        # grab the indexes from the last one, they are all the same
-        index_df = melt_df.reset_index().drop("value", axis="columns")
-
-        by_name_df = pd.DataFrame(count_cols, dtype=numpy.int64)
-        by_name_df.index = pd.MultiIndex.from_frame(index_df)
-
-        if "name" in groupbys:
-            if len(groupbys) == 1:
-                by_name_df.index = by_name_df.index.droplevel()
-            return by_name_df
-
-        return by_name_df.groupby(groupbys).sum()
+    return pl.concat(base_dfs).collect()
+    
