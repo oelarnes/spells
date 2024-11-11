@@ -20,8 +20,6 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
-import functools
-
 import polars as pl
 import pandas as pd
 
@@ -31,7 +29,7 @@ import mdu.cache
 import mdu.filter
 import mdu.columns as mcol
 from mdu.columns import ColumnDefinition
-from mdu.enums import View, ColName
+from mdu.enums import View, ColName, ColType
 
 
 def cache_key(*args, **kwargs) -> str:
@@ -47,8 +45,9 @@ def resolve_base_view_cols(
     """
     For each base view ('game' and 'draft'), return the columns
     that must be present at the aggregation step. 'name' need not be
-    included. Dependencies within base views will be resolved by
-    `base_view_df`.
+    included, and 'pick' will be added if needed.
+
+    Dependencies within base views will be resolved by `col_df`.
     """
     unresolved_cols = col_set
     view_resolution = {}
@@ -59,6 +58,8 @@ def resolve_base_view_cols(
         next_cols = frozenset()
         for col in unresolved_cols:
             cdef = col_def_map[col]
+            if cdef.col_type == ColType.PICK_SUM:
+                view_resolution[View.DRAFT] = view_resolution.get(View.DRAFT, frozenset()).union({ColName.PICK})
             if cdef.base_views:
                 for view in cdef.base_views:
                     view_resolution[view] = view_resolution.get(view, frozenset()).union({col})
@@ -101,32 +102,6 @@ def col_df(
 
     dep_df = pl.concat(col_dfs, how="horizontal")
     return dep_df.select(cdef.expr)
-
-
-def base_view_df(
-    set_code: str,
-    view: View,
-    columns: frozenset[str],
-    col_defs: dict[str, ColumnDefinition],
-    dd_filter: mdu.filter.Filter | None,
-) -> pl.LazyFrame:
-    df_path = data_file_path(set_code, view)
-    df = pl.scan_csv(df_path, schema=schema(df_path))
-
-    all_defs = [col_defs[c] for c in columns]
-
-    basic_defs = [d for d in all_defs if not d.is_name_sum]
-    name_sum_defs = [d for d in all_defs if d.is_name_sum]
-
-    concat_list = [df.select([cdef.expr for cdef in basic_defs])]
-    for cdef in name_sum_defs:
-        concat_list.append(df.select(cdef.expr))
-
-    df = pl.concat(concat_list, how="horizontal")
-    if dd_filter is not None:
-        return df.filter(dd_filter.expr)
-
-    return df
 
 
 def metrics(
@@ -174,7 +149,11 @@ def metrics(
         base_view_df = pl.scan_csv(df_path, schema=schema(df_path))
         col_dfs = [col_df(base_view_df, col, col_def_map, is_base_view=True) for col in view_cols]
         base_df = pl.concat(col_dfs, how="horizontal")
-        base_df_filtered = base_df.filter(dd_filter.expr)
+
+        if dd_filter is not None:
+            base_df_filtered = base_df.filter(dd_filter.expr)
+        else:
+            base_df_filtered = base_df
         base_dfs.append(base_df_filtered)
 
     if not base_dfs:

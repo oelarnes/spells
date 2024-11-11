@@ -28,9 +28,9 @@ draft_df = pl.scan_csv(df_path, schema=schema(df_path))
             }
         ),
         (
-            frozenset({ColName.DRAFT_WEEK, ColName.PICK_NUM}),
+            frozenset({ColName.DRAFT_WEEK, ColName.TAKEN_AT}),
             {
-                View.DRAFT: frozenset({ColName.DRAFT_WEEK, ColName.PICK_NUM}),
+                View.DRAFT: frozenset({ColName.DRAFT_WEEK, ColName.TAKEN_AT, ColName.PICK}),
                 View.GAME: frozenset({ColName.DRAFT_WEEK}),
             }
         )

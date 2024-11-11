@@ -20,8 +20,6 @@ if len(sys.argv) > 1 and sys.argv[1] == "test":
 else:
     os.environ["MDU_PROJECT_DIR"] = "/Users/Joel/Projects/magic-data-utils"
 
-pd.set_option("display.max_rows", 1000)
-pd.set_option("display.max_columns", 100)
 myn = ["Cache Grab", "Carrot Cake", "Savor", "Take Out the Trash", "Shore Up"]
 
 print(
@@ -36,7 +34,7 @@ print(
     mcol                = {(mcol := mcol)}
     c17                 = {(c17 := c17)}
     draft_data          = {(draft_data := draft_data)}
-    defs                = {(defs := mcol.column_def_map)}
+    defs                = {(defs := mcol.col_def_map)}
     df_path             = {(df_path := c17.data_file_path(set_code, View.DRAFT))}
     df                  = {(df := pl.scan_csv(df_path, schema=schema(df_path)))}
 """

@@ -2,12 +2,20 @@
 enums
 """
 
-from enum import StrEnum
+from enum import StrEnum, Enum, auto
 
 
 class View(StrEnum):
     GAME = "game"
     DRAFT = "draft"
+
+
+class ColType(Enum):
+    FILTER_ONLY = auto()
+    GROUPBY = auto()
+    PICK_SUM = auto()
+    NAME_SUM = auto()
+    AGG = auto()
 
 
 class ColName(StrEnum):
@@ -54,6 +62,12 @@ class ColName(StrEnum):
     DRAFT_DAY_OF_WEEK = "draft_day_of_week"
     DRAFT_HOUR = "draft_hour"
     DRAFT_WEEK = "draft_week"
+    EVENT_MATCH_WINS_SUM = "event_match_wins_sum"
+    EVENT_MATCH_LOSSES_SUM = "event_match_losses_sum"
+    EVENT_MATCHES_SUM = "event_matches_sum"
+    IS_TROPHY_SUM = "is_trophy_sum"
+    TAKEN_AT = "taken_at"
+    NUM_TAKEN = "num_taken"
     PACK_NUM = "pack_num"  # pack_number plus 1
     PICK_NUM = "pick_num"  # pick_number plus 1
     PACK_NUM_CARD = "pack_num_card"
