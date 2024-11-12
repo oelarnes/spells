@@ -6,8 +6,12 @@ from enum import StrEnum, Enum, auto
 
 
 class View(StrEnum):
+    """Values are selected from three "views" before aggregation and joining into
+    the unnamed "agg" view, which can have any column (except 'PICK')
+    """
     GAME = "game"
     DRAFT = "draft"
+    CARD = "card"
 
 
 class ColType(Enum):
@@ -16,13 +20,15 @@ class ColType(Enum):
     PICK_SUM = auto()
     NAME_SUM = auto()
     AGG = auto()
+    CARD_ATTR = auto()
 
 
 class ColName(StrEnum):
     """
     A list of all available columns, including built-in extensions.
 
-    "Name-mapped" columns like "deck_<card name>" are identified by the prefix only.
+    "Name-mapped" columns like "deck_<card name>" are identified by the prefix only. 
+    Those columns can be referenced simply as e.g. "deck" in formulas for the post-agg stage.
 
     New columns may be registered interactively via DraftData().register_column(), named as strings.
 
@@ -73,6 +79,7 @@ class ColName(StrEnum):
     PACK_NUM_CARD = "pack_num_card"
     PICK_NUM_CARD = "pick_num_card"
     LAST_SEEN = "last_seen"
+    NUM_SEEN = "num_seen"
     NAME = "name"  # special column for card name index
     PLAYER_COHORT = "player_cohort"
     GAME_DATE = "game_date"
@@ -80,9 +87,7 @@ class ColName(StrEnum):
     GAME_HOUR = "game_hour"
     GAME_WEEK = "game_week"
 
-    NUM_SEEN = "num_seen"
     ALSA = "alsa"
-    NUM_PICKED = "num_picked"
     ATA = "ata"
     NUM_GP = "num_gp"
     GP_PCT = "gp_pct"

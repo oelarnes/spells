@@ -32,99 +32,99 @@ class ColumnDefinition:
     name: str
     col_type: ColType
     expr: pl.functions.col.Col | None = None
-    base_views: tuple[View,...] = ()
+    views: tuple[View,...] = ()
     dependencies: list[str] | None = None
 
 default_columns = [
     ColName.ALSA,
-    ColName.PACK_CARD,
+    ColName.NUM_SEEN,
     ColName.ATA,
-    ColName.NUM_PICKED,
+    ColName.NUM_TAKEN,
 ]
 
-column_defs = [
+_column_defs = [
     ColumnDefinition(
         name=ColName.DRAFT_ID,
-        base_views=(View.GAME, View.DRAFT),
+        views=(View.GAME, View.DRAFT),
         col_type=ColType.FILTER_ONLY,
     ),
     ColumnDefinition(
         name=ColName.DRAFT_TIME,
         col_type=ColType.FILTER_ONLY,
-        base_views=(View.GAME, View.DRAFT),
+        views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").str.to_datetime("%Y-%m-%d %H:%M:%S"),
     ),
     ColumnDefinition(
         name=ColName.DRAFT_DATE,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME, View.DRAFT),
+        views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.date(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.DRAFT_DAY_OF_WEEK,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME, View.DRAFT),
+        views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.weekday(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.DRAFT_HOUR,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME, View.DRAFT),
+        views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.hour(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.DRAFT_WEEK,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME, View.DRAFT),
+        views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.week(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.RANK,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME, View.DRAFT),
+        views=(View.GAME, View.DRAFT),
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_WINS,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_WINS_SUM,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCH_WINS)
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_LOSSES,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_LOSSES_SUM,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCH_LOSSES),
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCHES,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col("event_match_wins") + pl.col("event_match_losses"),
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCHES_SUM,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCHES),
     ),
     ColumnDefinition(
         name=ColName.IS_TROPHY,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.when(pl.col("event_type") == "Traditional")
             .then(pl.col("event_match_wins") == 3)
             .otherwise(pl.col("event_match_wins") == 7),
@@ -132,116 +132,116 @@ column_defs = [
     ColumnDefinition(
         name=ColName.IS_TROPHY_SUM,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col(ColName.IS_TROPHY),
     ),
     ColumnDefinition(
         name=ColName.PACK_NUMBER,
         col_type=ColType.FILTER_ONLY, # use pack_num
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.PACK_NUM,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col("pack_number") + 1,
     ),
     ColumnDefinition(
         name=ColName.PICK_NUMBER,
         col_type=ColType.FILTER_ONLY, # use pick_num
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.PICK_NUM,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col("pick_number") + 1,
     ),
     ColumnDefinition(
         name=ColName.TAKEN_AT,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col(ColName.PICK_NUM),
     ),
     ColumnDefinition(
         name=ColName.NUM_TAKEN,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.lit(1),
     ),
     ColumnDefinition(
         name=ColName.PICK,
         col_type=ColType.FILTER_ONLY, #aggregated as "name"
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.NAME,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT, View.GAME),
+        views=(View.DRAFT, View.GAME, View.CARD),
         # handled by internals, derived from both 'pick' and "name mapped" columns
     ),
     ColumnDefinition(
         name=ColName.PICK_MAINDECK_RATE,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.PICK_SIDEBOARD_IN_RATE,
         col_type=ColType.PICK_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.PACK_CARD,
         col_type=ColType.NAME_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.PACK_NUM_CARD,
         col_type=ColType.NAME_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col("^pack_card_.*$") * pl.col("pack_num"),
         dependencies=[ColName.PACK_CARD, ColName.PACK_NUM],
     ),
     ColumnDefinition(
         name=ColName.PICK_NUM_CARD,
         col_type=ColType.NAME_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col("^pack_card_.*$") * pl.col("pick_num"),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnDefinition(
         name=ColName.LAST_SEEN,
         col_type=ColType.NAME_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col("^pack_card_.*$") * pl.min_horizontal("pick_num", 8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnDefinition(
         name=ColName.NUM_SEEN,
         col_type=ColType.NAME_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
         expr=pl.col("^pack_card_.$") * (pl.col("pick_num")<=8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnDefinition(
         name=ColName.POOL,
         col_type=ColType.NAME_SUM,
-        base_views=(View.DRAFT,),
+        views=(View.DRAFT,),
     ),
     ColumnDefinition(
         name=ColName.USER_N_GAMES_BUCKET,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT, View.GAME),
+        views=(View.DRAFT, View.GAME),
     ),
     ColumnDefinition(
         name=ColName.USER_GAME_WIN_RATE_BUCKET,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT, View.GAME),
+        views=(View.DRAFT, View.GAME),
     ),
     ColumnDefinition(
         name=ColName.PLAYER_COHORT,
         col_type=ColType.GROUPBY,
-        base_views=(View.DRAFT, View.GAME),
+        views=(View.DRAFT, View.GAME),
         expr=pl.when(pl.col("user_n_games_bucket") < 100)
         .then("All")
         .otherwise(
@@ -257,73 +257,73 @@ column_defs = [
     ColumnDefinition(
         name=ColName.GAME_TIME,
         col_type=ColType.FILTER_ONLY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
         expr=pl.col("game_time").str.to_datetime("%Y-%m-%d %H-%M-%S"),
     ),
     ColumnDefinition(
         name=ColName.GAME_DATE,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
         expr=pl.col("game_time").dt.date(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.GAME_DAY_OF_WEEK,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
         expr=pl.col("game_time").dt.weekday(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.GAME_HOUR,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
         expr=pl.col("game_time").dt.hour(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.GAME_WEEK,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
         expr=pl.col("game_time").dt.week(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.BUILD_INDEX,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.MATCH_NUMBER,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.GAME_NUMBER,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.OPP_RANK,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.MAIN_COLORS,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.SPLASH_COLORS,
         col_type=ColType.GROUPBY,
-        base_views=(View.GAME,),
+        views=(View.GAME,),
     ),
 ]
 
 def name_sum_rename(
     cdef: ColumnDefinition,
     old_name: str,
-    ):
+):
     if cdef.dependencies is None:
         raise ValueError("name_sum columns must name their dependencies")
     name_sum_dep = cdef.dependencies[0]
@@ -332,9 +332,9 @@ def name_sum_rename(
     return cdef.name + '_' + card_name
 
 
-col_def_map = {col.name: col for col in column_defs}
+col_def_map = {col.name: col for col in _column_defs}
 
-for cdef in column_defs:
+for cdef in _column_defs:
     if cdef.expr is not None:
         if cdef.col_type == ColType.NAME_SUM:
             if not cdef.dependencies or not col_def_map[cdef.dependencies[0]].col_type == ColType.NAME_SUM:

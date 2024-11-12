@@ -29,7 +29,7 @@ def col_df(
     df: pl.LazyFrame,
     col: str,
     col_def_map: dict[str, ColumnDefinition],
-    is_base_view: bool,
+    is_view: bool,
 ):
     cdef = col_def_map[col]
     if not cdef.dependencies:
@@ -39,10 +39,10 @@ def col_df(
     col_dfs = []
     for dep in cdef.dependencies:
         dep_def = col_def_map[dep]
-        if dep_def.dependencies is None or is_base_view and len(dep_def.base_views):
+        if dep_def.dependencies is None or is_view and len(dep_def.views):
             root_col_exprs.append(dep_def.expr)
         else:
-            col_dfs.append(col_df(df, dep, col_def_map, is_base_view))
+            col_dfs.append(col_df(df, dep, col_def_map, is_view))
 
     if root_col_exprs:
         col_dfs.append(df.select(root_col_exprs))
@@ -80,16 +80,16 @@ def base_agg_df(
     for view, view_cols in m.base_view_cols.items():
         df_path = data_file_path(set_code, view)
         base_view_df = pl.scan_csv(df_path, schema=schema(df_path))
-        col_dfs = [col_df(base_view_df, col, col_def_map, is_base_view=True) for col in view_cols]
+        col_dfs = [col_df(base_view_df, col, m.col_def_map, is_view=True) for col in view_cols]
         base_df_prefilter = pl.concat(col_dfs, how="horizontal")
 
-        if dd_filter is not None:
-            base_df = base_df_prefilter.filter(dd_filter.expr)
+        if m.dd_filter is not None:
+            base_df = base_df_prefilter.filter(m.dd_filter.expr)
         else:
             base_df = base_df_prefilter
 
         if view == View.DRAFT:
-            pick_sum_cols = [c for c in view_cols if col_def_map[c].col_type == ColType.PICK_NUM]
+            pick_sum_cols = [c for c in view_cols if m.col_def_map[c].col_type == ColType.PICK_SUM]
 
     return pl.DataFrame()
 

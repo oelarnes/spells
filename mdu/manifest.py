@@ -6,12 +6,12 @@ from mdu.enums import View, ColName, ColType
 from mdu.columns import ColumnDefinition
 
 
-def _resolve_base_view_cols(
+def _resolve_view_cols(
     col_set: frozenset[str],
     col_def_map: dict[str, ColumnDefinition],
 ) -> dict[View, frozenset[str]]:
     """
-    For each base view ('game' and 'draft'), return the columns
+    For each view ('game', 'draft', and 'card'), return the columns
     that must be present at the aggregation step. 'name' need not be
     included, and 'pick' will be added if needed.
 
@@ -28,13 +28,13 @@ def _resolve_base_view_cols(
             cdef = col_def_map[col]
             if cdef.col_type == ColType.PICK_SUM:
                 view_resolution[View.DRAFT] = view_resolution.get(View.DRAFT, frozenset()).union({ColName.PICK})
-            if cdef.base_views:
-                for view in cdef.base_views:
+            if cdef.views:
+                for view in cdef.views:
                     view_resolution[view] = view_resolution.get(view, frozenset()).union({col})
             else:
                 if cdef.dependencies is None:
                     raise ValueError(
-                        f"Invalid column def: {col} has neither base views nor dependencies!"
+                        f"Invalid column def: {col} has neither views nor dependencies!"
                     )
                 for dep in cdef.dependencies:
                     next_cols = next_cols.union({dep})
@@ -60,6 +60,16 @@ def create(
         for cdef in extensions:
             col_def_map[cdef.name] = cdef
 
+    base_view_groupbys = frozenset()
+    card_attr_groupbys = frozenset()
+    for col in gbs:
+        cdef = col_def_map[col]
+        if cdef.col_type == ColType.GROUPBY:
+            base_view_groupbys = base_view_groupbys.union({col})
+        elif cdef.col_type == ColType.CARD_ATTR:
+            base_view_groupbys = base_view_groupbys.union({ColName.NAME})
+            card_attr_groupbys = card_attr_groupbys.union({col})
+
     dd_filter = mdu.filter.from_spec(filter_spec)
 
     col_set = frozenset(cols)
@@ -67,23 +77,25 @@ def create(
     if dd_filter is not None:
         col_set = col_set.union(dd_filter.lhs)
 
-    base_view_cols = _resolve_base_view_cols(col_set, col_def_map)
+    view_cols = _resolve_view_cols(col_set, col_def_map)
 
     base_views = frozenset()
     for view in [View.DRAFT, View.GAME]:
-        for col in base_view_cols[view]:
-            if col_def_map[col].base_views == (view,):  # only found in this view
+        for col in view_cols[view]:
+            if col_def_map[col].views == (view,):  # only found in this view
                 base_views = base_views.union({view})
 
-    base_view_cols = {v: base_view_cols[v] for v in base_views}
+    base_view_cols = {v: view_cols[v] for v in base_views}
+
+    card_attr_cols = view_cols.get(View.CARD, frozenset())
 
     return Manifest(
         columns=cols,
         col_def_map=col_def_map,
         base_view_groupbys=gbs,
         base_view_cols=base_view_cols,
-        card_attr_groupbys=frozenset(),
-        card_attr_cols=frozenset(),
+        card_attr_groupbys=card_attr_groupbys,
+        card_attr_cols=card_attr_cols,
         dd_filter = dd_filter
     )
 
@@ -100,21 +112,21 @@ class Manifest():
 
     def __post_init__(self):
         for col in self.columns:
-            if col not in self.col_def_map:
-                raise ValueError(f"Undefined column {col}!")
+            assert col in self.col_def_map, f"Undefined column {col}!"
 
         for col in self.base_view_groupbys:
-            if self.col_def_map[col].col_type != ColType.GROUPBY:
-                raise ValueError(f"Invalid groupby {col}!")
+            assert self.col_def_map[col].col_type == ColType.GROUPBY, f"Invalid groupby {col}!"
 
         for view, view_cols in self.base_view_cols.items():
+            for col in view_cols:
+                assert view in self.col_def_map[col].views, f"View cols generated incorrectly, {col} not in view {view}"
             for col in self.base_view_groupbys:
-                if view not in self.col_def_map[col].base_views:
-                    raise ValueError(f"Groupby {col} not in view {view}!")
-
+                assert view in self.col_def_map[col].views, f"Groupby {col} not in view {view}!"
             if self.dd_filter is not None:
                 for col in self.dd_filter.lhs:
-                    if col not in view_cols:
-                        raise ValueError(f"filter col {col} not found in base view")
+                    assert col in view_cols, f"filter col {col} not found in base view"
+
+        if len(self.card_attr_groupbys):
+            assert ColName.NAME in self.base_view_groupbys, "Must groupby name to group by card attributes"
 
 
