@@ -10,6 +10,7 @@ Caches are cleared per-set when new files are downloaded.
 import os
 
 import pandas
+import polars as pl
 
 DATA = "data"
 EXT = "local"
@@ -40,8 +41,8 @@ def cache_exists(set_code: str, cache_key: str) -> bool:
     )
 
 
-def read_cache(set_code: str, cache_key: str) -> pandas.DataFrame:
-    return pandas.read_parquet(cache_path_for_key(set_code, cache_key))
+def read_cache(set_code: str, cache_key: str) -> pl.DataFrame:
+    return pl.read_parquet(cache_path_for_key(set_code, cache_key))
 
 
 def write_cache(set_code, cache_key, df) -> None:
