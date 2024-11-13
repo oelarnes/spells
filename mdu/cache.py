@@ -9,7 +9,6 @@ Caches are cleared per-set when new files are downloaded.
 
 import os
 
-import pandas
 import polars as pl
 
 DATA = "data"

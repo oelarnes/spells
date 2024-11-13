@@ -77,7 +77,11 @@ def base_agg_df(
     m: mdu.manifest.Manifest,
     use_streaming: bool = False,
 ) -> pl.DataFrame:
-    for view, view_cols in m.base_view_cols.items():
+    base_views = [View.DRAFT, View.GAME]
+
+    agg_dfs = {}
+    for view in base_views:
+        view_cols = m.view_cols[view]
         df_path = data_file_path(set_code, view)
         base_view_df = pl.scan_csv(df_path, schema=schema(df_path))
         col_dfs = [col_df(base_view_df, col, m.col_def_map, is_view=True) for col in view_cols]
@@ -88,8 +92,22 @@ def base_agg_df(
         else:
             base_df = base_df_prefilter
 
-        if view == View.DRAFT:
-            pick_sum_cols = [c for c in view_cols if m.col_def_map[c].col_type == ColType.PICK_SUM]
+        groupbys = m.base_view_groupbys
+        is_name_gb = ColName.NAME in groupbys
+        nonname_gb = tuple(gb for gb in groupbys if gb != ColName.NAME)
+
+        pick_sum_cols = tuple(c for c in view_cols if m.col_def_map[c].col_type == ColType.PICK_SUM)
+        if pick_sum_cols:
+            name_col_tuple = (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
+
+            pick_df = base_df.select(nonname_gb + name_col_tuple + pick_sum_cols)
+            pick_agg_df = ( # tuple 
+                pick_df.group_by(groupbys).sum(),
+            ) 
+        else:
+            pick_agg_df = ()
+
+        
 
     return pl.DataFrame()
 

@@ -318,6 +318,20 @@ _column_defs = [
         col_type=ColType.GROUPBY,
         views=(View.GAME,),
     ),
+    ColumnDefinition(
+        name=ColName.ALSA,
+        col_type=ColType.AGG,
+        views=(),
+        expr=pl.col(ColName.LAST_SEEN) / pl.col(ColName.NUM_SEEN),
+        dependencies=[ColName.LAST_SEEN, ColName.NUM_SEEN],
+    ),
+    ColumnDefinition(
+        name=ColName.ATA,
+        col_type=ColType.AGG,
+        views=(),
+        expr=pl.col(ColName.TAKEN_AT) / pl.col(ColName.NUM_TAKEN),
+        dependencies=[ColName.TAKEN_AT, ColName.NUM_TAKEN],
+    )
 ]
 
 def name_sum_rename(

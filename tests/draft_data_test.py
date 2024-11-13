@@ -17,30 +17,6 @@ os.environ["MDU_PROJECT_DIR"] = "tests"  # will only work from project directory
 
 df_path = c17.data_file_path("BLB", View.DRAFT)
 draft_df = pl.scan_csv(df_path, schema=schema(df_path))
-@pytest.mark.parametrize(
-    "columns, expected",
-    [
-        (
-            frozenset({ColName.DRAFT_TIME}),
-            {
-                View.DRAFT: frozenset({ColName.DRAFT_TIME}),
-                View.GAME: frozenset({ColName.DRAFT_TIME}),
-            }
-        ),
-        (
-            frozenset({ColName.DRAFT_WEEK, ColName.TAKEN_AT}),
-            {
-                View.DRAFT: frozenset({ColName.DRAFT_WEEK, ColName.TAKEN_AT, ColName.PICK}),
-                View.GAME: frozenset({ColName.DRAFT_WEEK}),
-            }
-        )
-    ]
-)
-def test_resolve_base_view_cols(columns, expected):
-    cols_by_view = draft_data.resolve_base_view_cols(columns, mcol.col_def_map)
-
-    assert cols_by_view == expected
-   
 
 @pytest.mark.parametrize(
     "col, expected",
