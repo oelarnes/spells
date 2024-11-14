@@ -27,7 +27,7 @@ class Manifest():
                 assert view in self.col_def_map[col].views, f"View cols generated incorrectly, {col} not in view {view}"
             if view != View.CARD:
                 for col in self.base_view_groupbys:
-                    assert view in self.col_def_map[col].views, f"Groupby {col} not in view {view}!"
+                    assert col == ColName.NAME or view in self.col_def_map[col].views, f"Groupby {col} not in view {view}!"
                 if self.dd_filter is not None:
                     for col in self.dd_filter.lhs:
                         assert col in view_cols, f"filter col {col} not found in base view"
@@ -35,14 +35,26 @@ class Manifest():
         if len(self.card_attr_groupbys):
             assert ColName.NAME in self.base_view_groupbys, "Must groupby name to group by card attributes"
 
-    def test_print(self):
-        print('{') #} bad autoindent
-        print(2*' ' + "columns:")
-        for c in self.columns:
-            print(4*' ' + c)
-        print(2*' ' + "base_view_groupbys:")
-        for c in self.base_view_groupbys:
-            print(4*' ' + str(c))
+    def test_str(self):
+        result = '{\n' + 2*' ' + "columns:\n"
+        for c in sorted(self.columns):
+            result += 4*' ' + c + "\n"
+        result += 2*' ' + "base_view_groupbys:\n"
+        for c in sorted(self.base_view_groupbys):
+            result += 4*' ' + c + "\n"
+        result += 2*' ' + "view_cols:\n"
+        for v, view_cols in self.view_cols.items():
+            result += 4*' ' + v + ':\n'
+            for c in sorted(view_cols):
+                result += 6*' ' + c + "\n"
+        if self.card_attr_groupbys:
+            result += 2*' ' + "card_attr_groupbys:\n"
+            for c in sorted(self.card_attr_groupbys):
+                result += 4*' ' + c + "\n"
+        result += '}\n'
+
+        return result
+        
               
         
 
@@ -113,15 +125,15 @@ def create(
     dd_filter = mdu.filter.from_spec(filter_spec)
 
     col_set = frozenset(cols)
-    col_set = col_set.union(gbs)
+    col_set = col_set.union(gbs - {ColName.NAME})
     if dd_filter is not None:
         col_set = col_set.union(dd_filter.lhs)
 
     view_cols = _resolve_view_cols(col_set, col_def_map)
 
     needed_views = frozenset()
-    for view in [View.DRAFT, View.GAME, View.CARD]:
-        for col in view_cols[view]:
+    for view, cols_for_view in view_cols.items():
+        for col in cols_for_view:
             if col_def_map[col].views == (view,):  # only found in this view
                 needed_views = needed_views.union({view})
 

@@ -177,7 +177,7 @@ _column_defs = [
     ColumnDefinition(
         name=ColName.NAME,
         col_type=ColType.GROUPBY,
-        views=(View.DRAFT, View.GAME, View.CARD),
+        views=(),
         # handled by internals, derived from both 'pick' and "name mapped" columns
     ),
     ColumnDefinition(
