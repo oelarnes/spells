@@ -7,6 +7,7 @@ for performance.
 """
 
 import functools
+import re
 from typing import Callable
 
 import polars as pl
@@ -77,14 +78,13 @@ def base_agg_df(
     m: mdu.manifest.Manifest,
     use_streaming: bool = False,
 ) -> pl.DataFrame:
-    base_views = [View.DRAFT, View.GAME]
-
-    agg_dfs = {}
-    for view in base_views:
-        view_cols = m.view_cols[view]
+    concat_dfs = []
+    for view, cols_for_view in m.view_cols.items():
+        if view == View.CARD:
+            continue
         df_path = data_file_path(set_code, view)
         base_view_df = pl.scan_csv(df_path, schema=schema(df_path))
-        col_dfs = [col_df(base_view_df, col, m.col_def_map, is_view=True) for col in view_cols]
+        col_dfs = [col_df(base_view_df, col, m.col_def_map, is_view=True) for col in cols_for_view]
         base_df_prefilter = pl.concat(col_dfs, how="horizontal")
 
         if m.dd_filter is not None:
@@ -96,20 +96,35 @@ def base_agg_df(
         is_name_gb = ColName.NAME in groupbys
         nonname_gb = tuple(gb for gb in groupbys if gb != ColName.NAME)
 
-        pick_sum_cols = tuple(c for c in view_cols if m.col_def_map[c].col_type == ColType.PICK_SUM)
+        pick_sum_cols = tuple(c for c in cols_for_view if m.col_def_map[c].col_type == ColType.PICK_SUM)
         if pick_sum_cols:
             name_col_tuple = (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
 
             pick_df = base_df.select(nonname_gb + name_col_tuple + pick_sum_cols)
-            pick_agg_df = ( # tuple 
-                pick_df.group_by(groupbys).sum(),
-            ) 
-        else:
-            pick_agg_df = ()
+            concat_dfs.append(pick_df.group_by(groupbys).sum()) 
 
-        
+        name_sum_cols = tuple(c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM)
+        for col in name_sum_cols:
+            cdef = m.col_def_map[col]
+            pattern = f"^{cdef.name}_$"
+            assert cdef.expr is not None, f"name_map column {col} missing expr!"
 
-    return pl.DataFrame()
+            expr = cdef.expr.name.map(lambda name: re.split(pattern, name)[1])
+            pre_agg_df = base_df.select((expr,) + nonname_gb)
+
+            if nonname_gb:
+                agg_df = pre_agg_df.group_by(nonname_gb).sum()
+            else:
+                agg_df = pre_agg_df.sum()
+
+            unpivoted = agg_df.unpivot(index=nonname_gb, value_name=m.col_def_map[col].name, variable_name=ColName.NAME)
+
+            if not is_name_gb:
+                unpivoted.group_by(nonname_gb).sum()
+
+            concat_dfs.append(unpivoted)
+
+    return pl.concat(concat_dfs, how='horizontal').collect(streaming=use_streaming)
 
 
 def metrics(
