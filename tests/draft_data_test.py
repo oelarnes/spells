@@ -70,8 +70,46 @@ draft_df = pl.scan_csv(df_path, schema=schema(df_path))
 │ 5         ┆ 5         ┆ 0         ┆ 0         ┆ … ┆ 0         ┆ 0         ┆ 0         ┆ 0        │
 └───────────┴───────────┴───────────┴───────────┴───┴───────────┴───────────┴───────────┴──────────┘"""
         ),
+        (
+            ColName.NUM_SEEN,
+            """shape: (5, 276)
+┌───────────┬───────────┬───────────┬───────────┬───┬───────────┬───────────┬───────────┬──────────┐
+│ num_seen_ ┆ num_seen_ ┆ num_seen_ ┆ num_seen_ ┆ … ┆ num_seen_ ┆ num_seen_ ┆ num_seen_ ┆ num_seen │
+│ Agate     ┆ Agate-Bla ┆ Alania's  ┆ Alania,   ┆   ┆ Wildfire  ┆ Wishing   ┆ Ygra,     ┆ _Zoralin │
+│ Assault   ┆ de        ┆ Pathmaker ┆ Divergent ┆   ┆ Howl      ┆ Well      ┆ Eater of  ┆ e,       │
+│ ---       ┆ Assassin  ┆ ---       ┆ Sto…      ┆   ┆ ---       ┆ ---       ┆ All       ┆ Cosmos   │
+│ i8        ┆ ---       ┆ i8        ┆ ---       ┆   ┆ i8        ┆ i8        ┆ ---       ┆ Call…    │
+│           ┆ i8        ┆           ┆ i8        ┆   ┆           ┆           ┆ i8        ┆ ---      │
+│           ┆           ┆           ┆           ┆   ┆           ┆           ┆           ┆ i8       │
+╞═══════════╪═══════════╪═══════════╪═══════════╪═══╪═══════════╪═══════════╪═══════════╪══════════╡
+│ 0         ┆ 0         ┆ 0         ┆ 1         ┆ … ┆ 0         ┆ 0         ┆ 0         ┆ 0        │
+│ 0         ┆ 0         ┆ 0         ┆ 0         ┆ … ┆ 1         ┆ 0         ┆ 0         ┆ 0        │
+│ 0         ┆ 0         ┆ 0         ┆ 0         ┆ … ┆ 0         ┆ 0         ┆ 0         ┆ 0        │
+│ 0         ┆ 0         ┆ 0         ┆ 0         ┆ … ┆ 0         ┆ 0         ┆ 0         ┆ 0        │
+│ 1         ┆ 1         ┆ 0         ┆ 0         ┆ … ┆ 0         ┆ 0         ┆ 0         ┆ 0        │
+└───────────┴───────────┴───────────┴───────────┴───┴───────────┴───────────┴───────────┴──────────┘"""
+        ),
+        (
+            ColName.NUM_TAKEN,
+            """shape: (5, 1)
+┌───────────┐
+│ num_taken │
+│ ---       │
+│ i32       │
+╞═══════════╡
+│ 1         │
+│ 1         │
+│ 1         │
+│ 1         │
+│ 1         │
+└───────────┘"""
+        )
     ]
 )
 def test_col_df(col, expected):
     result = draft_data.col_df(draft_df, col, mcol.col_def_map, is_view=True).head().collect()
+
+    print(str(result))
     assert str(result) == expected
+    
+

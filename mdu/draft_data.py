@@ -78,7 +78,12 @@ def base_agg_df(
     m: mdu.manifest.Manifest,
     use_streaming: bool = False,
 ) -> pl.DataFrame:
-    concat_dfs = []
+    join_dfs = []
+    groupbys = m.base_view_groupbys
+
+    is_name_gb = ColName.NAME in groupbys
+    nonname_gb = tuple(gb for gb in groupbys if gb != ColName.NAME)
+
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
             continue
@@ -92,16 +97,12 @@ def base_agg_df(
         else:
             base_df = base_df_prefilter
 
-        groupbys = m.base_view_groupbys
-        is_name_gb = ColName.NAME in groupbys
-        nonname_gb = tuple(gb for gb in groupbys if gb != ColName.NAME)
-
         pick_sum_cols = tuple(c for c in cols_for_view if m.col_def_map[c].col_type == ColType.PICK_SUM)
         if pick_sum_cols:
             name_col_tuple = (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
 
             pick_df = base_df.select(nonname_gb + name_col_tuple + pick_sum_cols)
-            concat_dfs.append(pick_df.group_by(groupbys).sum()) 
+            join_dfs.append(pick_df.group_by(groupbys).sum().collect(streaming=use_streaming)) 
 
         name_sum_cols = tuple(c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM)
         for col in name_sum_cols:
@@ -120,11 +121,13 @@ def base_agg_df(
             unpivoted = agg_df.unpivot(index=nonname_gb, value_name=m.col_def_map[col].name, variable_name=ColName.NAME)
 
             if not is_name_gb:
-                unpivoted.group_by(nonname_gb).sum()
+                agg_df = unpivoted.group_by(nonname_gb).sum().collect(streaming=use_streaming)
+            else:
+                agg_df = unpivoted.collect(streaming=use_streaming)
 
-            concat_dfs.append(unpivoted)
+            join_dfs.append(unpivoted)
 
-    return pl.concat(concat_dfs, how='horizontal').collect(streaming=use_streaming)
+    return functools.reduce(lambda prev, curr: prev.join(curr, on=groupbys, how="outer"), join_dfs)
 
 
 def metrics(

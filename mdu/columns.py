@@ -167,7 +167,7 @@ _column_defs = [
         name=ColName.NUM_TAKEN,
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
-        expr=pl.lit(1),
+        expr=pl.when(pl.col('pick').is_not_null()).then(1).otherwise(0), # a literal returns one row under select alone
     ),
     ColumnDefinition(
         name=ColName.PICK,
@@ -220,7 +220,7 @@ _column_defs = [
         name=ColName.NUM_SEEN,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
-        expr=pl.col("^pack_card_.$") * (pl.col("pick_num")<=8),
+        expr=pl.col("^pack_card_.*$") * (pl.col("pick_num")<=8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnDefinition(
