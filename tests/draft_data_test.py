@@ -109,7 +109,6 @@ draft_df = pl.scan_csv(df_path, schema=schema(df_path))
 def test_col_df(col, expected):
     result = draft_data.col_df(draft_df, col, mcol.col_def_map, is_view=True).head().collect()
 
-    print(str(result))
     assert str(result) == expected
     
 
