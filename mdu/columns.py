@@ -162,6 +162,7 @@ _column_defs = [
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
         expr=pl.col(ColName.PICK_NUM),
+        dependencies=[ColName.PICK_NUM],
     ),
     ColumnDefinition(
         name=ColName.NUM_TAKEN,
