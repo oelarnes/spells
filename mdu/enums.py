@@ -2,7 +2,7 @@
 enums
 """
 
-from enum import StrEnum, Enum, auto
+from enum import StrEnum
 
 
 class View(StrEnum):
@@ -14,13 +14,13 @@ class View(StrEnum):
     CARD = "card"
 
 
-class ColType(Enum):
-    FILTER_ONLY = auto()
-    GROUPBY = auto()
-    PICK_SUM = auto()
-    NAME_SUM = auto()
-    AGG = auto()
-    CARD_ATTR = auto()
+class ColType(StrEnum):
+    FILTER_ONLY = 'filter_only'
+    GROUPBY = 'groupby'
+    PICK_SUM = 'pick_sum'
+    NAME_SUM = 'name_sum'
+    AGG = 'agg'
+    CARD_ATTR = 'card_attr'
 
 
 class ColName(StrEnum):

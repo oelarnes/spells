@@ -13,14 +13,12 @@ Custom extensions can be defined via draft_data_obj.register_extension(
 Note that the extension expr must match the signature provided in the examples here.
 """
 
-import functools
 import re
 from dataclasses import dataclass
 
 import polars as pl
 
 from mdu.enums import View, ColName, ColType
-
 
 @dataclass
 class ColumnDefinition:
@@ -29,11 +27,36 @@ class ColumnDefinition:
     dependencies must be called out.
     If all dependencies are in the base view, they do not need to be called out.
     """
+
     name: str
     col_type: ColType
     expr: pl.functions.col.Col | None = None
-    views: tuple[View,...] = ()
+    views: tuple[View, ...] = ()
     dependencies: list[str] | None = None
+    
+    def name_sum_rename(
+        self,
+        old_name: str,
+    ):
+        if self.dependencies is None:
+            raise ValueError("name_sum columns must name their dependencies")
+        name_sum_dep = self.dependencies[0]
+        name_pattern = f"^{name_sum_dep}_"
+        card_name = re.split(name_pattern, old_name)[1]
+        return self.name + "_" + card_name
+
+    def __post_init__(self):
+        if self.expr is not None:
+            if self.col_type == ColType.NAME_SUM:
+                self.expr = self.expr.name.map(self.name_sum_rename)
+            else:
+                self.expr = self.expr.alias(self.name)
+        else:
+            if self.col_type == ColType.NAME_SUM:
+                self.expr = pl.col(f"^{self.name}_.*$")
+            else:
+                self.expr = pl.col(self.name)
+
 
 default_columns = [
     ColName.ALSA,
@@ -97,7 +120,7 @@ _column_defs = [
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCH_WINS),
-        dependencies=[ColName.EVENT_MATCH_WINS]
+        dependencies=[ColName.EVENT_MATCH_WINS],
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_LOSSES,
@@ -109,7 +132,7 @@ _column_defs = [
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCH_LOSSES),
-        dependencies=[ColName.EVENT_MATCH_LOSSES]
+        dependencies=[ColName.EVENT_MATCH_LOSSES],
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCHES,
@@ -122,15 +145,15 @@ _column_defs = [
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCHES),
-        dependencies=[ColName.EVENT_MATCHES]
+        dependencies=[ColName.EVENT_MATCHES],
     ),
     ColumnDefinition(
         name=ColName.IS_TROPHY,
         col_type=ColType.GROUPBY,
         views=(View.DRAFT,),
         expr=pl.when(pl.col("event_type") == "Traditional")
-            .then(pl.col("event_match_wins") == 3)
-            .otherwise(pl.col("event_match_wins") == 7),
+        .then(pl.col("event_match_wins") == 3)
+        .otherwise(pl.col("event_match_wins") == 7),
     ),
     ColumnDefinition(
         name=ColName.IS_TROPHY_SUM,
@@ -140,7 +163,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.PACK_NUMBER,
-        col_type=ColType.FILTER_ONLY, # use pack_num
+        col_type=ColType.FILTER_ONLY,  # use pack_num
         views=(View.DRAFT,),
     ),
     ColumnDefinition(
@@ -151,7 +174,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.PICK_NUMBER,
-        col_type=ColType.FILTER_ONLY, # use pick_num
+        col_type=ColType.FILTER_ONLY,  # use pick_num
         views=(View.DRAFT,),
     ),
     ColumnDefinition(
@@ -171,11 +194,13 @@ _column_defs = [
         name=ColName.NUM_TAKEN,
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
-        expr=pl.when(pl.col('pick').is_not_null()).then(1).otherwise(0), # a literal returns one row under select alone
+        expr=pl.when(pl.col("pick").is_not_null())
+        .then(1)
+        .otherwise(0),  # a literal returns one row under select alone
     ),
     ColumnDefinition(
         name=ColName.PICK,
-        col_type=ColType.FILTER_ONLY, #aggregated as "name"
+        col_type=ColType.FILTER_ONLY,  # aggregated as "name"
         views=(View.DRAFT,),
     ),
     ColumnDefinition(
@@ -224,7 +249,7 @@ _column_defs = [
         name=ColName.NUM_SEEN,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
-        expr=pl.col("^pack_card_.*$") * (pl.col("pick_num")<=8),
+        expr=pl.col("^pack_card_.*$") * (pl.col("pick_num") <= 8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnDefinition(
@@ -335,34 +360,8 @@ _column_defs = [
         views=(),
         expr=pl.col(ColName.TAKEN_AT) / pl.col(ColName.NUM_TAKEN),
         dependencies=[ColName.TAKEN_AT, ColName.NUM_TAKEN],
-    )
+    ),
 ]
-
-def name_sum_rename(
-    cdef: ColumnDefinition,
-    old_name: str,
-):
-    if cdef.dependencies is None:
-        raise ValueError("name_sum columns must name their dependencies")
-    name_sum_dep = cdef.dependencies[0]
-    name_pattern = f'^{name_sum_dep}_'
-    card_name = re.split(name_pattern, old_name)[1]
-    return cdef.name + '_' + card_name
 
 
 col_def_map = {col.name: col for col in _column_defs}
-
-for cdef in _column_defs:
-    if cdef.expr is not None:
-        if cdef.col_type == ColType.NAME_SUM:
-            if not cdef.dependencies or not col_def_map[cdef.dependencies[0]].col_type == ColType.NAME_SUM:
-                raise ValueError("dependency 0 of a name_sum column with an expr must be a name_sum column to derive names")
-            cdef.expr = cdef.expr.name.map(functools.partial(name_sum_rename, cdef))
-        else:
-            cdef.expr = cdef.expr.alias(cdef.name)
-    else:
-        if cdef.col_type == ColType.NAME_SUM:
-            cdef.expr = pl.col(f"^{cdef.name}_.*$")
-        else:
-            cdef.expr = pl.col(cdef.name)
-

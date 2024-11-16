@@ -29,11 +29,11 @@ def cache_key(args) -> str:
 
 
 def col_df(
-    df: pl.LazyFrame,
+    df: pl.LazyFrame | pl.DataFrame,
     col: str,
     col_def_map: dict[str, ColumnDefinition],
     is_view: bool,
-):
+) -> pl.LazyFrame | pl.DataFrame:
     cdef = col_def_map[col]
     if not cdef.dependencies:
         return df.select(cdef.expr)

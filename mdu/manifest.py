@@ -16,34 +16,53 @@ class Manifest:
     dd_filter: mdu.filter.Filter | None
 
     def __post_init__(self):
+        # No name filter check
         if self.dd_filter is not None:
             assert (
                 "name" not in self.dd_filter.lhs
             ), "Don't filter on 'name', include 'name' in groupbys and filter the final result instead"
+
+        # Col in col_def_map check
         for col in self.columns:
             assert col in self.col_def_map, f"Undefined column {col}!"
 
+        # base_view_groupbys have col_type GROUPBY check
         for col in self.base_view_groupbys:
             assert self.col_def_map[col].col_type == ColType.GROUPBY, f"Invalid groupby {col}!"
 
-        for view, view_cols in self.view_cols.items():
-            for col in view_cols:
+        for view, cols_for_view in self.view_cols.items():
+            # cols_for_view are actually in view check
+            for col in cols_for_view:
                 assert (
                     view in self.col_def_map[col].views
                 ), f"View cols generated incorrectly, {col} not in view {view}"
             if view != View.CARD:
                 for col in self.base_view_groupbys:
+                    # base_view_groupbys in view check
                     assert (
                         col == ColName.NAME or view in self.col_def_map[col].views
                     ), f"Groupby {col} not in view {view}!"
+                    # base_view_groupbys in view_cols for view
+                    assert (
+                        col == ColName.NAME or col in cols_for_view
+                    ), f"Groupby {col} not in view_cols[view]"
+                # filter cols are in both base_views check
                 if self.dd_filter is not None:
                     for col in self.dd_filter.lhs:
-                        assert col in view_cols, f"filter col {col} not found in base view"
+                        assert col in cols_for_view, f"filter col {col} not found in base view"
 
+        # name in base_view_groupbys when using card_attr groupbys check
         if len(self.card_attr_groupbys):
             assert (
                 ColName.NAME in self.base_view_groupbys
             ), "Must groupby name to group by card attributes"
+
+        for col, cdef in self.col_def_map.items():
+            # name_sum extension cols have name_sum first dependency for renaming
+            if cdef.col_type == ColType.NAME_SUM and cdef.dependencies:
+                assert (
+                    self.col_def_map[cdef.dependencies[0]].col_type == ColType.NAME_SUM
+                ), "dependency 0 of a name_sum column with dependencies must be a name_sum column to derive names"
 
     def test_str(self):
         result = "{\n" + 2 * " " + "columns:\n"
@@ -80,9 +99,9 @@ def _resolve_view_cols(
     unresolved_cols = col_set
     view_resolution = {}
 
-    iter = 0
-    while unresolved_cols and iter < 100:
-        iter += 1
+    iter_num = 0
+    while unresolved_cols and iter_num < 100:
+        iter_num += 1
         next_cols = frozenset()
         for col in unresolved_cols:
             cdef = col_def_map[col]
@@ -102,7 +121,7 @@ def _resolve_view_cols(
                     next_cols = next_cols.union({dep})
         unresolved_cols = next_cols
 
-    if iter >= 100:
+    if iter_num >= 100:
         raise ValueError("broken dependency chain in column spec, loop probable")
 
     return view_resolution
