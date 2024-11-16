@@ -11,7 +11,6 @@ import re
 from typing import Callable
 
 import polars as pl
-import pandas as pd
 
 from mdu.cache_17l import data_file_path
 from mdu.get_schema import schema
@@ -22,7 +21,10 @@ from mdu.columns import ColumnDefinition
 from mdu.enums import View, ColName, ColType
 
 
-def cache_key(*args) -> str:
+def cache_key(args) -> str:
+    """
+    cache arguments by __str__ (based on the current value of a mutable, so be careful)
+    """
     return hex(hash(str(args)))[3:]
 
 
@@ -65,7 +67,7 @@ def fetch_or_cache(
         if mdu.cache.cache_exists(set_code, key):
             return mdu.cache.read_cache(set_code, key)
 
-    df = calc_fn()
+    df = calc_fn(*args)
 
     if write_cache:
         mdu.cache.write_cache(set_code, key, df)
@@ -78,6 +80,21 @@ def base_agg_df(
     m: mdu.manifest.Manifest,
     use_streaming: bool = False,
 ) -> pl.DataFrame:
+    """
+    This is where the heavy lifting happens. There are two distinct kinds of aggregations, "pick_sum"
+    and "name_sum". First, select the query plan for the derived required columns under m.view_cols
+    for a base view (DRAFT or GAME). Then for pick_sum columns, simply sum with the given groupbys.
+
+    For name_sum columns, groupby the nonname groupbys, then unpivot to card names. If card name
+    (or any card attrs) are not groupbys, do an additional groupby step. Then collect and join
+    the aggregated data frames.
+
+    Note that all aggregations are sums. Any proper expectation (e.g. weight averages, variance)
+    can be calculated using this paradigm. For e.g. max, you will either need to implement new
+    logic or use the trick of doing nth rt(x ^ n) for large enough n to approximate.
+
+    TODO: cache the individual column aggregations instead of the join for cache efficiency
+    """
     join_dfs = []
     groupbys = m.base_view_groupbys
 
@@ -97,20 +114,24 @@ def base_agg_df(
         else:
             base_df = base_df_prefilter
 
-        pick_sum_cols = tuple(c for c in cols_for_view if m.col_def_map[c].col_type == ColType.PICK_SUM)
+        pick_sum_cols = tuple(
+            c for c in cols_for_view if m.col_def_map[c].col_type == ColType.PICK_SUM
+        )
         if pick_sum_cols:
             name_col_tuple = (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
 
             pick_df = base_df.select(nonname_gb + name_col_tuple + pick_sum_cols)
-            join_dfs.append(pick_df.group_by(groupbys).sum().collect(streaming=use_streaming)) 
+            join_dfs.append(pick_df.group_by(groupbys).sum().collect(streaming=use_streaming))
 
-        name_sum_cols = tuple(c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM)
+        name_sum_cols = tuple(
+            c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM
+        )
         for col in name_sum_cols:
             cdef = m.col_def_map[col]
-            pattern = f"^{cdef.name}_$"
-            assert cdef.expr is not None, f"name_map column {col} missing expr!"
+            pattern = f"^{cdef.name}_"
+            name_map = functools.partial(lambda patt, name: re.split(patt, name)[1], pattern)
 
-            expr = cdef.expr.name.map(lambda name: re.split(pattern, name)[1])
+            expr = pl.col(f"^{cdef.name}_.*$").name.map(name_map)
             pre_agg_df = base_df.select((expr,) + nonname_gb)
 
             if nonname_gb:
@@ -118,16 +139,21 @@ def base_agg_df(
             else:
                 agg_df = pre_agg_df.sum()
 
-            unpivoted = agg_df.unpivot(index=nonname_gb, value_name=m.col_def_map[col].name, variable_name=ColName.NAME)
+            index = nonname_gb if nonname_gb else None
+            unpivoted = agg_df.unpivot(
+                index=index, value_name=m.col_def_map[col].name, variable_name=ColName.NAME
+            )
 
             if not is_name_gb:
-                agg_df = unpivoted.group_by(nonname_gb).sum().collect(streaming=use_streaming)
+                df = unpivoted.group_by(nonname_gb).sum().collect(streaming=use_streaming)
             else:
-                agg_df = unpivoted.collect(streaming=use_streaming)
+                df = unpivoted.collect(streaming=use_streaming)
 
-            join_dfs.append(unpivoted)
+            join_dfs.append(df)
 
-    return functools.reduce(lambda prev, curr: prev.join(curr, on=groupbys, how="outer"), join_dfs)
+    return functools.reduce(
+        lambda prev, curr: prev.join(curr, on=groupbys, how="outer", coalesce=True), join_dfs
+    )
 
 
 def metrics(
@@ -136,12 +162,18 @@ def metrics(
     groupbys: list[str] | None = None,
     filter_spec: dict | None = None,
     extensions: list[ColumnDefinition] | None = None,
-    as_pandas: bool = False,
     use_streaming: bool = False,
     read_cache: bool = True,
     write_cache: bool = True,
-) -> pl.DataFrame | pd.DataFrame | None:
+) -> pl.DataFrame:
     m = mdu.manifest.create(columns, groupbys, filter_spec, extensions)
 
-    calc_fn = functools.partial(base_agg_df, set_code, use_streaming=use_streaming)
-    agg_df = fetch_or_cache(calc_fn, set_code, [set_code, m], read_cache=read_cache, write_cache=write_cache)
+    agg_df = fetch_or_cache(
+        base_agg_df,
+        set_code,
+        [set_code, m, use_streaming],
+        read_cache=read_cache,
+        write_cache=write_cache,
+    )
+
+    return agg_df

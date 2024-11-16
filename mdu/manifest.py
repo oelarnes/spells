@@ -7,7 +7,7 @@ from mdu.columns import ColumnDefinition
 
 
 @dataclass(frozen=True)
-class Manifest():
+class Manifest:
     columns: tuple[str, ...]
     col_def_map: dict[str, ColumnDefinition]
     base_view_groupbys: frozenset[str]
@@ -16,6 +16,10 @@ class Manifest():
     dd_filter: mdu.filter.Filter | None
 
     def __post_init__(self):
+        if self.dd_filter is not None:
+            assert (
+                "name" not in self.dd_filter.lhs
+            ), "Don't filter on 'name', include 'name' in groupbys and filter the final result instead"
         for col in self.columns:
             assert col in self.col_def_map, f"Undefined column {col}!"
 
@@ -24,39 +28,43 @@ class Manifest():
 
         for view, view_cols in self.view_cols.items():
             for col in view_cols:
-                assert view in self.col_def_map[col].views, f"View cols generated incorrectly, {col} not in view {view}"
+                assert (
+                    view in self.col_def_map[col].views
+                ), f"View cols generated incorrectly, {col} not in view {view}"
             if view != View.CARD:
                 for col in self.base_view_groupbys:
-                    assert col == ColName.NAME or view in self.col_def_map[col].views, f"Groupby {col} not in view {view}!"
+                    assert (
+                        col == ColName.NAME or view in self.col_def_map[col].views
+                    ), f"Groupby {col} not in view {view}!"
                 if self.dd_filter is not None:
                     for col in self.dd_filter.lhs:
                         assert col in view_cols, f"filter col {col} not found in base view"
 
         if len(self.card_attr_groupbys):
-            assert ColName.NAME in self.base_view_groupbys, "Must groupby name to group by card attributes"
+            assert (
+                ColName.NAME in self.base_view_groupbys
+            ), "Must groupby name to group by card attributes"
 
     def test_str(self):
-        result = '{\n' + 2*' ' + "columns:\n"
+        result = "{\n" + 2 * " " + "columns:\n"
         for c in sorted(self.columns):
-            result += 4*' ' + c + "\n"
-        result += 2*' ' + "base_view_groupbys:\n"
+            result += 4 * " " + c + "\n"
+        result += 2 * " " + "base_view_groupbys:\n"
         for c in sorted(self.base_view_groupbys):
-            result += 4*' ' + c + "\n"
-        result += 2*' ' + "view_cols:\n"
+            result += 4 * " " + c + "\n"
+        result += 2 * " " + "view_cols:\n"
         for v, view_cols in self.view_cols.items():
-            result += 4*' ' + v + ':\n'
+            result += 4 * " " + v + ":\n"
             for c in sorted(view_cols):
-                result += 6*' ' + c + "\n"
+                result += 6 * " " + c + "\n"
         if self.card_attr_groupbys:
-            result += 2*' ' + "card_attr_groupbys:\n"
+            result += 2 * " " + "card_attr_groupbys:\n"
             for c in sorted(self.card_attr_groupbys):
-                result += 4*' ' + c + "\n"
-        result += '}\n'
+                result += 4 * " " + c + "\n"
+        result += "}\n"
 
         return result
-        
-              
-        
+
 
 def _resolve_view_cols(
     col_set: frozenset[str],
@@ -73,13 +81,15 @@ def _resolve_view_cols(
     view_resolution = {}
 
     iter = 0
-    while unresolved_cols and iter<100:
+    while unresolved_cols and iter < 100:
         iter += 1
         next_cols = frozenset()
         for col in unresolved_cols:
             cdef = col_def_map[col]
             if cdef.col_type == ColType.PICK_SUM:
-                view_resolution[View.DRAFT] = view_resolution.get(View.DRAFT, frozenset()).union({ColName.PICK})
+                view_resolution[View.DRAFT] = view_resolution.get(View.DRAFT, frozenset()).union(
+                    {ColName.PICK}
+                )
             if cdef.views:
                 for view in cdef.views:
                     view_resolution[view] = view_resolution.get(view, frozenset()).union({col})
@@ -94,7 +104,7 @@ def _resolve_view_cols(
 
     if iter >= 100:
         raise ValueError("broken dependency chain in column spec, loop probable")
-        
+
     return view_resolution
 
 
@@ -145,9 +155,5 @@ def create(
         base_view_groupbys=gbs,
         view_cols=view_cols,
         card_attr_groupbys=card_attr_groupbys,
-        dd_filter = dd_filter
+        dd_filter=dd_filter,
     )
-
-
-
-

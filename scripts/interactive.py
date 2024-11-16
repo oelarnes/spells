@@ -1,4 +1,4 @@
-"launch `ipython -i scripts/interactive.py [test]` or use `from scripts.interactive import *` in Jupyter"
+"launch `pdm run imdu [test]` or use `from scripts.interactive import *` in Jupyter"
 
 import os, sys, functools, re
 import importlib
@@ -22,7 +22,7 @@ else:
     os.environ["MDU_PROJECT_DIR"] = "/Users/Joel/Projects/magic-data-utils"
 
 myn = ["Cache Grab", "Carrot Cake", "Savor", "Take Out the Trash", "Shore Up"]
-
+m = mdu.manifest.create(None, None, None, None)
 print(
     "%===============================================================================================%"
 )
@@ -35,8 +35,9 @@ print(
     mcol                = {(mcol := mcol)}
     c17                 = {(c17 := c17)}
     draft_data          = {(draft_data := draft_data)}
-    defs                = {(defs := mcol.col_def_map)}
     df_path             = {(df_path := c17.data_file_path(set_code, View.DRAFT))}
+    base_view_df        = {(base_view_df := pl.scan_csv(df_path, schema=schema(df_path)))}
+    m                   = {type(m)}
 """
 )
 print(

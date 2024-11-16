@@ -44,14 +44,14 @@ def read_cache(set_code: str, cache_key: str) -> pl.DataFrame:
     return pl.read_parquet(cache_path_for_key(set_code, cache_key))
 
 
-def write_cache(set_code, cache_key, df) -> None:
+def write_cache(set_code: str, cache_key: str, df: pl.DataFrame) -> None:
     cache_dir = cache_dir_for_set(set_code)
     if not os.path.isdir(data_dir_path(EXT)):
         os.mkdir(data_dir_path(EXT))
     if not os.path.isdir(cache_dir):
         os.mkdir(cache_dir)
 
-    df.to_parquet(cache_path_for_key(set_code, cache_key))
+    df.write_parquet(cache_path_for_key(set_code, cache_key))
 
 
 def clear_cache(set_code: str) -> bool:
