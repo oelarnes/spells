@@ -103,12 +103,28 @@ draft_df = pl.scan_csv(df_path, schema=schema(df_path))
 │ 1         │
 │ 1         │
 └───────────┘"""
+        ),
+        (
+            ColName.PLAYER_COHORT,
+            """shape: (5, 1)
+┌───────────────┐
+│ player_cohort │
+│ ---           │
+│ str           │
+╞═══════════════╡
+│ All           │
+│ All           │
+│ All           │
+│ All           │
+│ All           │
+└───────────────┘"""
         )
     ]
 )
 def test_col_df(col, expected):
     result = draft_data.col_df(draft_df, col, mcol.col_def_map, is_view=True).head().collect()
 
+    print(str(result))
     assert str(result) == expected
     
 

@@ -58,6 +58,7 @@ def fetch_or_cache(
     calc_fn: Callable,
     set_code: str,
     args: list,
+    non_cache_args: dict,
     read_cache: bool = True,
     write_cache: bool = True,
 ):
@@ -67,7 +68,7 @@ def fetch_or_cache(
         if mdu.cache.cache_exists(set_code, key):
             return mdu.cache.read_cache(set_code, key)
 
-    df = calc_fn(*args)
+    df = calc_fn(*args, **non_cache_args)
 
     if write_cache:
         mdu.cache.write_cache(set_code, key, df)
@@ -145,7 +146,7 @@ def base_agg_df(
             )
 
             if not is_name_gb:
-                df = unpivoted.group_by(nonname_gb).sum().collect(streaming=use_streaming)
+                df = unpivoted.drop('name').group_by(nonname_gb).sum().collect(streaming=use_streaming)
             else:
                 df = unpivoted.collect(streaming=use_streaming)
 
@@ -171,7 +172,8 @@ def metrics(
     agg_df = fetch_or_cache(
         base_agg_df,
         set_code,
-        [set_code, m, use_streaming],
+        [set_code, m],
+        {"use_streaming": use_streaming},
         read_cache=read_cache,
         write_cache=write_cache,
     )

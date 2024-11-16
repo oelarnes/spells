@@ -96,7 +96,8 @@ _column_defs = [
         name=ColName.EVENT_MATCH_WINS_SUM,
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
-        expr=pl.col(ColName.EVENT_MATCH_WINS)
+        expr=pl.col(ColName.EVENT_MATCH_WINS),
+        dependencies=[ColName.EVENT_MATCH_WINS]
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_LOSSES,
@@ -108,6 +109,7 @@ _column_defs = [
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCH_LOSSES),
+        dependencies=[ColName.EVENT_MATCH_LOSSES]
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCHES,
@@ -120,6 +122,7 @@ _column_defs = [
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
         expr=pl.col(ColName.EVENT_MATCHES),
+        dependencies=[ColName.EVENT_MATCHES]
     ),
     ColumnDefinition(
         name=ColName.IS_TROPHY,
@@ -244,14 +247,14 @@ _column_defs = [
         col_type=ColType.GROUPBY,
         views=(View.DRAFT, View.GAME),
         expr=pl.when(pl.col("user_n_games_bucket") < 100)
-        .then("All")
+        .then(pl.lit("All"))
         .otherwise(
             pl.when(pl.col("user_game_win_rate_bucket") > 0.57)
-            .then("Top")
+            .then(pl.lit("Top"))
             .otherwise(
                 pl.when(pl.col("user_game_win_rate_bucket") < 0.49)
-                .then("Bottom")
-                .otherwise("Middle")
+                .then(pl.lit("Bottom"))
+                .otherwise(pl.lit("Middle"))
             )
         ),
     ),
