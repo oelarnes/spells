@@ -16,8 +16,15 @@ import mdu.manifest
   columns:
     alsa
     ata
+    gih_wr
+    gp_wr
+    num_gih
+    num_gp
+    num_oh
     num_seen
     num_taken
+    oh_wr
+    pct_gp
   base_view_groupbys:
     name
   view_cols:
@@ -27,14 +34,29 @@ import mdu.manifest
       num_taken
       pick
       taken_at
+    game:
+      deck
+      deck_won
+      drawn
+      drawn_won
+      opening_hand
+      opening_hand_won
+      sideboard
 }
 """),
         (None, ["player_cohort"], None, None, """{
   columns:
     alsa
     ata
+    gih_wr
+    gp_wr
+    num_gih
+    num_gp
+    num_oh
     num_seen
     num_taken
+    oh_wr
+    pct_gp
   base_view_groupbys:
     player_cohort
   view_cols:
@@ -45,6 +67,15 @@ import mdu.manifest
       pick
       player_cohort
       taken_at
+    game:
+      deck
+      deck_won
+      drawn
+      drawn_won
+      opening_hand
+      opening_hand_won
+      player_cohort
+      sideboard
 }
 """),
         (["ata"], ["draft_week", "name"], None, None, """{

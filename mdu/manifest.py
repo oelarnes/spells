@@ -72,7 +72,7 @@ class Manifest:
         for c in sorted(self.base_view_groupbys):
             result += 4 * " " + c + "\n"
         result += 2 * " " + "view_cols:\n"
-        for v, view_cols in self.view_cols.items():
+        for v, view_cols in sorted(self.view_cols.items()):
             result += 4 * " " + v + ":\n"
             for c in sorted(view_cols):
                 result += 6 * " " + c + "\n"
