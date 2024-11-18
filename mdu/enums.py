@@ -125,3 +125,8 @@ class ColName(StrEnum):
     GIH_WR = "gih_wr"
     NUM_IN_POOL = "num_in_pool"
     IN_POOL_WR = "in_pool_wr"
+    IHD = "ihd"
+    NUM_DECK_GIH = "num_deck_gih"
+    WON_NUM_DECK_GIH = "won_num_deck_gih"
+    DECK_GIH_WR = "deck_gih_wr"
+

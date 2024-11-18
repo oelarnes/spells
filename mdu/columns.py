@@ -554,6 +554,32 @@ _column_defs = [
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
+    ColumnDefinition(
+        name=ColName.IHD,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.GIH_WR) - pl.col(ColName.GP_WR),
+        dependencies=[ColName.GIH_WR, ColName.GP_WR],
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_DECK_GIH,
+        col_type=ColType.NAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col("^deck_.*$") * (pl.sum_horizontal("^opening_hand_.*$") + pl.sum_horizontal("^drawn_.*$")),
+        dependencies=[ColName.DECK, ColName.OPENING_HAND, ColName.DRAWN],
+    ),
+    ColumnDefinition(
+        name=ColName.WON_NUM_DECK_GIH,
+        col_type=ColType.NAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col("^won_deck_.*$") * (pl.sum_horizontal("^won_opening_hand_.*$") + pl.sum_horizontal("^won_drawn_.*$")),
+        dependencies=[ColName.WON_DECK, ColName.WON_OPENING_HAND, ColName.WON_DRAWN],
+    ),
+    ColumnDefinition(
+        name=ColName.DECK_GIH_WR,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_NUM_DECK_GIH) / pl.col(ColName.NUM_DECK_GIH),
+        dependencies=[ColName.WON_NUM_DECK_GIH, ColName.NUM_DECK_GIH]
+    ),
 ]
 
 col_def_map = {col.name: col for col in _column_defs}
