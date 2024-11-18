@@ -59,8 +59,8 @@ class ColumnDefinition:
 
 
 default_columns = [
-    #    ColName.COLOR,
-    #    ColName.RARITY,
+    ColName.COLOR,
+    ColName.RARITY,
     ColName.NUM_SEEN,
     ColName.ALSA,
     ColName.NUM_TAKEN,
@@ -203,7 +203,7 @@ _column_defs = [
         name=ColName.NUM_TAKEN,
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
-        expr=pl.when(pl.col("pick").is_not_null())
+        expr=pl.when(pl.col(ColName.PICK).is_not_null())
         .then(1)
         .otherwise(0),  # a literal returns one row under select alone
     ),
@@ -518,6 +518,41 @@ _column_defs = [
         col_type=ColType.AGG,
         expr=pl.col(ColName.NUM_GIH_WON) / pl.col(ColName.NUM_GIH),
         dependencies=[ColName.NUM_GIH_WON, ColName.NUM_GIH],
+    ),
+    ColumnDefinition(
+        name=ColName.SET,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.RARITY,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.COLOR,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.COLOR_IDENTITY_STR,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.TYPE,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.SUBTYPE,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.CMC,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
     ),
 ]
 

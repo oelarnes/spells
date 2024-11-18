@@ -74,6 +74,15 @@ class ColName(StrEnum):
     TUTORED = "tutored"
     DECK = "deck"
     SIDEBOARD = "sideboard"
+    # card
+    SET = "set"
+    RARITY = "rarity"
+    COLOR = "color"
+    COLOR_IDENTITY_STR = "color_identity_str"
+    TYPE = "type"
+    SUBTYPE = "subtype"
+    CMC = "cmc"
+
     # extensions
     DRAFT_DATE = "draft_date"
     DRAFT_DAY_OF_WEEK = "draft_day_of_week"

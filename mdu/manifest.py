@@ -12,7 +12,7 @@ class Manifest:
     col_def_map: dict[str, ColumnDefinition]
     base_view_groupbys: frozenset[str]
     view_cols: dict[View, frozenset[str]]
-    card_attr_groupbys: frozenset[str]
+    groupbys: tuple[str,...]
     dd_filter: mdu.filter.Filter | None
 
     def __post_init__(self):
@@ -50,12 +50,9 @@ class Manifest:
                 if self.dd_filter is not None:
                     for col in self.dd_filter.lhs:
                         assert col in cols_for_view, f"filter col {col} not found in base view"
-
-        # name in base_view_groupbys when using card_attr groupbys check
-        if len(self.card_attr_groupbys):
-            assert (
-                ColName.NAME in self.base_view_groupbys
-            ), "Must groupby name to group by card attributes"
+            if view == View.CARD:
+                # name in groupbys check
+                assert ColName.NAME in self.base_view_groupbys, f"base views must groupby by name to join card attrs"
 
         for col, cdef in self.col_def_map.items():
             # name_sum extension cols have name_sum first dependency for renaming
@@ -76,10 +73,9 @@ class Manifest:
             result += 4 * " " + v + ":\n"
             for c in sorted(view_cols):
                 result += 6 * " " + c + "\n"
-        if self.card_attr_groupbys:
-            result += 2 * " " + "card_attr_groupbys:\n"
-            for c in sorted(self.card_attr_groupbys):
-                result += 4 * " " + c + "\n"
+        result += 2 * " " + "groupbys:\n"
+        for c in sorted(self.groupbys):
+            result += 4 * " " + c + "\n"
         result += "}\n"
 
         return result
@@ -133,8 +129,13 @@ def create(
     filter_spec: dict | None = None,
     extensions: list[ColumnDefinition] | None = None,
 ):
-    cols = tuple(mdu.columns.default_columns) if columns is None else tuple(columns)
-    gbs = frozenset({ColName.NAME}) if groupbys is None else frozenset(groupbys)
+    gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
+    if columns is None:
+        cols = tuple(mdu.columns.default_columns)
+        if ColName.NAME not in gbs:
+            cols = tuple(c for c in cols if c not in [ColName.COLOR, ColName.RARITY])
+    else:
+        cols = tuple(columns)
 
     col_def_map = dict(mdu.columns.col_def_map)
     if extensions is not None:
@@ -142,19 +143,17 @@ def create(
             col_def_map[cdef.name] = cdef
 
     base_view_groupbys = frozenset()
-    card_attr_groupbys = frozenset()
     for col in gbs:
         cdef = col_def_map[col]
         if cdef.col_type == ColType.GROUPBY:
             base_view_groupbys = base_view_groupbys.union({col})
         elif cdef.col_type == ColType.CARD_ATTR:
             base_view_groupbys = base_view_groupbys.union({ColName.NAME})
-            card_attr_groupbys = card_attr_groupbys.union({col})
 
     dd_filter = mdu.filter.from_spec(filter_spec)
 
     col_set = frozenset(cols)
-    col_set = col_set.union(gbs - {ColName.NAME})
+    col_set = col_set.union(frozenset(gbs) - {ColName.NAME})
     if dd_filter is not None:
         col_set = col_set.union(dd_filter.lhs)
 
@@ -171,8 +170,8 @@ def create(
     return Manifest(
         columns=cols,
         col_def_map=col_def_map,
-        base_view_groupbys=gbs,
+        base_view_groupbys=base_view_groupbys,
         view_cols=view_cols,
-        card_attr_groupbys=card_attr_groupbys,
+        groupbys=gbs,
         dd_filter=dd_filter,
     )

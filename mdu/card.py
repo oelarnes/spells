@@ -32,12 +32,11 @@ def _format_attr(attr):
         return ''.join(attr)
     return str(attr)
 
-def _join_line(line, sep_type):
+def _join_line(line, sep_type: str)-> str:
     if sep_type == 'Pipe':
         return '|'.join(line)
-    if sep_type == "Comma":
-        line = [token if "," not in token else f'"{token}"' for token in line]
-        return ",".join(line)
+    line = [token if "," not in token else f'"{token}"' for token in line]
+    return ",".join(line)
 
 class Card():
     IMAGE_SIZE_DEFAULT = 'normal'
@@ -81,6 +80,10 @@ class Card():
     @property
     def color_identity_str(self):
         return _format_attr(self.color_identity)
+
+    @property
+    def color(self):
+        return _format_attr(self.colors)
     
     @property
     def color_identity_name(self):

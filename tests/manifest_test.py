@@ -16,6 +16,7 @@ import mdu.manifest
   columns:
     alsa
     ata
+    color
     gih_wr
     gp_wr
     num_gih
@@ -25,9 +26,13 @@ import mdu.manifest
     num_taken
     oh_wr
     pct_gp
+    rarity
   base_view_groupbys:
     name
   view_cols:
+    card:
+      color
+      rarity
     draft:
       last_seen
       num_seen
@@ -36,12 +41,14 @@ import mdu.manifest
       taken_at
     game:
       deck
-      deck_won
       drawn
-      drawn_won
       opening_hand
-      opening_hand_won
       sideboard
+      won_deck
+      won_drawn
+      won_opening_hand
+  groupbys:
+    name
 }
 """),
         (None, ["player_cohort"], None, None, """{
@@ -69,13 +76,15 @@ import mdu.manifest
       taken_at
     game:
       deck
-      deck_won
       drawn
-      drawn_won
       opening_hand
-      opening_hand_won
       player_cohort
       sideboard
+      won_deck
+      won_drawn
+      won_opening_hand
+  groupbys:
+    player_cohort
 }
 """),
         (["ata"], ["draft_week", "name"], None, None, """{
@@ -90,6 +99,9 @@ import mdu.manifest
       num_taken
       pick
       taken_at
+  groupbys:
+    draft_week
+    name
 }
 """),
         (["alsa"], None, {"rank": "gold"}, None, """{
@@ -102,6 +114,8 @@ import mdu.manifest
       last_seen
       num_seen
       rank
+  groupbys:
+    name
 }
 """),
         (["alsa_plus_one"], None, None, [ColumnDefinition('alsa_plus_one', ColType.AGG, pl.col('alsa') + 1, (), ['alsa'])], """{
@@ -113,8 +127,28 @@ import mdu.manifest
     draft:
       last_seen
       num_seen
+  groupbys:
+    name
 }
-""")
+"""),
+        (["gp_wr", "num_gp", "pct_gp"], ["color"], None, None, """{
+  columns:
+    gp_wr
+    num_gp
+    pct_gp
+  base_view_groupbys:
+    name
+  view_cols:
+    card:
+      color
+    game:
+      deck
+      sideboard
+      won_deck
+  groupbys:
+    color
+}
+"""),
     ]
 )
 def test_create_manifest(

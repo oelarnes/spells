@@ -8,7 +8,7 @@ for performance.
 
 import functools
 import re
-from typing import Callable
+from typing import Callable, TypeVar
 
 import polars as pl
 
@@ -28,21 +28,27 @@ def cache_key(args) -> str:
     return hex(hash(str(args)))[3:]
 
 
+DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 def col_df(
-    df: pl.LazyFrame | pl.DataFrame,
+    df: DF,
     col: str,
     col_def_map: dict[str, ColumnDefinition],
     is_view: bool,
-) -> pl.LazyFrame | pl.DataFrame:
+) -> DF:
     cdef = col_def_map[col]
-    if not cdef.dependencies:
+    if not is_view and cdef.col_type != ColType.AGG:
+        return df.select(pl.col(cdef.name))
+    if not cdef.dependencies and is_view:
         return df.select(cdef.expr)
+    assert cdef.dependencies, f"Column {col} should be an agg type and declare its dependencies"
 
     root_col_exprs = []
     col_dfs = []
     for dep in cdef.dependencies:
         dep_def = col_def_map[dep]
-        if dep_def.dependencies is None or is_view and len(dep_def.views):
+        if not is_view and dep_def.col_type != ColType.AGG:
+            root_col_exprs.append(pl.col(dep_def.name))
+        elif not dep_def.dependencies and is_view:
             root_col_exprs.append(dep_def.expr)
         else:
             col_dfs.append(col_df(df, dep, col_def_map, is_view))
@@ -178,4 +184,20 @@ def metrics(
         write_cache=write_cache,
     )
 
-    return agg_df
+    if View.CARD in m.view_cols:
+        card_cols = m.view_cols[View.CARD].union({ColName.NAME})
+        fp = data_file_path(set_code, View.CARD)
+        card_df = pl.read_csv(fp)
+        cols_df = pl.concat(
+            [col_df(card_df, col, m.col_def_map, is_view=True) for col in card_cols],
+            how="horizontal"
+        )
+
+        agg_df = agg_df.join(cols_df, on="name", how="outer", coalesce=True)
+        if ColName.NAME not in m.groupbys:
+            agg_df = agg_df.group_by(groupbys).sum()
+
+    ret_cols = m.groupbys + m.columns
+    ret_df = pl.concat([col_df(agg_df, col, m.col_def_map, is_view=False) for col in ret_cols], how="horizontal")
+
+    return ret_df

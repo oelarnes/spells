@@ -114,7 +114,7 @@ def write_card_file(draft_set_code):
 
     names = (re.split(pattern, name)[1] for name in columns if re.search(pattern, name) is not None)
 
-    card_attrs = ["name", "set", "rarity", "color_identity_str", "type", "subtype", "cmc"]
+    card_attrs = ["name", "set", "rarity", "color", "color_identity_str", "type", "subtype", "cmc"]
 
     card_file_rows = [",".join(card_attrs) + "\n"]
     sf = Scryfall(DRAFT_SET_SYMBOL_MAP[draft_set_code])
