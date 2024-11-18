@@ -198,6 +198,6 @@ def metrics(
             agg_df = agg_df.group_by(groupbys).sum()
 
     ret_cols = m.groupbys + m.columns
-    ret_df = pl.concat([col_df(agg_df, col, m.col_def_map, is_view=False) for col in ret_cols], how="horizontal")
+    ret_df = pl.concat([col_df(agg_df, col, m.col_def_map, is_view=False) for col in ret_cols], how="horizontal").sort(m.groupbys)
 
     return ret_df

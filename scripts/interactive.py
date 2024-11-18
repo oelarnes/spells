@@ -23,6 +23,10 @@ else:
 
 myn = ["Cache Grab", "Carrot Cake", "Savor", "Take Out the Trash", "Shore Up"]
 m = mdu.manifest.create(None, None, None, None)
+
+pl.Config.set_tbl_cols(50)
+pl.Config.set_tbl_rows(500)
+
 print(
     "%===============================================================================================%"
 )
