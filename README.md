@@ -7,7 +7,7 @@
 >>>spells.summon('BLB')
 ...[output here]
 ```
-**spells** is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using **spells**. **spells** is free and open-source, please consider controbuting and feel free to make use of the source code under the terms of the MIT license.
+**spells** is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using **spells**. **spells** is free and open-source; please consider controbuting and feel free to make use of the source code under the terms of the MIT license.
 
 ## spells:
 - Uses polars for high-performance, multi-threaded, chunked aggregations of large datasets
