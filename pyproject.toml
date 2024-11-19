@@ -1,7 +1,7 @@
 [project]
-name = "magic-data-utils"
+name = "spells"
 version = "0.1.0"
-description = "Default template for PDM package"
+description = "analaysis of 17Lands.com public datasets"
 authors = [
     {name = "Joel Barnes", email = "oelarnes@gmail.com"},
 ]

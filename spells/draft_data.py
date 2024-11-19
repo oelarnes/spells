@@ -12,13 +12,13 @@ from typing import Callable, TypeVar
 
 import polars as pl
 
-from mdu.cache_17l import data_file_path
-from mdu.get_schema import schema
-import mdu.cache
-import mdu.filter
-import mdu.manifest
-from mdu.columns import ColumnDefinition
-from mdu.enums import View, ColName, ColType
+from spells.cache_17l import data_file_path
+from spells.get_schema import schema
+import spells.cache
+import spells.filter
+import spells.manifest
+from spells.columns import ColumnDefinition
+from spells.enums import View, ColName, ColType
 
 
 def cache_key(args) -> str:
@@ -71,20 +71,20 @@ def fetch_or_cache(
     key = cache_key(args)
 
     if read_cache:
-        if mdu.cache.cache_exists(set_code, key):
-            return mdu.cache.read_cache(set_code, key)
+        if spells.cache.cache_exists(set_code, key):
+            return spells.cache.read_cache(set_code, key)
 
     df = calc_fn(*args, **non_cache_args)
 
     if write_cache:
-        mdu.cache.write_cache(set_code, key, df)
+        spells.cache.write_cache(set_code, key, df)
 
     return df
 
 
 def base_agg_df(
     set_code: str,
-    m: mdu.manifest.Manifest,
+    m: spells.manifest.Manifest,
     use_streaming: bool = False,
 ) -> pl.DataFrame:
     """
@@ -163,7 +163,7 @@ def base_agg_df(
     )
 
 
-def metrics(
+def summon(
     set_code: str,
     columns: list[str] | None = None,
     groupbys: list[str] | None = None,
@@ -173,7 +173,7 @@ def metrics(
     read_cache: bool = True,
     write_cache: bool = True,
 ) -> pl.DataFrame:
-    m = mdu.manifest.create(columns, groupbys, filter_spec, extensions)
+    m = spells.manifest.create(columns, groupbys, filter_spec, extensions)
 
     agg_df = fetch_or_cache(
         base_agg_df,

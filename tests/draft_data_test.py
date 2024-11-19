@@ -7,11 +7,11 @@ import pytest
 
 import polars as pl
 
-from mdu import draft_data
-import mdu.columns as mcol
-import mdu.cache_17l as c17
-from mdu.enums import View, ColName
-from mdu.get_schema import schema
+from spells import draft_data
+import spells.columns as mcol
+import spells.cache_17l as c17
+from spells.enums import View, ColName
+from spells.get_schema import schema
 
 os.environ["MDU_PROJECT_DIR"] = "tests"  # will only work from project directory
 

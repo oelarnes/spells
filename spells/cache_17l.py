@@ -11,10 +11,10 @@ import csv
 
 from enum import Enum
 
-from mdu.scryfall import Scryfall
-from mdu.config.mdu_cfg import DRAFT_SET_SYMBOL_MAP
-from mdu.cache import data_dir_path, clear_cache
-from mdu.enums import View
+from spells.scryfall import Scryfall
+from spells.config.spells_cfg import DRAFT_SET_SYMBOL_MAP
+from spells.cache import data_dir_path, clear_cache
+from spells.enums import View
 
 DATA = "data"
 C17_EXT = "17l-files"
@@ -97,7 +97,7 @@ def write_card_file(draft_set_code):
 
     Gets names from the 17lands headers and card information from a cache of Scryfall
     in local mongo. (Requires a mongo instance populated with Scryfall data, see
-    mdu.scryfall module)
+    spells.scryfall module)
     """
     draft_filepath = data_file_path(draft_set_code, View.DRAFT)
 

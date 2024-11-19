@@ -5,7 +5,7 @@ Test behavior of filters from dict specification
 import pytest
 import polars as pl
 
-import mdu.filter
+import spells.filter
 
 ROW_0 = {"int": 1, "float": 2.0, "text": "hi"}
 ROW_1 = {"int": 0, "float": -0.4, "text": "foo"}
@@ -87,7 +87,7 @@ shape: (1, 3)
     ],
 )
 def test_from_spec(filter_spec: dict | None, expected: str | None):
-    test_filter = mdu.filter.from_spec(filter_spec)
+    test_filter = spells.filter.from_spec(filter_spec)
 
     if expected is None:
         assert test_filter is None
@@ -101,10 +101,10 @@ def test_from_spec(filter_spec: dict | None, expected: str | None):
 @pytest.mark.parametrize(
     "test_filter, expected",
     [
-        (mdu.filter.from_spec({"int": 1}), {"int"}),
-        (mdu.filter.from_spec({"$not": {"$or": [{"text": "foo"}, {"int": 1}]}}), {"text", "int"}),
+        (spells.filter.from_spec({"int": 1}), {"int"}),
+        (spells.filter.from_spec({"$not": {"$or": [{"text": "foo"}, {"int": 1}]}}), {"text", "int"}),
         (
-            mdu.filter.from_spec(
+            spells.filter.from_spec(
                 {
                     "$and": [
                         {"lhs": "text", "rhs": ["foo", "bar", "hi"], "op": "in"},

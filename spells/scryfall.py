@@ -4,8 +4,8 @@ import datetime
 import requests
 import pymongo
 
-from mdu.config.scryfall_cfg import OVERRIDES
-from mdu.card import Card
+from spells.config.scryfall_cfg import OVERRIDES
+from spells.card import Card
 
 API_URL = 'https://api.scryfall.com/bulk-data/default_cards'
 

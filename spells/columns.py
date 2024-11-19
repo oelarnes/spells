@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from mdu.enums import View, ColName, ColType
+from spells.enums import View, ColName, ColType
 
 @dataclass
 class ColumnDefinition:

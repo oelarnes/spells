@@ -1,5 +1,5 @@
 """
-mdu.filter (don't import as builtin filter) returns a function from_spec
+spells.filter (don't import as builtin filter) returns a function from_spec
 that takes a dict-specified filter and returns a Filter object that records
 the dependent column names and contains a filter expression for use in polars.
 """

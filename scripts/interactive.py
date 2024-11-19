@@ -1,20 +1,19 @@
-"launch `pdm run imdu [test]` or use `from scripts.interactive import *` in Jupyter"
+"launch `pdm run ispells [test]` or use `from scripts.interactive import *` in Jupyter"
 
 import os, sys, functools, re
 import importlib
 
-import pandas as pd
 import polars as pl
 import numpy as np
 import matplotlib.pyplot as plt
 
-import mdu.draft_data as draft_data
-from mdu.filter import from_spec 
-import mdu.cache_17l as c17
-import mdu.columns as mcol
-import mdu.manifest
-from mdu.enums import *
-from mdu.get_schema import schema
+import spells.draft_data as draft_data
+from spells.filter import from_spec 
+import spells.cache_17l as c17
+import spells.columns as mcol
+import spells.manifest
+from spells.enums import *
+from spells.get_schema import schema
 
 if len(sys.argv) > 1 and sys.argv[1] == "test":
     os.environ["MDU_PROJECT_DIR"] = "/Users/Joel/Projects/magic-data-utils/tests"
@@ -22,7 +21,7 @@ else:
     os.environ["MDU_PROJECT_DIR"] = "/Users/Joel/Projects/magic-data-utils"
 
 myn = ["Cache Grab", "Carrot Cake", "Savor", "Take Out the Trash", "Shore Up"]
-m = mdu.manifest.create(None, None, None, None)
+m = spells.manifest.create(None, None, None, None)
 
 pl.Config.set_tbl_cols(50)
 pl.Config.set_tbl_rows(500)

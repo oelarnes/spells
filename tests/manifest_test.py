@@ -5,9 +5,9 @@ import pytest
 
 import polars as pl
 
-from mdu.columns import ColumnDefinition
-from mdu.enums import ColType
-import mdu.manifest
+from spells.columns import ColumnDefinition
+from spells.enums import ColType
+import spells.manifest
 
 @pytest.mark.parametrize(
     "columns, groupbys, filter_spec, extensions, expected",
@@ -158,7 +158,7 @@ def test_create_manifest(
     extensions: list[ColumnDefinition] | None,
     expected: str,
 ):
-    m = mdu.manifest.create(columns, groupbys, filter_spec, extensions)
+    m = spells.manifest.create(columns, groupbys, filter_spec, extensions)
 
     print(m.test_str())
     assert m.test_str() == expected

@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 
-import mdu.columns
-import mdu.filter
-from mdu.enums import View, ColName, ColType
-from mdu.columns import ColumnDefinition
+import spells.columns
+import spells.filter
+from spells.enums import View, ColName, ColType
+from spells.columns import ColumnDefinition
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,7 @@ class Manifest:
     base_view_groupbys: frozenset[str]
     view_cols: dict[View, frozenset[str]]
     groupbys: tuple[str,...]
-    dd_filter: mdu.filter.Filter | None
+    dd_filter: spells.filter.Filter | None
 
     def __post_init__(self):
         # No name filter check
@@ -131,13 +131,13 @@ def create(
 ):
     gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
     if columns is None:
-        cols = tuple(mdu.columns.default_columns)
+        cols = tuple(spells.columns.default_columns)
         if ColName.NAME not in gbs:
             cols = tuple(c for c in cols if c not in [ColName.COLOR, ColName.RARITY])
     else:
         cols = tuple(columns)
 
-    col_def_map = dict(mdu.columns.col_def_map)
+    col_def_map = dict(spells.columns.col_def_map)
     if extensions is not None:
         for cdef in extensions:
             col_def_map[cdef.name] = cdef
@@ -150,7 +150,7 @@ def create(
         elif cdef.col_type == ColType.CARD_ATTR:
             base_view_groupbys = base_view_groupbys.union({ColName.NAME})
 
-    dd_filter = mdu.filter.from_spec(filter_spec)
+    dd_filter = spells.filter.from_spec(filter_spec)
 
     col_set = frozenset(cols)
     col_set = col_set.union(frozenset(gbs) - {ColName.NAME})
