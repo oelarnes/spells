@@ -48,9 +48,9 @@ Using pandas instead is as simple as invoking the chained call `summon(...).to_p
     │ Zoraline, Cosmos Caller ┆ 0.622753 │
     └─────────────────────────┴──────────┘
     ```
-  - `groupbys` specifies the grouping by one or more columns. By default, group by card names, but optionally group by most any fundamental or derived value, including card attributes
+  - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by most any fundamental or derived value, including card attributes
     ```python
-    >>>spells.summon('BLB', columns=["trophy_rate"], groupbys=["user_game_win_rate_bucket"])
+    >>>spells.summon('BLB', columns=["trophy_rate"], group_by=["user_game_win_rate_bucket"])
     shape: (46, 2)
     ┌───────────────────────────┬─────────────┐
     │ user_game_win_rate_bucket ┆ trophy_rate │
@@ -70,14 +70,14 @@ Using pandas instead is as simple as invoking the chained call `summon(...).to_p
     │ 0.94                      ┆ 0.333333    │
     └───────────────────────────┴─────────────┘
     ```
-  - `filter_spec` specifies a base filter for the dataset, using an intuitive custom query formulation
+  - `filter` specifies a base filter for the dataset, using an intuitive custom query formulation
     ```python
     >>>from spells.enums import ColName
     >>>spells.summon(
     ...  'BLB',
     ...  columns=[ColName.GP_WR],
-    ...  groupbys=[ColName.MAIN_COLORS],
-    ...  filter_spec = {ColName.PLAYER_COHORT: 'Top'}
+    ...  group_by=[ColName.MAIN_COLORS],
+    ...  filter= {ColName.PLAYER_COHORT: 'Top'}
     ...)
     shape: (28, 2)
     ┌─────────────┬──────────┐
@@ -109,7 +109,7 @@ Using pandas instead is as simple as invoking the chained call `summon(...).to_p
     ...  col_type=ColType.GROUPBY,
     ...  expr=pl.col('user_game_win_rate_bucket') > 0.55
     ...)
-    >>>spells.summon('BLB', columns=['event_matches_sum'], groupbys=['is_winner'], extensions=[ext])
+    >>>spells.summon('BLB', columns=['event_matches_sum'], group_by=['is_winner'], extensions=[ext])
     ...[my output]
     ```
 
@@ -121,7 +121,7 @@ Using pandas instead is as simple as invoking the chained call `summon(...).to_p
 
 Firstly, it is built on top of *polars*, a modern, well-supported DataFrame engine that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. **spells** selects only the necessary columns for your analysis, at the lowest depth possible per column, and uses "concat" rather than "with" throughout to ensure the best performance and flexibility for optimization. 
 
-Unlike dask, a pandas-based distributed calculation engine, by default, polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too expensive, **spells** exposes the parameter `streaming`, which performs aggregations in chunks based on available system resources. `polars.Config` exposes settings for further tweaking your execution plan. **spells** and polars do not support distributed computation.
+By default, polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too expensive, **spells** exposes the parameter `streaming`, which performs aggregations in chunks based on available system resources. `polars.Config` exposes settings for further tweaking your execution plan. **spells** and polars do not support distributed computation.
 
 ### Local Caching
 Additionally, by default, **spells** caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, and can be set using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
