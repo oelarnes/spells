@@ -39,6 +39,7 @@
     ```
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns
     ```python
+    >>>import polars as pl
     >>>from spells.columns import ColumnDefinition
     >>>from spells.enums import ColType, View, ColName
     >>>ext = ColumnDefinition(
