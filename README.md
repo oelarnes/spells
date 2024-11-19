@@ -115,7 +115,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 
 ## Performance
 
-**spells** provides several features out of the box to optimize performance to the degree possible given its generality.
+Spells provides several features out of the box to optimize performance to the degree possible given its generality.
 
 ### Query Optimization
 
