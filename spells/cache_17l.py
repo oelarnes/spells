@@ -8,6 +8,7 @@ import os
 import gzip
 import re
 import csv
+import shutil
 
 from enum import Enum
 
@@ -41,25 +42,9 @@ def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER, zi
 
 
 def process_zipped_file(target_path_zipped, target_path):
-    with gzip.open(target_path_zipped, "rt", newline="", encoding="utf-8") as f_in:
-        with open(target_path, "w", newline="", encoding="utf-8") as f_out:
-            # we are going to add an increasing draft_id index to the beginning
-            # of the line to facilitate distributed grouping by draft_id
-            reader = csv.reader(f_in)
-            writer = csv.writer(f_out)
-            headers = next(reader)
-            draft_id_loc = headers.index("draft_id")
-            headers.insert(0, "draft_id_idx")
-            writer.writerow(headers)
-
-            draft_id_idx = 0
-            draft_id = None
-            for row in reader:
-                if row[draft_id_loc] != draft_id:
-                    draft_id = row[draft_id_loc]
-                    draft_id_idx += 1
-                row.insert(0, str(draft_id_idx))
-                writer.writerow(row)
+    with gzip.open(target_path_zipped, 'rb') as f_in:
+       with open(target_path, 'wb') as f_out:
+           shutil.copyfileobj(f_in, f_out)  
 
     os.remove(target_path_zipped)
 

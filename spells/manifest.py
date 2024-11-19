@@ -129,6 +129,11 @@ def create(
     filter_spec: dict | None = None,
     extensions: list[ColumnDefinition] | None = None,
 ):
+    col_def_map = dict(spells.columns.col_def_map)
+    if extensions is not None:
+        for cdef in extensions:
+            col_def_map[cdef.name] = cdef
+
     gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
     if columns is None:
         cols = tuple(spells.columns.default_columns)
@@ -136,11 +141,6 @@ def create(
             cols = tuple(c for c in cols if c not in [ColName.COLOR, ColName.RARITY])
     else:
         cols = tuple(columns)
-
-    col_def_map = dict(spells.columns.col_def_map)
-    if extensions is not None:
-        for cdef in extensions:
-            col_def_map[cdef.name] = cdef
 
     base_view_groupbys = frozenset()
     for col in gbs:

@@ -6,7 +6,7 @@ import pytest
 import polars as pl
 
 from spells.columns import ColumnDefinition
-from spells.enums import ColType
+from spells.enums import ColType, View
 import spells.manifest
 
 @pytest.mark.parametrize(
@@ -147,6 +147,19 @@ import spells.manifest
       won_deck
   groupbys:
     color
+}
+"""),
+        (["event_match_wins"], ["is_winner"], None, [ColumnDefinition('is_winner', ColType.GROUPBY, pl.col('user_game_win_rate_bucket') > 0.55, (View.DRAFT, View.GAME))], """{
+  columns:
+    event_match_wins
+  base_view_groupbys:
+    is_winner
+  view_cols:
+    draft:
+      event_match_wins
+      is_winner
+  groupbys:
+    is_winner
 }
 """),
     ]

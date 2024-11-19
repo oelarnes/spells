@@ -169,6 +169,7 @@ _column_defs = [
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
         expr=pl.col(ColName.IS_TROPHY),
+        dependencies=[ColName.IS_TROPHY],
     ),
     ColumnDefinition(
         name=ColName.PACK_NUMBER,
@@ -579,6 +580,12 @@ _column_defs = [
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_NUM_DECK_GIH) / pl.col(ColName.NUM_DECK_GIH),
         dependencies=[ColName.WON_NUM_DECK_GIH, ColName.NUM_DECK_GIH]
+    ),
+    ColumnDefinition(
+        name=ColName.TROPHY_RATE,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.IS_TROPHY_SUM) / pl.col(ColName.NUM_TAKEN),
+        dependencies=[ColName.IS_TROPHY_SUM, ColName.NUM_TAKEN]
     ),
 ]
 

@@ -55,7 +55,8 @@ def write_cache(set_code: str, cache_key: str, df: pl.DataFrame) -> None:
 
 
 def clear_cache(set_code: str) -> bool:
-    with os.scandir(cache_dir_for_set(set_code)) as set_dir:
-        for entry in set_dir:
-            os.remove(entry)
+    if os.path.isdir(cache_dir_for_set(set_code)):
+        with os.scandir(cache_dir_for_set(set_code)) as set_dir:
+            for entry in set_dir:
+                os.remove(entry)
     return True
