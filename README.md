@@ -18,6 +18,7 @@
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides enums for all base columns and built-in extensions, as well as for custom extension parameters
   - But enums are entirely optional, and all arguments can be specified as strings if desired
+- Uses polars expressions to support second-stage aggregations like z-scores out of the box with one call to summon
 
 ## summon
 `summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis
