@@ -109,7 +109,19 @@
     ...[my output]
     ```
 
-## performance and caching
-...
-    
+## Performance
+
+**spells** provides several features out of the box to optimize performance to the degree possible given its generality.
+
+### Query Optimization
+
+Firstly, it is built on top of *polars*, a modern, well-supported DataFrame engine that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. **spells** selects only the necessary columns for your analysis, at the lowest depth possible per column, and uses "concat" rather than "with" throughout to ensure the best performance and flexibility for optimization. 
+
+Unlike dask, a pandas-based distributed calculation engine, by default, polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too expensive, **spells** exposes the parameter `streaming`, which performs aggregations in chunks based on available system resources. `polars.Config` exposes settings for further tweaking your execution plan. **spells** and polars do not support distributed computation.
+
+### Local Caching
+Additionally, by default, **spells** caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, and can be set using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
+
+When refreshing a given set's data files from 17Lands.com using the provided functions, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear_cache(set_code: str)` for further control.
+
 
