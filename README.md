@@ -1,6 +1,6 @@
 # 🪄 spells ✨
 
-**spells** is a python package that enables intuitive, optimized analysis of the public data sets provided by 17Lands. **spells** is designed to trivialize the annoying, fiddly, and slow parts of working with those large datasets, so that you can focus on your ideas. **spells** exposes one first-class function, `summon`, which summons a polars DataFrame to the battlefield.
+**spells** is a python package that facilitates intuitive, customizable, optimized analysis of the public data sets provided by 17Lands. **spells** is designed to trivialize the annoying, fiddly, and slow parts of working with those large datasets, so that you can focus on your ideas. **spells** exposes one first-class function, `summon`, which summons a polars DataFrame to the battlefield.
 
 ```python
 >>>import spells
@@ -8,7 +8,7 @@
 ...[output here]
 ```
 
-Using pandas instead is as simple as the chained call `summon(...).to_pandas()`
+Using pandas instead is as simple as invoking the chained call `summon(...).to_pandas()`.
 
 **spells** is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using **spells**. **spells** is free and open-source; please consider contributing and feel free to make use of the source code under the terms of the MIT license.
 
