@@ -1,6 +1,6 @@
 # 🪄 spells ✨
 
-**spells** is a python package that enables intuitive, optimized analysis of the public data sets provided by 17Lands.com. **spells** is designed to trivialize the annoying, fiddly, and slow parts of working with those large datasets, so that you can focus on your ideas. **spells** exposes one first-class function, `summon`, which summons a polars DataFrame to the battlefield.
+**spells** is a python package that enables intuitive, optimized analysis of the public data sets provided by 17Lands. **spells** is designed to trivialize the annoying, fiddly, and slow parts of working with those large datasets, so that you can focus on your ideas. **spells** exposes one first-class function, `summon`, which summons a polars DataFrame to the battlefield.
 
 ```python
 >>>import spells
@@ -13,7 +13,7 @@
 - Uses polars to power an expressive query language for specifying custom extensions and optimizing complex queries
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
-- Provides functions and scripts for downloading and organizing public datasets from 17Lands.com
+- Provides functions and scripts for downloading and organizing public datasets from 17Lands
 - Provides functions and scripts for downloading and modeling necessary card data from Scryfall
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides enums for all base columns and built-in extensions, as well as for custom extension parameters
@@ -122,6 +122,6 @@ Unlike dask, a pandas-based distributed calculation engine, by default, polars l
 ### Local Caching
 Additionally, by default, **spells** caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, and can be set using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
 
-When refreshing a given set's data files from 17Lands.com using the provided functions, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear_cache(set_code: str)` for further control.
+When refreshing a given set's data files from 17Lands using the provided functions, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear_cache(set_code: str)` for further control.
 
 
