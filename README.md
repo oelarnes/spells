@@ -134,6 +134,8 @@ Spells is available on PyPI as *spells-mtg*, and can be imported using pip or an
 
 Spells is still in development and could benefit from many new features and improvements. As such, you might rather clone this repository and install locally. It is set up to use pdm, but it's just a regular old python package and you can install with your normal workflow.
 
+If you are new to Python, I recommend using a package manager like poetry, pdm or uv to create a virtual environment and manage your project.
+
 ## Performance
 
 Spells provides several features out of the box to optimize performance to the degree possible given its generality.
