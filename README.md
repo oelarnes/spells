@@ -25,7 +25,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Provides enums for all base columns and built-in extensions, as well as for custom extension parameters
   - Enums are entirely optional, and all arguments can be specified as strings if desired
 - Uses Polars expressions to support second-stage aggregations like z-scores out of the box with one call to summon
-- Is lightweight: Polars is the only dependency
+- Is lightweight: Polars and requests are the only dependencies
 
 ## summon
 

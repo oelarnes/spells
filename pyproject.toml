@@ -6,8 +6,8 @@ authors = [
     {name = "Joel Barnes", email = "oelarnes@gmail.com"},
 ]
 dependencies = [
-    "matplotlib>=3.9.2",
-    "polars[pandas]>=1.12.0",
+    "polars>=1.14.0",
+    "requests>=2.32.3",
 ]
 requires-python = ">=3.12"
 readme = "README.md"

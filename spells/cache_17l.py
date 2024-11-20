@@ -9,8 +9,9 @@ import gzip
 import re
 import csv
 import shutil
-
 from enum import Enum
+
+import requests
 
 from spells.config.spells_cfg import DRAFT_SET_SYMBOL_MAP
 from spells.cache import data_dir_path, clear_cache
@@ -83,10 +84,6 @@ def write_card_file(draft_set_code):
     """
     Write a csv containing basic information about draftable cards, such as rarity,
     set symbol, color, mana cost, and type.
-
-    Gets names from the 17lands headers and card information from a cache of Scryfall
-    in local mongo. (Requires a mongo instance populated with Scryfall data, see
-    spells.scryfall module)
     """
     draft_filepath = data_file_path(draft_set_code, View.DRAFT)
 
@@ -100,9 +97,22 @@ def write_card_file(draft_set_code):
         raise ValueError("no columns found!")
 
     pattern = "^pack_card_"
-
     names = (re.split(pattern, name)[1] for name in columns if re.search(pattern, name) is not None)
 
     card_attrs = ["name", "set_code", "rarity", "color", "color_identity", "type", "subtype", "cmc"]
+    
+    draft_set_json = requests.get(MTG_JSON_TEMPLATE.format(draft_set_code)).json()
 
-    card_file_rows = [",".join(card_attrs) + "\n"]
+    set_codes = draft_set_json['data']['booster']['play']['sourceSetCodes']
+    set_codes.reverse()
+    
+    card_data_map = {}
+    for set_code in set_codes:
+        if set_code != draft_set_code:
+            card_data = requests.get(MTG_JSON_TEMPLATE.format(set_code)).json()['data']['cards']
+        else:
+            card_data = draft_set_json['data']['cards']
+        card_data_map.update({item['faceName'] if 'faceName' in item else item['name']: item for item in card_data})
+
+    card_data_list = [card_data_map[n] for n in names]
+
