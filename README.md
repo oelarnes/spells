@@ -28,7 +28,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 
 ## summon
 
-`summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis
+`summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis. Basic functionality not provided by this api can often be managed by simple chained calls using the polars API, e.g. sorting and post-agg filtering.
   - `columns` specifies the desired output columns
     ```python
     >>spells.summon('BLB', columns=["gih_wr"])
