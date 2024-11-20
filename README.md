@@ -1,6 +1,6 @@
 # 🪄 spells ✨
 
-**spells** is a python package that tutors up intuitive, customizable, high-performance analysis of the public data sets provided by 17Lands, and exiles the annoying, fiddly, and slow parts of working with those large datasets. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
+**spells** is a python package that tutors up intuitive, customizable, optimized analysis of the public data sets provided by [17Lands](https://www.17lands.com/), and exiles the annoying, fiddly, and slow parts of working with those large datasets. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
 
 ```python
 >>>import spells
@@ -13,19 +13,22 @@ Coverting to pandas DataFrame is as simple as invoking the chained call `summon(
 Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using Spells, and consider supporting their patreon. Spells is free and open-source; please consider contributing and feel free to make use of the source code under the terms of the MIT license.
 
 ## spells
-- Uses Polars for high-performance, multi-threaded, chunked aggregations of large datasets
+
+- Uses [Polars](https://docs.pola.rs/) for high-performance, multi-threaded, chunked aggregations of large datasets
 - Uses Polars to power an expressive query language for specifying custom extensions and optimizing complex queries
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Provides a CLI tool `spells [add|refresh|remove]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
-- Downloads and models booster configuration and card data from MTGJSON
+- Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides enums for all base columns and built-in extensions, as well as for custom extension parameters
   - Enums are entirely optional, and all arguments can be specified as strings if desired
 - Uses Polars expressions to support second-stage aggregations like z-scores out of the box with one call to summon
+- Is lightweight: Polars is the only dependency
 
 ## summon
+
 `summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis
   - `columns` specifies the desired output columns
     ```python
@@ -78,7 +81,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     ...  'BLB',
     ...  columns=[ColName.GP_WR],
     ...  group_by=[ColName.MAIN_COLORS],
-    ...  filter= {ColName.PLAYER_COHORT: 'Top'}
+    ...  filter={ColName.PLAYER_COHORT: 'Top'}
     ...)
     shape: (28, 2)
     ┌─────────────┬──────────┐
@@ -129,11 +132,12 @@ Spells provides several features out of the box to optimize performance to the d
 
 ### Query Optimization
 
-Firstly, it is built on top of *Polars*, a modern, well-supported DataFrame engine that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis, at the lowest depth possible per column, and uses "concat" rather than "with" throughout to ensure the best performance and flexibility for optimization. 
+Firstly, it is built on top of Polars, a modern, well-supported DataFrame engine that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis, at the lowest depth possible per column, and uses "concat" rather than "with" throughout to ensure the best performance and flexibility for optimization. 
 
 By default, Polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too memory-intensive, Spells exposes the Polars parameter `streaming`, which performs aggregations in chunks based on available system resources. `polars.Config` exposes settings for further tweaking your execution plan. Spells and Polars do not support distributed computation.
 
 ### Local Caching
+
 Additionally, by default, Spells caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, which can be configured using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
 
 When refreshing a given set's data files from 17Lands using the provided functions, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear_cache(set_code: str)` for further control.
