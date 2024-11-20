@@ -8,7 +8,7 @@
 ...[output here]
 ```
 
-Using pandas instead is as simple as invoking the chained call `summon(...).to_pandas()`.
+Coverting to pandas DataFrame is as simple as invoking the chained call `summon(...).to_pandas()`.
 
 Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using Spells, and consider supporting their patreon. Spells is free and open-source; please consider contributing and feel free to make use of the source code under the terms of the MIT license.
 
