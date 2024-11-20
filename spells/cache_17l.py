@@ -12,18 +12,19 @@ import shutil
 
 from enum import Enum
 
-from spells.scryfall import Scryfall
 from spells.config.spells_cfg import DRAFT_SET_SYMBOL_MAP
 from spells.cache import data_dir_path, clear_cache
 from spells.enums import View
 
 DATA = "data"
-C17_EXT = "17l-files"
+C17_EXT = "17l"
 
 URL_TEMPLATE = (
     "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
     + "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
 )
+
+MTG_JSON_TEMPLATE = "https://mtgjson.com/api/v5/{set_code}.json"
 
 
 class EventType(Enum):
@@ -31,12 +32,15 @@ class EventType(Enum):
     TRADITIONAL = "TradDraft"
 
 
+def c17_set_path(set_code):
+    return os.path.join(data_dir_path(C17_EXT), set_code)
+
 def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER, zipped=False):
     if dataset_type == "card":
-        return os.path.join(data_dir_path(C17_EXT), f"{set_code}_card.csv")
+        return os.path.join(c17_set_path(set_code), f"{set_code}_card.csv")
 
     return os.path.join(
-        data_dir_path(C17_EXT),
+        c17_set_path(set_code),
         f"{set_code}_{event_type.value}_{dataset_type}.csv{'.gz' if zipped else ''}",
     )
 
@@ -62,7 +66,7 @@ def download_data_set(
     target_path = data_file_path(set_code, dataset_type)
 
     if os.path.isfile(target_path) and not force_download:
-        print("file %(target_path) already exists, rerun with force_download=True to download")
+        print("file %(target_path) already exists, rerun with force_download=True, flag -f, or command refresh to download")
         return
 
     urllib.request.urlretrieve(
@@ -99,15 +103,6 @@ def write_card_file(draft_set_code):
 
     names = (re.split(pattern, name)[1] for name in columns if re.search(pattern, name) is not None)
 
-    card_attrs = ["name", "set", "rarity", "color", "color_identity_str", "type", "subtype", "cmc"]
+    card_attrs = ["name", "set_code", "rarity", "color", "color_identity", "type", "subtype", "cmc"]
 
     card_file_rows = [",".join(card_attrs) + "\n"]
-    sf = Scryfall(DRAFT_SET_SYMBOL_MAP[draft_set_code])
-    for name in names:
-        card = sf.get_card(name)
-        if card is None:
-            raise ValueError(f"Card name {name} not found, please update Scryfall cache")
-        card_file_rows.append(card.attr_line(card_attrs) + "\n")
-
-    with open(data_file_path(draft_set_code, "card"), "w", encoding="utf-8") as f:
-        f.writelines(card_file_rows)
