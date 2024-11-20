@@ -12,7 +12,7 @@ Using pandas instead is as simple as invoking the chained call `summon(...).to_p
 
 Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using Spells, and consider supporting their patreon. Spells is free and open-source; please consider contributing and feel free to make use of the source code under the terms of the MIT license.
 
-**spells:**
+## spells
 - Uses Polars for high-performance, multi-threaded, chunked aggregations of large datasets
 - Uses Polars to power an expressive query language for specifying custom extensions and optimizing complex queries
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
