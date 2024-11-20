@@ -52,7 +52,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     │ Zoraline, Cosmos Caller ┆ 0.622753 │
     └─────────────────────────┴──────────┘
     ```
-  - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by most any fundamental or derived value, including card attributes
+  - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by any of a large set of fundamental and derived columns, including card attributes and your own custom extension.
     ```python
     >>>spells.summon('BLB', columns=["trophy_rate"], group_by=["user_game_win_rate_bucket"])
     shape: (46, 2)
