@@ -1,6 +1,6 @@
 # 🪄 spells ✨
 
-**spells** is a python package that tutors up intuitive, customizable, optimized analysis of the public data sets provided by [17Lands](https://www.17lands.com/), and exiles the annoying, fiddly, and slow parts of working with those large datasets. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
+**spells** is a python package that tutors up customizable, optimized analysis of the public data sets provided by [17Lands](https://www.17lands.com/) with an intuitive interface, and exiles the annoying, fiddly, and slow parts of your analysis workflow. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
 
 ```python
 >>>import spells
@@ -22,10 +22,9 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Downloads and manages public datasets from 17Lands
 - Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
-- Provides enums for all base columns and built-in extensions, as well as for custom extension parameters
-  - Enums are entirely optional, and all arguments can be specified as strings if desired
+- Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
 - Uses Polars expressions to support second-stage aggregations like z-scores out of the box with one call to summon
-- Is lightweight: Polars and requests are the only dependencies
+- Is lightweight: Polars is the only dependency
 
 ## summon
 
