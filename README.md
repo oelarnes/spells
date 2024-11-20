@@ -98,19 +98,28 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     │ WUR         ┆ 0.510029 │
     └─────────────┴──────────┘
     ```
-  - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns
+  - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns. Note the column 'event_match_wins_sum' is an alias of 'event_match_wins'. Each column must have a defined role, and 'event_match_wins' is defined as a group_by. One could even group by 'event_match_wins' and sum the 'event_match_wins_sum' column within each group.
     ```python
     >>>import polars as pl
     >>>from spells.columns import ColumnDefinition
     >>>from spells.enums import ColType, View, ColName
     >>>ext = ColumnDefinition(
-    ...  name="is_winner",
+    ...  name="wins_a_lot",
     ...  views=(View.GAME, View.DRAFT),
-    ...  col_type=ColType.GROUPBY,
+    ...  col_type=ColType.GROUP_BY,
     ...  expr=pl.col('user_game_win_rate_bucket') > 0.55
     ...)
-    >>>spells.summon('BLB', columns=['event_matches_sum'], group_by=['is_winner'], extensions=[ext])
-    ...[my output]
+    >>>spells.summon('BLB', columns=['event_match_wins_sum'], group_by=['wins_a_lot'], extensions=[ext])
+    shape: (3, 2)
+    ┌────────────┬──────────────────────┐
+    │ wins_a_lot ┆ event_match_wins_sum │
+    │ ---        ┆ ---                  │
+    │ bool       ┆ i64                  │
+    ╞════════════╪══════════════════════╡
+    │ null       ┆ 5976                 │
+    │ false      ┆ 8817828              │
+    │ true       ┆ 7997739              │
+    └────────────┴──────────────────────┘
     ```
 
 ## Performance
