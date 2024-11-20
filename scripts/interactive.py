@@ -4,8 +4,6 @@ import os, sys, functools, re
 import importlib
 
 import polars as pl
-import numpy as np
-import matplotlib.pyplot as plt
 
 import spells.draft_data as draft_data
 from spells.filter import from_spec 
@@ -33,7 +31,7 @@ print(
     f"""
     $MDU_PROJECT_DIR    = {os.environ['MDU_PROJECT_DIR']}
     set_code            = {(set_code := "BLB")}
-    groupbys            = {(groupbys := ['name'])}
+    group_by            = {(group_by := ['name'])}
     myn                 = {(myn := myn)}
     mcol                = {(mcol := mcol)}
     c17                 = {(c17 := c17)}

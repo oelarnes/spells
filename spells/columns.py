@@ -88,40 +88,40 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.DRAFT_DATE,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.date(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.DRAFT_DAY_OF_WEEK,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.weekday(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.DRAFT_HOUR,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.hour(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.DRAFT_WEEK,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME, View.DRAFT),
         expr=pl.col("draft_time").dt.week(),
         dependencies=[ColName.DRAFT_TIME],
     ),
     ColumnDefinition(
         name=ColName.RANK,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME, View.DRAFT),
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_WINS,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
     ),
     ColumnDefinition(
@@ -133,7 +133,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_LOSSES,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
     ),
     ColumnDefinition(
@@ -145,7 +145,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCHES,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
         expr=pl.col("event_match_wins") + pl.col("event_match_losses"),
     ),
@@ -158,7 +158,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.IS_TROPHY,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
         expr=pl.when(pl.col("event_type") == "Traditional")
         .then(pl.col("event_match_wins") == 3)
@@ -178,7 +178,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.PACK_NUM,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
         expr=pl.col("pack_number") + 1,
     ),
@@ -189,7 +189,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.PICK_NUM,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
         expr=pl.col("pick_number") + 1,
     ),
@@ -215,7 +215,7 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.NAME,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(),
         # handled by internals, derived from both 'pick' and "name mapped" columns
     ),
@@ -269,17 +269,17 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.USER_N_GAMES_BUCKET,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT, View.GAME),
     ),
     ColumnDefinition(
         name=ColName.USER_GAME_WIN_RATE_BUCKET,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT, View.GAME),
     ),
     ColumnDefinition(
         name=ColName.PLAYER_COHORT,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.DRAFT, View.GAME),
         expr=pl.when(pl.col("user_n_games_bucket") < 100)
         .then(pl.lit("All"))
@@ -301,90 +301,90 @@ _column_defs = [
     ),
     ColumnDefinition(
         name=ColName.GAME_DATE,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
         expr=pl.col("game_time").dt.date(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.GAME_DAY_OF_WEEK,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
         expr=pl.col("game_time").dt.weekday(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.GAME_HOUR,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
         expr=pl.col("game_time").dt.hour(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.GAME_WEEK,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
         expr=pl.col("game_time").dt.week(),
         dependencies=[ColName.GAME_TIME],
     ),
     ColumnDefinition(
         name=ColName.BUILD_INDEX,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.MATCH_NUMBER,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.GAME_NUMBER,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.OPP_RANK,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.MAIN_COLORS,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.SPLASH_COLORS,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.ON_PLAY,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.NUM_MULLIGANS,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.OPP_NUM_MULLIGANS ,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.OPP_COLORS,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.NUM_TURNS,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.WON,
-        col_type=ColType.GROUPBY,
+        col_type=ColType.GROUP_BY,
         views=(View.GAME,),
     ),
     ColumnDefinition(

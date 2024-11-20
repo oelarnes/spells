@@ -16,7 +16,7 @@ class View(StrEnum):
 
 class ColType(StrEnum):
     FILTER_ONLY = 'filter_only'
-    GROUPBY = 'groupby'
+    GROUP_BY = 'group_by'
     PICK_SUM = 'pick_sum'
     NAME_SUM = 'name_sum'
     AGG = 'agg'

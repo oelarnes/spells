@@ -10,25 +10,27 @@ from spells.columns import ColumnDefinition
 class Manifest:
     columns: tuple[str, ...]
     col_def_map: dict[str, ColumnDefinition]
-    base_view_groupbys: frozenset[str]
+    base_view_group_by: frozenset[str]
     view_cols: dict[View, frozenset[str]]
-    groupbys: tuple[str,...]
-    dd_filter: spells.filter.Filter | None
+    group_by: tuple[str,...]
+    filter: spells.filter.Filter | None
 
     def __post_init__(self):
         # No name filter check
-        if self.dd_filter is not None:
+        if self.filter is not None:
             assert (
-                "name" not in self.dd_filter.lhs
+                "name" not in self.filter.lhs
             ), "Don't filter on 'name', include 'name' in groupbys and filter the final result instead"
 
         # Col in col_def_map check
         for col in self.columns:
             assert col in self.col_def_map, f"Undefined column {col}!"
+            assert self.col_def_map[col].col_type != ColType.GROUP_BY, f"group_by column {col} must be passed as group_by"
+            assert self.col_def_map[col].col_type != ColType.FILTER_ONLY, f"filter_only column {col} cannot be summoned"
 
-        # base_view_groupbys have col_type GROUPBY check
-        for col in self.base_view_groupbys:
-            assert self.col_def_map[col].col_type == ColType.GROUPBY, f"Invalid groupby {col}!"
+        # base_view_groupbys have col_type GROUP_BY check
+        for col in self.base_view_group_by:
+            assert self.col_def_map[col].col_type == ColType.GROUP_BY, f"Invalid groupby {col}!"
 
         for view, cols_for_view in self.view_cols.items():
             # cols_for_view are actually in view check
@@ -37,7 +39,7 @@ class Manifest:
                     view in self.col_def_map[col].views
                 ), f"View cols generated incorrectly, {col} not in view {view}"
             if view != View.CARD:
-                for col in self.base_view_groupbys:
+                for col in self.base_view_group_by:
                     # base_view_groupbys in view check
                     assert (
                         col == ColName.NAME or view in self.col_def_map[col].views
@@ -47,12 +49,12 @@ class Manifest:
                         col == ColName.NAME or col in cols_for_view
                     ), f"Groupby {col} not in view_cols[view]"
                 # filter cols are in both base_views check
-                if self.dd_filter is not None:
-                    for col in self.dd_filter.lhs:
+                if self.filter is not None:
+                    for col in self.filter.lhs:
                         assert col in cols_for_view, f"filter col {col} not found in base view"
             if view == View.CARD:
                 # name in groupbys check
-                assert ColName.NAME in self.base_view_groupbys, f"base views must groupby by name to join card attrs"
+                assert ColName.NAME in self.base_view_group_by, f"base views must groupby by name to join card attrs"
 
         for col, cdef in self.col_def_map.items():
             # name_sum extension cols have name_sum first dependency for renaming
@@ -65,16 +67,16 @@ class Manifest:
         result = "{\n" + 2 * " " + "columns:\n"
         for c in sorted(self.columns):
             result += 4 * " " + c + "\n"
-        result += 2 * " " + "base_view_groupbys:\n"
-        for c in sorted(self.base_view_groupbys):
+        result += 2 * " " + "base_view_group_by:\n"
+        for c in sorted(self.base_view_group_by):
             result += 4 * " " + c + "\n"
         result += 2 * " " + "view_cols:\n"
         for v, view_cols in sorted(self.view_cols.items()):
             result += 4 * " " + v + ":\n"
             for c in sorted(view_cols):
                 result += 6 * " " + c + "\n"
-        result += 2 * " " + "groupbys:\n"
-        for c in sorted(self.groupbys):
+        result += 2 * " " + "group_by:\n"
+        for c in sorted(self.group_by):
             result += 4 * " " + c + "\n"
         result += "}\n"
 
@@ -125,7 +127,7 @@ def _resolve_view_cols(
 
 def create(
     columns: list[str] | None = None,
-    groupbys: list[str] | None = None,
+    group_by: list[str] | None = None,
     filter_spec: dict | None = None,
     extensions: list[ColumnDefinition] | None = None,
 ):
@@ -134,7 +136,7 @@ def create(
         for cdef in extensions:
             col_def_map[cdef.name] = cdef
 
-    gbs = (ColName.NAME,) if groupbys is None else tuple(groupbys)
+    gbs = (ColName.NAME,) if group_by is None else tuple(group_by)
     if columns is None:
         cols = tuple(spells.columns.default_columns)
         if ColName.NAME not in gbs:
@@ -142,20 +144,20 @@ def create(
     else:
         cols = tuple(columns)
 
-    base_view_groupbys = frozenset()
+    base_view_group_by = frozenset()
     for col in gbs:
         cdef = col_def_map[col]
-        if cdef.col_type == ColType.GROUPBY:
-            base_view_groupbys = base_view_groupbys.union({col})
+        if cdef.col_type == ColType.GROUP_BY:
+            base_view_group_by = base_view_group_by.union({col})
         elif cdef.col_type == ColType.CARD_ATTR:
-            base_view_groupbys = base_view_groupbys.union({ColName.NAME})
+            base_view_group_by = base_view_group_by.union({ColName.NAME})
 
-    dd_filter = spells.filter.from_spec(filter_spec)
+    m_filter = spells.filter.from_spec(filter_spec)
 
     col_set = frozenset(cols)
     col_set = col_set.union(frozenset(gbs) - {ColName.NAME})
-    if dd_filter is not None:
-        col_set = col_set.union(dd_filter.lhs)
+    if m_filter is not None:
+        col_set = col_set.union(m_filter.lhs)
 
     view_cols = _resolve_view_cols(col_set, col_def_map)
 
@@ -170,8 +172,8 @@ def create(
     return Manifest(
         columns=cols,
         col_def_map=col_def_map,
-        base_view_groupbys=base_view_groupbys,
+        base_view_group_by=base_view_group_by,
         view_cols=view_cols,
-        groupbys=gbs,
-        dd_filter=dd_filter,
+        group_by=gbs,
+        filter=m_filter,
     )

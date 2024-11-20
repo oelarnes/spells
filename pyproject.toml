@@ -1,6 +1,6 @@
 [project]
-name = "spells"
-version = "0.1.0"
+name = "spells-mtg"
+dynamic = ["version"]
 description = "analaysis of 17Lands.com public datasets"
 authors = [
     {name = "Joel Barnes", email = "oelarnes@gmail.com"},
@@ -10,7 +10,6 @@ dependencies = [
     "pandas>=2.2.3",
     "numpy>=2.1.1",
     "requests>=2.32.3",
-    "dask[dataframe]>=2024.9.1",
     "matplotlib>=3.9.2",
     "polars[pandas]>=1.12.0",
     "pyarrow>=18.0.0",
@@ -27,13 +26,17 @@ build-backend = "pdm.backend"
 distribution = true
 
 [tool.pdm.scripts]
-get_cards = "python scripts/get_cards.py"
-imdu = "ipython -i scripts/interactive.py"
+spells = "python scripts/spells.py"
+ispells = "ipython -i scripts/interactive.py"
 
 [tool.pdm.dev-dependencies]
 dev = [
     "ipython>=8.27.0",
     "pytest>=8.3.3",
-    "pylint>=3.3.1",
     "black>=24.10.0",
+    "ruff>=0.7.4",
 ]
+
+[tool.pdm.version]
+source = "scm"
+

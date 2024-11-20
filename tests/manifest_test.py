@@ -10,7 +10,7 @@ from spells.enums import ColType, View
 import spells.manifest
 
 @pytest.mark.parametrize(
-    "columns, groupbys, filter_spec, extensions, expected",
+    "columns, group_by, filter_spec, extensions, expected",
     [
         (None, None, None, None, """{
   columns:
@@ -27,7 +27,7 @@ import spells.manifest
     oh_wr
     pct_gp
     rarity
-  base_view_groupbys:
+  base_view_group_by:
     name
   view_cols:
     card:
@@ -47,7 +47,7 @@ import spells.manifest
       won_deck
       won_drawn
       won_opening_hand
-  groupbys:
+  group_by:
     name
 }
 """),
@@ -64,7 +64,7 @@ import spells.manifest
     num_taken
     oh_wr
     pct_gp
-  base_view_groupbys:
+  base_view_group_by:
     player_cohort
   view_cols:
     draft:
@@ -83,14 +83,14 @@ import spells.manifest
       won_deck
       won_drawn
       won_opening_hand
-  groupbys:
+  group_by:
     player_cohort
 }
 """),
         (["ata"], ["draft_week", "name"], None, None, """{
   columns:
     ata
-  base_view_groupbys:
+  base_view_group_by:
     draft_week
     name
   view_cols:
@@ -99,7 +99,7 @@ import spells.manifest
       num_taken
       pick
       taken_at
-  groupbys:
+  group_by:
     draft_week
     name
 }
@@ -107,27 +107,27 @@ import spells.manifest
         (["alsa"], None, {"rank": "gold"}, None, """{
   columns:
     alsa
-  base_view_groupbys:
+  base_view_group_by:
     name
   view_cols:
     draft:
       last_seen
       num_seen
       rank
-  groupbys:
+  group_by:
     name
 }
 """),
         (["alsa_plus_one"], None, None, [ColumnDefinition('alsa_plus_one', ColType.AGG, pl.col('alsa') + 1, (), ['alsa'])], """{
   columns:
     alsa_plus_one
-  base_view_groupbys:
+  base_view_group_by:
     name
   view_cols:
     draft:
       last_seen
       num_seen
-  groupbys:
+  group_by:
     name
 }
 """),
@@ -136,7 +136,7 @@ import spells.manifest
     gp_wr
     num_gp
     pct_gp
-  base_view_groupbys:
+  base_view_group_by:
     name
   view_cols:
     card:
@@ -145,20 +145,21 @@ import spells.manifest
       deck
       sideboard
       won_deck
-  groupbys:
+  group_by:
     color
 }
 """),
-        (["event_match_wins"], ["is_winner"], None, [ColumnDefinition('is_winner', ColType.GROUPBY, pl.col('user_game_win_rate_bucket') > 0.55, (View.DRAFT, View.GAME))], """{
+        (["event_match_wins_sum"], ["is_winner"], None, [ColumnDefinition('is_winner', ColType.GROUP_BY, pl.col('user_game_win_rate_bucket') > 0.55, (View.DRAFT, View.GAME))], """{
   columns:
-    event_match_wins
-  base_view_groupbys:
+    event_match_wins_sum
+  base_view_group_by:
     is_winner
   view_cols:
     draft:
-      event_match_wins
+      event_match_wins_sum
       is_winner
-  groupbys:
+      pick
+  group_by:
     is_winner
 }
 """),
@@ -166,12 +167,12 @@ import spells.manifest
 )
 def test_create_manifest(
     columns: list[str] | None,
-    groupbys: list[str] | None,
+    group_by: list[str] | None,
     filter_spec: dict | None,
     extensions: list[ColumnDefinition] | None,
     expected: str,
 ):
-    m = spells.manifest.create(columns, groupbys, filter_spec, extensions)
+    m = spells.manifest.create(columns, group_by, filter_spec, extensions)
 
     print(m.test_str())
     assert m.test_str() == expected

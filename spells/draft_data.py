@@ -90,10 +90,10 @@ def base_agg_df(
     """
     This is where the heavy lifting happens. There are two distinct kinds of aggregations, "pick_sum"
     and "name_sum". First, select the query plan for the derived required columns under m.view_cols
-    for a base view (DRAFT or GAME). Then for pick_sum columns, simply sum with the given groupbys.
+    for a base view (DRAFT or GAME). Then for pick_sum columns, simply sum with the given group_by.
 
-    For name_sum columns, groupby the nonname groupbys, then unpivot to card names. If card name
-    (or any card attrs) are not groupbys, do an additional groupby step. Then collect and join
+    For name_sum columns, groupby the nonname group_by, then unpivot to card names. If card name
+    (or any card attrs) are not group_by, do an additional groupby step. Then collect and join
     the aggregated data frames.
 
     Note that all aggregations are sums. Any proper expectation (e.g. weight averages, variance)
@@ -103,10 +103,10 @@ def base_agg_df(
     TODO: cache the individual column aggregations instead of the join for cache efficiency
     """
     join_dfs = []
-    groupbys = m.base_view_groupbys
+    group_by = m.base_view_group_by
 
-    is_name_gb = ColName.NAME in groupbys
-    nonname_gb = tuple(gb for gb in groupbys if gb != ColName.NAME)
+    is_name_gb = ColName.NAME in group_by
+    nonname_gb = tuple(gb for gb in group_by if gb != ColName.NAME)
 
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
@@ -116,8 +116,8 @@ def base_agg_df(
         col_dfs = [col_df(base_view_df, col, m.col_def_map, is_view=True) for col in cols_for_view]
         base_df_prefilter = pl.concat(col_dfs, how="horizontal")
 
-        if m.dd_filter is not None:
-            base_df = base_df_prefilter.filter(m.dd_filter.expr)
+        if m.filter is not None:
+            base_df = base_df_prefilter.filter(m.filter.expr)
         else:
             base_df = base_df_prefilter
 
@@ -128,7 +128,7 @@ def base_agg_df(
             name_col_tuple = (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
 
             pick_df = base_df.select(nonname_gb + name_col_tuple + pick_sum_cols)
-            join_dfs.append(pick_df.group_by(groupbys).sum().collect(streaming=use_streaming))
+            join_dfs.append(pick_df.group_by(group_by).sum().collect(streaming=use_streaming))
 
         name_sum_cols = tuple(
             c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM
@@ -159,21 +159,21 @@ def base_agg_df(
             join_dfs.append(df)
 
     return functools.reduce(
-        lambda prev, curr: prev.join(curr, on=groupbys, how="outer", coalesce=True), join_dfs
+        lambda prev, curr: prev.join(curr, on=group_by, how="outer", coalesce=True), join_dfs
     )
 
 
 def summon(
     set_code: str,
     columns: list[str] | None = None,
-    groupbys: list[str] | None = None,
+    group_by: list[str] | None = None,
     filter_spec: dict | None = None,
     extensions: list[ColumnDefinition] | None = None,
     use_streaming: bool = False,
     read_cache: bool = True,
     write_cache: bool = True,
 ) -> pl.DataFrame:
-    m = spells.manifest.create(columns, groupbys, filter_spec, extensions)
+    m = spells.manifest.create(columns, group_by, filter_spec, extensions)
 
     agg_df = fetch_or_cache(
         base_agg_df,
@@ -194,10 +194,10 @@ def summon(
         )
 
         agg_df = agg_df.join(cols_df, on="name", how="outer", coalesce=True)
-        if ColName.NAME not in m.groupbys:
-            agg_df = agg_df.group_by(groupbys).sum()
+        if ColName.NAME not in m.group_by:
+            agg_df = agg_df.group_by(m.group_by).sum()
 
-    ret_cols = m.groupbys + m.columns
-    ret_df = pl.concat([col_df(agg_df, col, m.col_def_map, is_view=False) for col in ret_cols], how="horizontal").sort(m.groupbys)
+    ret_cols = m.group_by + m.columns
+    ret_df = pl.concat([col_df(agg_df, col, m.col_def_map, is_view=False) for col in ret_cols], how="horizontal").sort(m.group_by)
 
     return ret_df
