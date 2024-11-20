@@ -17,8 +17,9 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Uses Polars to power an expressive query language for specifying custom extensions and optimizing complex queries
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
+- Provides a CLI tool `spells` to download and manage external files
 - Handles downloading and organizing public datasets from 17Lands
-- Handles downloading and modeling necessary card data from Scryfall
+- Handles downloading and modeling necessary booster configuration and card data from MTGJSON
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides enums for all base columns and built-in extensions, as well as for custom extension parameters
   - Enums are entirely optional, and all arguments can be specified as strings if desired
