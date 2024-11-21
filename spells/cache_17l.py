@@ -3,17 +3,14 @@ download public data sets from 17Lands.com and generate a card
 file containing card attributes
 """
 
-import urllib.request
-import os
-import gzip
-import re
 import csv
+import gzip
+import os
+import re
 import shutil
+import urllib.request
 from enum import Enum
 
-import requests
-
-from spells.config.spells_cfg import DRAFT_SET_SYMBOL_MAP
 from spells.cache import data_dir_path, clear_cache
 from spells.enums import View
 
@@ -25,7 +22,6 @@ URL_TEMPLATE = (
     + "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
 )
 
-MTG_JSON_TEMPLATE = "https://mtgjson.com/api/v5/{set_code}.json"
 
 
 class EventType(Enum):
@@ -79,8 +75,7 @@ def download_data_set(
 
     process_zipped_file(target_path_zipped, target_path)
 
-
-def write_card_file(draft_set_code):
+def write_card_file(draft_set_code: str):
     """
     Write a csv containing basic information about draftable cards, such as rarity,
     set symbol, color, mana cost, and type.
@@ -99,20 +94,8 @@ def write_card_file(draft_set_code):
     pattern = "^pack_card_"
     names = (re.split(pattern, name)[1] for name in columns if re.search(pattern, name) is not None)
 
-    card_attrs = ["name", "set_code", "rarity", "color", "color_identity", "type", "subtype", "cmc"]
-    
-    draft_set_json = requests.get(MTG_JSON_TEMPLATE.format(draft_set_code)).json()
+    text = cards.card_file_text(draft_set_code, names)
 
-    set_codes = draft_set_json['data']['booster']['play']['sourceSetCodes']
-    set_codes.reverse()
-    
-    card_data_map = {}
-    for set_code in set_codes:
-        if set_code != draft_set_code:
-            card_data = requests.get(MTG_JSON_TEMPLATE.format(set_code)).json()['data']['cards']
-        else:
-            card_data = draft_set_json['data']['cards']
-        card_data_map.update({item['faceName'] if 'faceName' in item else item['name']: item for item in card_data})
 
-    card_data_list = [card_data_map[n] for n in names]
+
 

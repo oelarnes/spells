@@ -75,13 +75,18 @@ class ColName(StrEnum):
     DECK = "deck"
     SIDEBOARD = "sideboard"
     # card
-    SET = "set"
-    RARITY = "rarity"
+    SET_CODE = "set_code"
     COLOR = "color"
-    COLOR_IDENTITY_STR = "color_identity_str"
-    TYPE = "type"
+    RARITY = "rarity"
+    COLOR_IDENTITY = "color_identity"
+    CARD_TYPE = "card_type"
     SUBTYPE = "subtype"
-    CMC = "cmc"
+    MANA_VALUE = "mana_value"
+    MANA_COST = "mana_cost"
+    POWER = "power"
+    TOUGHNESS = "toughness"
+    IS_BONUS_SHEET = "is_bonus_sheet"
+    IS_DFC = "is_dfc"
 
     # extensions
     DRAFT_DATE = "draft_date"

@@ -7,7 +7,6 @@ authors = [
 ]
 dependencies = [
     "polars>=1.14.0",
-    "requests>=2.32.3",
 ]
 requires-python = ">=3.12"
 readme = "README.md"

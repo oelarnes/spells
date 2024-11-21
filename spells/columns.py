@@ -521,7 +521,7 @@ _column_defs = [
         dependencies=[ColName.NUM_GIH_WON, ColName.NUM_GIH],
     ),
     ColumnDefinition(
-        name=ColName.SET,
+        name=ColName.SET_CODE,
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
@@ -536,12 +536,12 @@ _column_defs = [
         views=(View.CARD,),
     ),
     ColumnDefinition(
-        name=ColName.COLOR_IDENTITY_STR,
+        name=ColName.COLOR_IDENTITY,
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
     ColumnDefinition(
-        name=ColName.TYPE,
+        name=ColName.CARD_TYPE,
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
@@ -551,7 +551,32 @@ _column_defs = [
         views=(View.CARD,),
     ),
     ColumnDefinition(
-        name=ColName.CMC,
+        name=ColName.MANA_VALUE,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.MANA_COST,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.POWER,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.TOUGHNESS,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.IS_BONUS_SHEET,
+        col_type=ColType.CARD_ATTR,
+        views=(View.CARD,),
+    ),
+    ColumnDefinition(
+        name=ColName.IS_DFC,
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
