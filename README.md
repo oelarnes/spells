@@ -5,7 +5,24 @@
 ```python
 >>>import spells
 >>>spells.summon('BLB')
-...[output here]
+shape: (276, 14)
+┌─────────────────────────┬───────┬──────────┬──────────┬───┬────────┬──────────┬─────────┬──────────┐
+│ name                    ┆ color ┆ rarity   ┆ num_seen ┆ … ┆ num_oh ┆ oh_wr    ┆ num_gih ┆ gih_wr   │
+│ ---                     ┆ ---   ┆ ---      ┆ ---      ┆   ┆ ---    ┆ ---      ┆ ---     ┆ ---      │
+│ str                     ┆ str   ┆ str      ┆ i64      ┆   ┆ i64    ┆ f64      ┆ i64     ┆ f64      │
+╞═════════════════════════╪═══════╪══════════╪══════════╪═══╪════════╪══════════╪═════════╪══════════╡
+│ Agate Assault           ┆ R     ┆ common   ┆ 245811   ┆ … ┆ 30659  ┆ 0.529632 ┆ 72959   ┆ 0.541688 │
+│ Agate-Blade Assassin    ┆ B     ┆ common   ┆ 289813   ┆ … ┆ 31099  ┆ 0.560886 ┆ 68698   ┆ 0.548939 │
+│ Alania's Pathmaker      ┆ R     ┆ common   ┆ 315760   ┆ … ┆ 22774  ┆ 0.52819  ┆ 54702   ┆ 0.537439 │
+│ Alania, Divergent Storm ┆ RU    ┆ rare     ┆ 37408    ┆ … ┆ 2133   ┆ 0.473043 ┆ 5843    ┆ 0.491528 │
+│ Artist's Talent         ┆ R     ┆ rare     ┆ 44725    ┆ … ┆ 995    ┆ 0.433166 ┆ 2528    ┆ 0.455696 │
+│ …                       ┆ …     ┆ …        ┆ …        ┆ … ┆ …      ┆ …        ┆ …       ┆ …        │
+│ Wick, the Whorled Mind  ┆ B     ┆ rare     ┆ 27641    ┆ … ┆ 4648   ┆ 0.517857 ┆ 11640   ┆ 0.547938 │
+│ Wildfire Howl           ┆ R     ┆ uncommon ┆ 121015   ┆ … ┆ 4370   ┆ 0.514416 ┆ 11029   ┆ 0.529422 │
+│ Wishing Well            ┆ U     ┆ rare     ┆ 52946    ┆ … ┆ 584    ┆ 0.491438 ┆ 1622    ┆ 0.563502 │
+│ Ygra, Eater of All      ┆ BG    ┆ mythic   ┆ 6513     ┆ … ┆ 3862   ┆ 0.620145 ┆ 9926    ┆ 0.62976  │
+│ Zoraline, Cosmos Caller ┆ BW    ┆ rare     ┆ 17689    ┆ … ┆ 6381   ┆ 0.604294 ┆ 15242   ┆ 0.622753 │
+└─────────────────────────┴───────┴──────────┴──────────┴───┴────────┴──────────┴─────────┴──────────┘
 ```
 
 Coverting to pandas DataFrame is as simple as invoking the chained call `summon(...).to_pandas()`.
@@ -53,53 +70,54 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     ```
   - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by any of a large set of fundamental and derived columns, including card attributes and your own custom extension.
     ```python
-    >>>spells.summon('BLB', columns=["trophy_rate"], group_by=["user_game_win_rate_bucket"])
-    shape: (46, 2)
+    >>>spells.summon('BLB', columns=["trophy_rate"], group_by=["user_game_win_rate_bucket"], filter_spec={'lhs': "user_n_games_bucket", 'op': ">=", 'rhs': 50})
+    shape: (26, 2)
     ┌───────────────────────────┬─────────────┐
     │ user_game_win_rate_bucket ┆ trophy_rate │
     │ ---                       ┆ ---         │
     │ f64                       ┆ f64         │
     ╞═══════════════════════════╪═════════════╡
-    │ null                      ┆ 0.069536    │
-    │ 0.0                       ┆ 0.0         │
-    │ 0.06                      ┆ 0.0         │
-    │ 0.1                       ┆ 0.0         │
-    │ 0.12                      ┆ 0.0         │
+    │ 0.3                       ┆ 0.0         │
+    │ 0.32                      ┆ 0.0         │
+    │ 0.34                      ┆ 0.002487    │
+    │ 0.36                      ┆ 0.009892    │
+    │ 0.38                      ┆ 0.014028    │
     │ …                         ┆ …           │
-    │ 0.86                      ┆ 0.590065    │
-    │ 0.88                      ┆ 0.25        │
-    │ 0.9                       ┆ 0.571429    │
-    │ 0.92                      ┆ 0.6         │
-    │ 0.94                      ┆ 0.333333    │
+    │ 0.72                      ┆ 0.410297    │
+    │ 0.74                      ┆ 0.391304    │
+    │ 0.76                      ┆ 0.5         │
+    │ 0.78                      ┆ 0.769231    │
+    │ 0.8                       ┆ 0.615385    │
     └───────────────────────────┴─────────────┘
     ```
-  - `filter` specifies a base filter for the dataset, using an intuitive custom query formulation
+  - `filter_spec` specifies a base filter for the dataset, using an intuitive custom query formulation
     ```python
     >>>from spells.enums import ColName
     >>>spells.summon(
     ...  'BLB',
-    ...  columns=[ColName.GP_WR],
+    ...  columns=[ColName.GP_WR, ColName.NUM_GP],
     ...  group_by=[ColName.MAIN_COLORS],
-    ...  filter={ColName.PLAYER_COHORT: 'Top'}
+    ...  filter_spec={'$and': [
+    ...     {ColName.PLAYER_COHORT: 'Top'}, # A different definition from 17Lands.com
+    ...     {'lhs': ColName.MAIN_COLORS, 'op': 'in', 'rhs': ['WU', 'WB', 'WR', 'WG', 'UB', 'UR', 'UB', 'BR', 'BG', 'RG']}
+         ]}
     ...)
-    shape: (28, 2)
-    ┌─────────────┬──────────┐
-    │ main_colors ┆ gp_wr    │
-    │ ---         ┆ ---      │
-    │ str         ┆ f64      │
-    ╞═════════════╪══════════╡
-    │ B           ┆ 0.61849  │
-    │ BG          ┆ 0.619011 │
-    │ BR          ┆ 0.629755 │
-    │ BRG         ┆ 0.544002 │
-    │ G           ┆ 0.621483 │
-    │ …           ┆ …        │
-    │ WU          ┆ 0.599901 │
-    │ WUB         ┆ 0.600773 │
-    │ WUBG        ┆ 0.599377 │
-    │ WUG         ┆ 0.577653 │
-    │ WUR         ┆ 0.510029 │
-    └─────────────┴──────────┘
+    shape: (9, 3)
+    ┌─────────────┬──────────┬─────────┐
+    │ main_colors ┆ gp_wr    ┆ num_gp  │
+    │ ---         ┆ ---      ┆ ---     │
+    │ str         ┆ f64      ┆ i64     │
+    ╞═════════════╪══════════╪═════════╡
+    │ BG          ┆ 0.619011 ┆ 1258468 │
+    │ BR          ┆ 0.629755 ┆ 621243  │
+    │ RG          ┆ 0.598299 ┆ 417101  │
+    │ UB          ┆ 0.609801 ┆ 500252  │
+    │ UR          ┆ 0.60948  ┆ 293168  │
+    │ WB          ┆ 0.614057 ┆ 798963  │
+    │ WG          ┆ 0.620028 ┆ 975636  │
+    │ WR          ┆ 0.618621 ┆ 593984  │
+    │ WU          ┆ 0.599901 ┆ 227379  │
+    └─────────────┴──────────┴─────────┘
     ```
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns. Note the column 'event_match_wins_sum' is an alias of 'event_match_wins'. Each column must have a defined role, and 'event_match_wins' is defined as a group_by. One could even group by 'event_match_wins' and sum the 'event_match_wins_sum' column within each group.
     ```python

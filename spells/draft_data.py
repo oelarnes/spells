@@ -12,8 +12,8 @@ from typing import Callable, TypeVar
 
 import polars as pl
 
-from spells.cache_17l import data_file_path
-from spells.get_schema import schema
+from spells.external import data_file_path
+from spells.schema import schema
 import spells.cache
 import spells.filter
 import spells.manifest

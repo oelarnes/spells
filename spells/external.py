@@ -1,6 +1,6 @@
 """
 download public data sets from 17Lands.com and generate a card
-file containing card attributes
+file containing card attributes using MTGJSON
 """
 
 import csv
@@ -11,11 +11,13 @@ import shutil
 import urllib.request
 from enum import Enum
 
-from spells.cache import data_dir_path, clear_cache
+from spells import cards
+from spells import cache
 from spells.enums import View
 
+
 DATA = "data"
-C17_EXT = "17l"
+EXTERNAL = "external"
 
 URL_TEMPLATE = (
     "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
@@ -23,26 +25,25 @@ URL_TEMPLATE = (
 )
 
 
-
 class EventType(Enum):
     PREMIER = "PremierDraft"
     TRADITIONAL = "TradDraft"
 
 
-def c17_set_path(set_code):
-    return os.path.join(data_dir_path(C17_EXT), set_code)
+def _external_set_path(set_code):
+    return os.path.join(cache.data_dir_path(EXTERNAL), set_code)
 
 def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER, zipped=False):
     if dataset_type == "card":
-        return os.path.join(c17_set_path(set_code), f"{set_code}_card.csv")
+        return os.path.join(_external_set_path(set_code), f"{set_code}_card.csv")
 
     return os.path.join(
-        c17_set_path(set_code),
+        _external_set_path(set_code),
         f"{set_code}_{event_type.value}_{dataset_type}.csv{'.gz' if zipped else ''}",
     )
 
 
-def process_zipped_file(target_path_zipped, target_path):
+def _process_zipped_file(target_path_zipped, target_path):
     with gzip.open(target_path_zipped, 'rb') as f_in:
        with open(target_path, 'wb') as f_out:
            shutil.copyfileobj(f_in, f_out)  
@@ -54,8 +55,8 @@ def download_data_set(
     set_code, dataset_type: View, event_type=EventType.PREMIER, force_download=False, clear_set_cache=True
 ):
     if clear_set_cache:
-        clear_cache(set_code)
-    target_dir = data_dir_path(C17_EXT)
+        cache.clear_cache(set_code)
+    target_dir = cache.data_dir_path(EXTERNAL)
     if not os.path.isdir(target_dir):
         os.makedirs(target_dir)
 
@@ -73,7 +74,7 @@ def download_data_set(
         target_path_zipped,
     )
 
-    process_zipped_file(target_path_zipped, target_path)
+    _process_zipped_file(target_path_zipped, target_path)
 
 def write_card_file(draft_set_code: str):
     """
@@ -94,8 +95,14 @@ def write_card_file(draft_set_code: str):
     pattern = "^pack_card_"
     names = (re.split(pattern, name)[1] for name in columns if re.search(pattern, name) is not None)
 
-    text = cards.card_file_text(draft_set_code, names)
+    csv_lines = cards.card_file_lines(draft_set_code, names)
 
+    card_filepath = data_file_path(draft_set_code, View.CARD)
 
+    with open(card_filepath, 'w', newline='') as f:
+        writer = csv.writer(f)
+        for row in csv_lines:
+            writer.writerow(row)
 
+    print(f"Wrote {len(csv_lines)} lines to file {card_filepath}")
 

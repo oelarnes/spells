@@ -21,7 +21,7 @@ class CardAttr(StrEnum):
 
 MTG_JSON_TEMPLATE = "https://mtgjson.com/api/v5/{set_code}.json"
 
-def fetch_mtgjson(set_code: str) -> dict:
+def _fetch_mtg_json(set_code: str) -> dict:
     request = urllib.request.Request(MTG_JSON_TEMPLATE.format(set_code=set_code), headers={'User-Agent': 'spells-mtg/0.1.0'})
 
     with urllib.request.urlopen(request) as f:
@@ -30,7 +30,7 @@ def fetch_mtgjson(set_code: str) -> dict:
     return draft_set_json
 
 
-def extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
+def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
     match field:
         case CardAttr.NAME:
             return name
@@ -61,14 +61,14 @@ def extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
 
 
 def card_file_lines(draft_set_code, names):
-    draft_set_json = fetch_mtgjson(draft_set_code)
+    draft_set_json = _fetch_mtg_json(draft_set_code)
     set_codes = draft_set_json['data']['booster']['play']['sourceSetCodes']
     set_codes.reverse()
     
     card_data_map = {}
     for set_code in set_codes:
         if set_code != draft_set_code:
-            card_data = fetch_mtgjson(set_code)['data']['cards']
+            card_data = _fetch_mtg_json(set_code)['data']['cards']
         else:
             card_data = draft_set_json['data']['cards']
 
@@ -80,6 +80,6 @@ def card_file_lines(draft_set_code, names):
     lines=[[field for field in CardAttr]]
 
     for name in names:
-        lines.append([extract_value(draft_set_code, name, card_data_map.get(name,{}), field) for field in CardAttr]) # type: ignore
+        lines.append([_extract_value(draft_set_code, name, card_data_map.get(name,{}), field) for field in CardAttr]) # type: ignore
 
     return lines
