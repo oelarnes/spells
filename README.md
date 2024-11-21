@@ -35,6 +35,8 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Uses Polars to power an expressive query language for specifying custom extensions and optimizing complex queries
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
+- Manages grouping and filtering by built-in and custom columns at the row level
+- Provides over 50 explicitly specified, enumerated, documented custom column definitions
 - Provides a CLI tool `spells [add|refresh|remove|clear_local] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
 - Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
