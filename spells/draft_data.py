@@ -34,6 +34,7 @@ def col_df(
     col: str,
     col_def_map: dict[str, ColumnDefinition],
     is_view: bool,
+    anchor_col: str = '',
 ) -> DF:
     cdef = col_def_map[col]
     if not is_view and cdef.col_type != ColType.AGG:
@@ -56,8 +57,17 @@ def col_df(
     if root_col_exprs:
         col_dfs.append(df.select(root_col_exprs))
 
+    if anchor_col != '':
+        col_dfs.append(df.select(anchor_col))
+
     dep_df = pl.concat(col_dfs, how="horizontal")
-    return dep_df.select(cdef.expr)
+
+    if anchor_col != '':
+        res_df = dep_df.select([anchor_col, cdef.expr]).drop(anchor_col)
+    else:
+        res_df = dep_df.select(cdef.expr)
+
+    return res_df
 
 
 def fetch_or_cache(
@@ -199,6 +209,6 @@ def summon(
             agg_df = agg_df.group_by(m.group_by).sum()
 
     ret_cols = m.group_by + m.columns
-    ret_df = pl.concat([col_df(agg_df, col, m.col_def_map, is_view=False) for col in ret_cols], how="horizontal").sort(m.group_by)
+    ret_df = pl.concat([col_df(agg_df, col, m.col_def_map, is_view=False, anchor_col=m.group_by[0]) for col in ret_cols], how="horizontal").sort(m.group_by)
 
     return ret_df

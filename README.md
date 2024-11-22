@@ -51,77 +51,62 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 `summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis. Basic functionality not provided by this api can often be managed by simple chained calls using the polars API, e.g. sorting and post-agg filtering.
   - `columns` specifies the desired output columns
     ```python
-    >>spells.summon('BLB', columns=["gih_wr"])
-    shape: (276, 2)
-    ┌─────────────────────────┬──────────┐
-    │ name                    ┆ gih_wr   │
-    │ ---                     ┆ ---      │
-    │ str                     ┆ f64      │
-    ╞═════════════════════════╪══════════╡
-    │ Agate Assault           ┆ 0.541688 │
-    │ Agate-Blade Assassin    ┆ 0.548939 │
-    │ Alania's Pathmaker      ┆ 0.537439 │
-    │ Alania, Divergent Storm ┆ 0.491528 │
-    │ Artist's Talent         ┆ 0.455696 │
-    │ …                       ┆ …        │
-    │ Wick, the Whorled Mind  ┆ 0.547938 │
-    │ Wildfire Howl           ┆ 0.529422 │
-    │ Wishing Well            ┆ 0.563502 │
-    │ Ygra, Eater of All      ┆ 0.62976  │
-    │ Zoraline, Cosmos Caller ┆ 0.622753 │
-    └─────────────────────────┴──────────┘
+    >>spells.summon('BLB', columns=["gp_wr", "ata"])
+    shape: (276, 3)
+    ┌─────────────────────────┬──────────┬──────────┐
+    │ name                    ┆ gp_wr    ┆ ata      │
+    │ ---                     ┆ ---      ┆ ---      │
+    │ str                     ┆ f64      ┆ f64      │
+    ╞═════════════════════════╪══════════╪══════════╡
+    │ Agate Assault           ┆ 0.538239 ┆ 6.162573 │
+    │ Agate-Blade Assassin    ┆ 0.546623 ┆ 7.904145 │
+    │ Alania's Pathmaker      ┆ 0.538747 ┆ 8.886676 │
+    │ Alania, Divergent Storm ┆ 0.489466 ┆ 5.601287 │
+    │ Artist's Talent         ┆ 0.466227 ┆ 7.515328 │
+    │ …                       ┆ …        ┆ …        │
+    │ Wick, the Whorled Mind  ┆ 0.525859 ┆ 3.618172 │
+    │ Wildfire Howl           ┆ 0.513218 ┆ 8.632178 │
+    │ Wishing Well            ┆ 0.533792 ┆ 8.56727  │
+    │ Ygra, Eater of All      ┆ 0.570971 ┆ 1.559604 │
+    │ Zoraline, Cosmos Caller ┆ 0.570701 ┆ 2.182625 │
+    └─────────────────────────┴──────────┴──────────┘
     ```
   - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by any of a large set of fundamental and derived columns, including card attributes and your own custom extension.
     ```python
-    >>>spells.summon('BLB', columns=["trophy_rate"], group_by=["user_game_win_rate_bucket"], filter_spec={'lhs': "user_n_games_bucket", 'op': ">=", 'rhs': 50})
-    shape: (26, 2)
-    ┌───────────────────────────┬─────────────┐
-    │ user_game_win_rate_bucket ┆ trophy_rate │
-    │ ---                       ┆ ---         │
-    │ f64                       ┆ f64         │
-    ╞═══════════════════════════╪═════════════╡
-    │ 0.3                       ┆ 0.0         │
-    │ 0.32                      ┆ 0.0         │
-    │ 0.34                      ┆ 0.002487    │
-    │ 0.36                      ┆ 0.009892    │
-    │ 0.38                      ┆ 0.014028    │
-    │ …                         ┆ …           │
-    │ 0.72                      ┆ 0.410297    │
-    │ 0.74                      ┆ 0.391304    │
-    │ 0.76                      ┆ 0.5         │
-    │ 0.78                      ┆ 0.769231    │
-    │ 0.8                       ┆ 0.615385    │
-    └───────────────────────────┴─────────────┘
-    ```
-  - `filter_spec` specifies a base filter for the dataset, using an intuitive custom query formulation
-    ```python
-    >>>from spells.enums import ColName
-    >>>spells.summon(
-    ...  'BLB',
-    ...  columns=[ColName.NUM_WON, ColName.NUM_GAMES, ColName.GAME_WR],
-    ...  group_by=[ColName.MAIN_COLORS],
-    ...  filter_spec={'$and': [
-    ...     {ColName.PLAYER_COHORT: 'Top'}, # A different definition from 17Lands.com
-    ...     {ColName.NUM_COLORS: 2}
-         ]}
-    ...)
+    >>>spells.summon('BLB', columns=["num_won", "num_games", "game_wr"], group_by=["main_colors"], filter_spec={"num_colors": 2})
     shape: (10, 4)
     ┌─────────────┬─────────┬───────────┬──────────┐
     │ main_colors ┆ num_won ┆ num_games ┆ game_wr  │
     │ ---         ┆ ---     ┆ ---       ┆ ---      │
     │ str         ┆ u32     ┆ u32       ┆ f64      │
     ╞═════════════╪═════════╪═══════════╪══════════╡
-    │ BG          ┆ 19447   ┆ 31416     ┆ 0.619016 │
-    │ BR          ┆ 9771    ┆ 15515     ┆ 0.629778 │
-    │ RG          ┆ 6235    ┆ 10421     ┆ 0.598311 │
-    │ UB          ┆ 7610    ┆ 12480     ┆ 0.609776 │
-    │ UG          ┆ 13810   ┆ 22348     ┆ 0.617952 │
-    │ UR          ┆ 4448    ┆ 7302      ┆ 0.609148 │
-    │ WB          ┆ 12253   ┆ 19954     ┆ 0.614062 │
-    │ WG          ┆ 15112   ┆ 24373     ┆ 0.62003  │
-    │ WR          ┆ 9178    ┆ 14836     ┆ 0.61863  │
-    │ WU          ┆ 3407    ┆ 5679      ┆ 0.59993  │
+    │ BG          ┆ 85022   ┆ 152863    ┆ 0.556197 │
+    │ BR          ┆ 45900   ┆ 81966     ┆ 0.559988 │
+    │ RG          ┆ 34641   ┆ 64428     ┆ 0.53767  │
+    │ UB          ┆ 30922   ┆ 57698     ┆ 0.535928 │
+    │ UG          ┆ 59879   ┆ 109145    ┆ 0.548619 │
+    │ UR          ┆ 19638   ┆ 38679     ┆ 0.507717 │
+    │ WB          ┆ 59480   ┆ 107443    ┆ 0.553596 │
+    │ WG          ┆ 76134   ┆ 136832    ┆ 0.556405 │
+    │ WR          ┆ 49712   ┆ 91224     ┆ 0.544944 │
+    │ WU          ┆ 16483   ┆ 31450     ┆ 0.524102 │
     └─────────────┴─────────┴───────────┴──────────┘
+    ```
+  - `filter_spec` specifies a base filter for the dataset, using an intuitive custom query formulation
+    ```python
+    >>>from spells.enums import ColName
+    >>>spells.summon('BLB', columns=["game_wr"], group_by=["player_cohort"], filter_spec={'lhs': 'num_mulligans', 'op': '>', 'rhs': 0})
+    shape: (4, 2)
+    ┌───────────────┬──────────┐
+    │ player_cohort ┆ game_wr  │
+    │ ---           ┆ ---      │
+    │ str           ┆ f64      │
+    ╞═══════════════╪══════════╡
+    │ Bottom        ┆ 0.33233  │
+    │ Middle        ┆ 0.405346 │
+    │ Other         ┆ 0.406151 │
+    │ Top           ┆ 0.475763 │
+    └───────────────┴──────────┘
     ```
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns. Note the column 'event_match_wins_sum' is an alias of 'event_match_wins'. Each column must have a defined role, and 'event_match_wins' is defined as a group_by. One could even group by 'event_match_wins' and sum the 'event_match_wins_sum' column within each group.
     ```python
@@ -129,23 +114,35 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     >>>from spells.columns import ColumnDefinition
     >>>from spells.enums import ColType, View, ColName
     >>>ext = ColumnDefinition(
-    ...  name="wins_a_lot",
-    ...  views=(View.GAME, View.DRAFT),
-    ...  col_type=ColType.GROUP_BY,
-    ...  expr=pl.col('user_game_win_rate_bucket') > 0.55
+    ...  name="deq_base",
+    ...  col_type=ColType.AGG,
+    ...  expr=(pl.col('gp_wr') - 0.55 + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
+    ...  dependencies=['gp_wr', 'ata', 'pct_gp'],
     ...)
-    >>>spells.summon('BLB', columns=['event_match_wins_sum'], group_by=['wins_a_lot'], extensions=[ext])
-    shape: (3, 2)
-    ┌────────────┬──────────────────────┐
-    │ wins_a_lot ┆ event_match_wins_sum │
-    │ ---        ┆ ---                  │
-    │ bool       ┆ i64                  │
-    ╞════════════╪══════════════════════╡
-    │ null       ┆ 5976                 │
-    │ false      ┆ 8817828              │
-    │ true       ┆ 7997739              │
-    └────────────┴──────────────────────┘
+    >>>spells.summon('BLB', columns=['deq_base'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
+    ...     .filter(pl.col('deq_base').is_finite())
+    ...     .sort('deq_base', descending=True)
+    ...     .head(10)
+    shape: (10, 2)
+    ┌───────────────────────────┬──────────┐
+    │ name                      ┆ deq_base │
+    │ ---                       ┆ ---      │
+    │ str                       ┆ f64      │
+    ╞═══════════════════════════╪══════════╡
+    │ Sword of Fire and Ice     ┆ 0.120815 │
+    │ Valley Questcaller        ┆ 0.111666 │
+    │ Maha, Its Feathers Night  ┆ 0.109158 │
+    │ Season of Loss            ┆ 0.106941 │
+    │ Fecund Greenshell         ┆ 0.106711 │
+    │ Season of Gathering       ┆ 0.101294 │
+    │ Innkeeper's Talent        ┆ 0.100327 │
+    │ Valley Mightcaller        ┆ 0.099933 │
+    │ Beza, the Bounding Spring ┆ 0.099131 │
+    │ Warren Warleader          ┆ 0.098643 │
+    └───────────────────────────┴──────────┘
     ```
+    
+    Note the use of chained calls to the Polars DataFrame api to perform manipulations on the result of `summon`.
     
 ## Installation
 

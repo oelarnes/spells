@@ -282,7 +282,7 @@ _column_defs = [
         col_type=ColType.GROUP_BY,
         views=(View.DRAFT, View.GAME),
         expr=pl.when(pl.col("user_n_games_bucket") < 100)
-        .then(pl.lit("All"))
+        .then(pl.lit("Other"))
         .otherwise(
             pl.when(pl.col("user_game_win_rate_bucket") > 0.57)
             .then(pl.lit("Top"))
@@ -658,6 +658,24 @@ _column_defs = [
         col_type=ColType.AGG,
         expr=pl.col(ColName.IS_TROPHY_SUM) / pl.col(ColName.NUM_TAKEN),
         dependencies=[ColName.IS_TROPHY_SUM, ColName.NUM_TAKEN]
+    ),
+    ColumnDefinition(
+        name=ColName.WON_DECK_TOTAL,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_DECK).sum(),
+        dependencies=[ColName.WON_DECK]
+    ),
+    ColumnDefinition(
+        name=ColName.DECK_TOTAL,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.DECK).sum(),
+        dependencies=[ColName.DECK]
+    ),
+    ColumnDefinition(
+        name=ColName.GP_WR_MEAN,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_DECK_TOTAL) / pl.col(ColName.DECK_TOTAL),
+        dependencies=[ColName.WON_DECK_TOTAL, ColName.DECK_TOTAL]
     ),
 ]
 
