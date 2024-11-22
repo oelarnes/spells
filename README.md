@@ -108,7 +108,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     │ Top           ┆ 0.475763 │
     └───────────────┴──────────┘
     ```
-  - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns. Note the column 'event_match_wins_sum' is an alias of 'event_match_wins'. Each column must have a defined role, and 'event_match_wins' is defined as a group_by. One could even group by 'event_match_wins' and sum the 'event_match_wins_sum' column within each group.
+  - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns.
     ```python
     >>>import polars as pl
     >>>from spells.columns import ColumnDefinition
