@@ -405,7 +405,7 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
-        name=ColName.WON_COUNT,
+        name=ColName.NUM_WON,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
         expr=pl.col(ColName.WON)
@@ -416,7 +416,7 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
-        name=ColName.GAME_COUNT,
+        name=ColName.NUM_GAMES,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
         expr=pl.col(ColName.GAME_NUMBER).is_not_null(),
@@ -424,8 +424,8 @@ _column_defs = [
     ColumnDefinition(
         name=ColName.GAME_WR,
         col_type=ColType.AGG,
-        expr=pl.col(ColName.WON_COUNT) / pl.col(ColName.GAME_COUNT),
-        dependencies=[ColName.WON_COUNT, ColName.GAME_COUNT],
+        expr=pl.col(ColName.NUM_WON) / pl.col(ColName.NUM_GAMES),
+        dependencies=[ColName.NUM_WON, ColName.NUM_GAMES],
     ),
     ColumnDefinition(
         name=ColName.MATCH_COUNT,

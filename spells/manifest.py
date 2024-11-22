@@ -41,7 +41,7 @@ class Manifest:
                 assert (
                     self.col_def_map[col].col_type != ColType.GAME_SUM or 
                     (view == View.GAME and ColName.NAME not in self.base_view_group_by)
-                ), f"Invalid manifest for GAME_SUM column f{col}"
+                ), f"Invalid manifest for GAME_SUM column {col}"
             if view != View.CARD:
                 for col in self.base_view_group_by:
                     # base_view_groupbys in view check

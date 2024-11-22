@@ -98,29 +98,30 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     >>>from spells.enums import ColName
     >>>spells.summon(
     ...  'BLB',
-    ...  columns=[ColName.GP_WR, ColName.NUM_GP],
+    ...  columns=[ColName.NUM_WON, ColName.NUM_GAMES, ColName.GAME_WR],
     ...  group_by=[ColName.MAIN_COLORS],
     ...  filter_spec={'$and': [
     ...     {ColName.PLAYER_COHORT: 'Top'}, # A different definition from 17Lands.com
-    ...     {'lhs': ColName.MAIN_COLORS, 'op': 'in', 'rhs': ['WU', 'WB', 'WR', 'WG', 'UB', 'UR', 'UB', 'BR', 'BG', 'RG']}
+    ...     {ColName.NUM_COLORS: 2}
          ]}
     ...)
-    shape: (9, 3)
-    ┌─────────────┬──────────┬─────────┐
-    │ main_colors ┆ gp_wr    ┆ num_gp  │
-    │ ---         ┆ ---      ┆ ---     │
-    │ str         ┆ f64      ┆ i64     │
-    ╞═════════════╪══════════╪═════════╡
-    │ BG          ┆ 0.619011 ┆ 1258468 │
-    │ BR          ┆ 0.629755 ┆ 621243  │
-    │ RG          ┆ 0.598299 ┆ 417101  │
-    │ UB          ┆ 0.609801 ┆ 500252  │
-    │ UR          ┆ 0.60948  ┆ 293168  │
-    │ WB          ┆ 0.614057 ┆ 798963  │
-    │ WG          ┆ 0.620028 ┆ 975636  │
-    │ WR          ┆ 0.618621 ┆ 593984  │
-    │ WU          ┆ 0.599901 ┆ 227379  │
-    └─────────────┴──────────┴─────────┘
+    shape: (10, 4)
+    ┌─────────────┬─────────┬───────────┬──────────┐
+    │ main_colors ┆ num_won ┆ num_games ┆ game_wr  │
+    │ ---         ┆ ---     ┆ ---       ┆ ---      │
+    │ str         ┆ u32     ┆ u32       ┆ f64      │
+    ╞═════════════╪═════════╪═══════════╪══════════╡
+    │ BG          ┆ 19447   ┆ 31416     ┆ 0.619016 │
+    │ BR          ┆ 9771    ┆ 15515     ┆ 0.629778 │
+    │ RG          ┆ 6235    ┆ 10421     ┆ 0.598311 │
+    │ UB          ┆ 7610    ┆ 12480     ┆ 0.609776 │
+    │ UG          ┆ 13810   ┆ 22348     ┆ 0.617952 │
+    │ UR          ┆ 4448    ┆ 7302      ┆ 0.609148 │
+    │ WB          ┆ 12253   ┆ 19954     ┆ 0.614062 │
+    │ WG          ┆ 15112   ┆ 24373     ┆ 0.62003  │
+    │ WR          ┆ 9178    ┆ 14836     ┆ 0.61863  │
+    │ WU          ┆ 3407    ┆ 5679      ┆ 0.59993  │
+    └─────────────┴─────────┴───────────┴──────────┘
     ```
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns. Note the column 'event_match_wins_sum' is an alias of 'event_match_wins'. Each column must have a defined role, and 'event_match_wins' is defined as a group_by. One could even group by 'event_match_wins' and sum the 'event_match_wins_sum' column within each group.
     ```python
