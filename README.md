@@ -173,7 +173,7 @@ Additionally, by default, Spells caches the results of expensive aggregations in
 When refreshing a given set's data files from 17Lands using the provided functions, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear_cache(set_code: str)` for further control.
 
 # Documentation
-In order to give a valid specification for more conplex queries, it's important to understand a bit about what Spells is doing under the hood.
+In order to give a valid specification for more complex queries, it's important to understand a bit about what Spells is doing under the hood.
 
 ## Basic Concepts
 Let's briefly review the structure of the underlying data. Spells supports aggregations on two of the three large data sets provided by 17Lands, which
@@ -186,6 +186,7 @@ Second, certain columns are pivoted horizontally within the raw data and suffixe
 A standard way to aggregate information in non-*name_sum* columns over names is to multiply that column over the pivoted column. For example, to calculate the *name_sum* column "last_seen", used in ALSA, we multiply "pack_card" by a modified version of "pick_number".
 
 In the *game* file, the row model represents games, and primarily uses *name_sum* aggregations for the familiar columns, such as "num_gih", from which win rates are derived. For groupings that do not use card names or card attributes (to recreate the "deck color data" page, for example), one can also specify *game_sum* columns which aggregate simply over rows.
+
 ## Aggregate View
 
 Once aggregation columns, filters and groupings are determined at the row level for each of the required base views, Spells asks Polars to sum over groups and unpivot as needed to produce the "base aggregate view", which fixes the row model (pre-card attributes) to the provided base groupings. This base aggregate view is cached by default to the local file system, keyed by the *manifest*, which is a function of the specification provided by the user.

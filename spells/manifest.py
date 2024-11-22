@@ -38,6 +38,10 @@ class Manifest:
                 assert (
                     view in self.col_def_map[col].views
                 ), f"View cols generated incorrectly, {col} not in view {view}"
+                assert (
+                    self.col_def_map[col].col_type != ColType.GAME_SUM or 
+                    (view == View.GAME and ColName.NAME not in self.base_view_group_by)
+                ), f"Invalid manifest for GAME_SUM column f{col}"
             if view != View.CARD:
                 for col in self.base_view_group_by:
                     # base_view_groupbys in view check
@@ -48,10 +52,12 @@ class Manifest:
                     assert (
                         col == ColName.NAME or col in cols_for_view
                     ), f"Groupby {col} not in view_cols[view]"
+                    # game sum cols on in game, and no NAME groupby
                 # filter cols are in both base_views check
                 if self.filter is not None:
                     for col in self.filter.lhs:
                         assert col in cols_for_view, f"filter col {col} not found in base view"
+                
             if view == View.CARD:
                 # name in groupbys check
                 assert ColName.NAME in self.base_view_group_by, f"base views must groupby by name to join card attrs"

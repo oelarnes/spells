@@ -121,14 +121,15 @@ def base_agg_df(
         else:
             base_df = base_df_prefilter
 
-        pick_sum_cols = tuple(
-            c for c in cols_for_view if m.col_def_map[c].col_type == ColType.PICK_SUM
+        sum_cols = tuple(
+            c for c in cols_for_view if m.col_def_map[c].col_type in (ColType.PICK_SUM, ColType.GAME_SUM)
         )
-        if pick_sum_cols:
+        if sum_cols:
+            # manifest will verify that GAME_SUM manifests do not use NAME grouping
             name_col_tuple = (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
 
-            pick_df = base_df.select(nonname_gb + name_col_tuple + pick_sum_cols)
-            join_dfs.append(pick_df.group_by(group_by).sum().collect(streaming=use_streaming))
+            sum_col_df = base_df.select(nonname_gb + name_col_tuple + sum_cols)
+            join_dfs.append(sum_col_df.group_by(group_by).sum().collect(streaming=use_streaming))
 
         name_sum_cols = tuple(
             c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM

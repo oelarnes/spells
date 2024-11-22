@@ -353,9 +353,21 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
+        name=ColName.NUM_COLORS,
+        col_type=ColType.GROUP_BY,
+        views=(View.GAME,),
+        expr=pl.col(ColName.MAIN_COLORS).str.len_chars(),
+    ),
+    ColumnDefinition(
         name=ColName.SPLASH_COLORS,
         col_type=ColType.GROUP_BY,
         views=(View.GAME,),
+    ),
+    ColumnDefinition(
+        name=ColName.HAS_SPLASH,
+        col_type=ColType.GROUP_BY,
+        views=(View.GAME,),
+        expr=pl.col(ColName.SPLASH_COLORS).str.len_chars() > 0
     ),
     ColumnDefinition(
         name=ColName.ON_PLAY,
@@ -363,13 +375,18 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
+        name=ColName.ON_PLAY_SUM,
+        col_type=ColType.GAME_SUM,
+        expr=pl.col(ColName.ON_PLAY),
+    ),
+    ColumnDefinition(
         name=ColName.NUM_MULLIGANS,
-        col_type=ColType.GROUP_BY,
+        col_type=ColType.GAME_SUM,
         views=(View.GAME,),
     ),
     ColumnDefinition(
         name=ColName.OPP_NUM_MULLIGANS ,
-        col_type=ColType.GROUP_BY,
+        col_type=ColType.GAME_SUM,
         views=(View.GAME,),
     ),
     ColumnDefinition(
@@ -388,9 +405,32 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
+        name=ColName.WON_COUNT,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+    ),
+    ColumnDefinition(
         name=ColName.OPENING_HAND,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
+    ),
+    ColumnDefinition(
+        name=ColName.GAME_COUNT,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col(ColName.GAME_NUMBER).is_not_null(),
+    ),
+    ColumnDefinition(
+        name=ColName.MATCH_COUNT,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col(ColName.GAME_NUMBER) == 1,
+    ),
+    ColumnDefinition(
+        name=ColName.EVENT_COUNT,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col(ColName.GAME_NUMBER) == 1 & pl.col(ColName.MATCH_NUMBER) == 1
     ),
     ColumnDefinition(
         name=ColName.WON_OPENING_HAND,

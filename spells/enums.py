@@ -18,6 +18,7 @@ class ColType(StrEnum):
     FILTER_ONLY = 'filter_only'
     GROUP_BY = 'group_by'
     PICK_SUM = 'pick_sum'
+    GAME_SUM = 'game_sum'
     NAME_SUM = 'name_sum'
     AGG = 'agg'
     CARD_ATTR = 'card_attr'
@@ -111,6 +112,13 @@ class ColName(StrEnum):
     GAME_DAY_OF_WEEK = "game_day_of_week"
     GAME_HOUR = "game_hour"
     GAME_WEEK = "game_week"
+    NUM_COLORS = "num_colors"
+    HAS_SPLASH = "has_splash"
+    ON_PLAY_SUM = "on_play_sum"
+    WON_COUNT = "won_count"
+    GAME_COUNT = "game_count"
+    MATCH_COUNT = "match_count"
+    EVENT_COUNT = "event_count"
     WON_OPENING_HAND = "won_opening_hand"
     WON_DRAWN = "won_drawn"
     WON_TUTORED = "won_tutored"

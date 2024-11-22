@@ -12,6 +12,9 @@ requires-python = ">=3.12"
 readme = "README.md"
 license = {text = "MIT"}
 
+[project.scripts]
+spells = "python scripts/spells.py"
+
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
@@ -20,7 +23,6 @@ build-backend = "pdm.backend"
 distribution = true
 
 [tool.pdm.scripts]
-spells = "python scripts/spells.py"
 ispells = "ipython -i scripts/interactive.py"
 
 [tool.pdm.dev-dependencies]
