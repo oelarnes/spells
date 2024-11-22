@@ -92,7 +92,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     │ WU          ┆ 16483   ┆ 31450     ┆ 0.524102 │
     └─────────────┴─────────┴───────────┴──────────┘
     ```
-  - `filter_spec` specifies a base filter for the dataset, using an intuitive custom query formulation
+  - `filter_spec` specifies a row-level filter for the dataset, using an intuitive custom query formulation
     ```python
     >>>from spells.enums import ColName
     >>>spells.summon('BLB', columns=["game_wr"], group_by=["player_cohort"], filter_spec={'lhs': 'num_mulligans', 'op': '>', 'rhs': 0})
