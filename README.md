@@ -195,5 +195,16 @@ A final extension and selection stage is applied to the aggregate view, which is
 
 So that's it, that's what Spells does from a high level. `summon` will hand off a Polars DataFrame which can be cast to pandas, sorted, filtered, used to be generate plots or whatever you like. If a task can be handled as easily via a chained call or outside library, it should stay that way, but if you have a request for features specific to the structure of limited data that could be handled in a general way, please reach out! In particular I am interested in scientific workflows like maximum likelihood estimation, but I haven't yet considered how to build it into Spells.
 
+# Roadmap
+
+- [ ] Organize and analyze daily downloads from 17Lands (not a scraper!)
+- [ ] Helper functions to generate second-order analysis by card name
+- [ ] Support min and max aggregations over base views
+- [ ] Helper functions for common plotting paradigms
+- [ ] Example notebooks
+- [ ] Enhanced profiling
+- [ ] Optimized caching strategy
+- [ ] Testing of streaming mode
+- [ ] Scientific workflows: regression, MLE, etc
 
 
