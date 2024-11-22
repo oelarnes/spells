@@ -143,4 +143,5 @@ class ColName(StrEnum):
     WON_NUM_DECK_GIH = "won_num_deck_gih"
     DECK_GIH_WR = "deck_gih_wr"
     TROPHY_RATE = "trophy_rate"
+    GAME_WR = "game_wr"
 

@@ -408,6 +408,7 @@ _column_defs = [
         name=ColName.WON_COUNT,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
+        expr=pl.col(ColName.WON)
     ),
     ColumnDefinition(
         name=ColName.OPENING_HAND,
@@ -421,6 +422,12 @@ _column_defs = [
         expr=pl.col(ColName.GAME_NUMBER).is_not_null(),
     ),
     ColumnDefinition(
+        name=ColName.GAME_WR,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_COUNT) / pl.col(ColName.GAME_COUNT),
+        dependencies=[ColName.WON_COUNT, ColName.GAME_COUNT],
+    ),
+    ColumnDefinition(
         name=ColName.MATCH_COUNT,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
@@ -430,7 +437,7 @@ _column_defs = [
         name=ColName.EVENT_COUNT,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
-        expr=pl.col(ColName.GAME_NUMBER) == 1 & pl.col(ColName.MATCH_NUMBER) == 1
+        expr=(pl.col(ColName.GAME_NUMBER) == 1) & (pl.col(ColName.MATCH_NUMBER) == 1)
     ),
     ColumnDefinition(
         name=ColName.WON_OPENING_HAND,
