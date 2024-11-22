@@ -146,7 +146,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     
 ## Installation
 
-Spells is available on PyPI as *spells-mtg*, and can be imported using pip or any package manager:
+Spells is available on PyPI as *spells-mtg*, and can be installed using pip or any package manager:
 
 `pip install spells-mtg`
 
