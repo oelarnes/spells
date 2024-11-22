@@ -52,7 +52,7 @@ def col_df(
         elif not dep_def.dependencies and is_view:
             root_col_exprs.append(dep_def.expr)
         else:
-            col_dfs.append(col_df(df, dep, col_def_map, is_view))
+            col_dfs.append(col_df(df, dep, col_def_map, is_view, anchor_col))
 
     if root_col_exprs:
         col_dfs.append(df.select(root_col_exprs))
