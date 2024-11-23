@@ -199,6 +199,7 @@ So that's it, that's what Spells does from a high level. `summon` will hand off 
 
 - [ ] Support Traditional and Premier datasets (currently only Premier is supported)
 - [ ] Implement GNS and name-mapped column exprs
+- [ ] Enable configuration using $XDG_CONFIG_HOME/cfg.toml
 - [ ] Support min and max aggregations over base views
 - [ ] Enhanced profiling
 - [ ] Testing of streaming mode

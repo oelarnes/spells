@@ -4,6 +4,7 @@ file containing card attributes using MTGJSON
 """
 
 import csv
+import functools
 import gzip
 import os
 import re
@@ -32,7 +33,7 @@ def cli() -> int:
     data_dir = cache.data_home()
     cache.spells_print('spells', f"[data home]={data_dir}")
     print()
-    usage = """usage: spells [add|refresh|clear-cache] [set_code]
+    usage = """spells [add|refresh|remove|clear-cache|info] [set_code]
 
     add: Download draft and game files from 17Lands.com and card file from MTGJSON.com and save to path 
         [data home]/external/[set code] (use $SPELLS_DATA_HOME or $XDG_DATA_HOME to configure). 
@@ -48,13 +49,22 @@ def cli() -> int:
 
     remove: Delete the [data home]/external/[set code] and [data home]/local/[set code] directories and their contents
 
-    info: Print info on the external and local files for [set_code]
+    info: No set code argument. Print info on all external and local files.
     """
-    if len(sys.argv) != 3:
-        print(usage)
+    print_usage = functools.partial(cache.spells_print, 'usage', usage)
+
+    if len(sys.argv) < 2:
+        print_usage()
         return 1
 
     mode = sys.argv[1]
+
+    if mode == "info":
+        return _info()
+
+    if len(sys.argv) != 3:
+        print_usage()
+        return 1
 
     match mode:
         case "add":
@@ -65,10 +75,8 @@ def cli() -> int:
             return _remove(sys.argv[2])
         case "clear-cache":
             return cache.clear(sys.argv[2])
-        case "info":
-            return _info(sys.argv[2])
         case _:
-            print(usage)
+            print_usage()
             return 1
 
 
@@ -82,10 +90,23 @@ def _refresh(set_code: str):
     return _add(set_code, force_download=True)
 
 def _remove(set_code: str):
-    print("hello from remove")
-    return 0
+    mode = 'remove'
+    dir_path = _external_set_path(set_code)
+    if os.path.isdir(dir_path):
+        with os.scandir(dir_path) as set_dir:
+            count = 0
+            for entry in set_dir:
+                if not entry.name.endswith('.csv'):
+                    raise ValueError(f"Unexpected file {entry.name} found in external cache, please sort that out!")
+                count += 1
+                os.remove(entry)
+            cache.spells_print(mode, f"Removed {count} files from external cache for set {set_code}")
+        os.rmdir(dir_path)
+    else:
+        cache.spells_print(mode, f"No external cache found for set {set_code}")
+    cache.clear(set_code, remove_dir=True)
 
-def _info(set_code: str):
+def _info():
     print("hello from info")
     return 0
 

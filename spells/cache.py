@@ -73,10 +73,11 @@ def write_cache(set_code: str, cache_key: str, df: pl.DataFrame) -> None:
     df.write_parquet(cache_path_for_key(set_code, cache_key))
 
 
-def clear(set_code: str) -> int:
+def clear(set_code: str, remove_dir: bool=False) -> int:
     mode = 'clear-cache'
-    if os.path.isdir(cache_dir_for_set(set_code)):
-        with os.scandir(cache_dir_for_set(set_code)) as set_dir:
+    cache_dir = cache_dir_for_set(set_code)
+    if os.path.isdir(cache_dir):
+        with os.scandir(cache_dir) as set_dir:
             count = 0
             for entry in set_dir:
                 if not entry.name.endswith('.parquet'):
@@ -84,6 +85,9 @@ def clear(set_code: str) -> int:
                 count += 1
                 os.remove(entry)
             spells_print(mode, f"Removed {count} files from local cache for set {set_code}")
+        if remove_dir:
+            spells_print(mode, f"Removed local cache dir {cache_dir}")
+            os.rmdir(cache_dir)
         return 0
     else:
         spells_print(mode, f"No local cache found for set {set_code}")
