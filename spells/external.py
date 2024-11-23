@@ -39,7 +39,7 @@ def cli() -> int:
         return 1
 
     usage = """
-usage: spells [add|refresh|remove|clear-cache] [set_code]
+usage: spells [add|refresh|clear-cache] [set_code]
 
     add: Download draft and game files from 17Lands.com and card file from MTGJSON.com and save to path 
         $SPELLS_PROJECT_DIR/external/[set code] (default $PWD/data). Does not overwrite existing files. 
@@ -50,11 +50,12 @@ usage: spells [add|refresh|remove|clear-cache] [set_code]
     refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear 
         local cache.
 
-    remove: Delete entire external/[set code] and local/[set code] data directories.
-
     clear-cache: Delete local/[set code] data directory (your cache of aggregate parquet files).
 
     info: Print info on the external and local files for [set_code]
+
+    --- 
+    Note: To remove a set's data, just do `rm -r` on the data/external/[set code] path. I don't want to be responsible for deleting your data!
 
     (set_code should be the capitalized official set code for the draft release)
     """
@@ -88,7 +89,6 @@ def _add(set_code: str, force_download=False):
 
 def _refresh(set_code: str):
     return _add(set_code, force_download=True)
-    return 0
 
 def _remove(set_code: str):
     print("hello from remove")
@@ -144,13 +144,13 @@ def download_data_set(
         ),
         out=target_path_zipped,
     )
-    print("\n")
-
-    if clear_set_cache:
-        cache.clear(set_code)
+    print()
 
     _process_zipped_file(target_path_zipped, target_path)
     print(f"{mode}: File {target_path} written")
+    if clear_set_cache:
+        cache.clear(set_code)
+
     return 0
 
 def write_card_file(draft_set_code: str, force_download=False) -> int:

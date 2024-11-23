@@ -59,6 +59,8 @@ def clear(set_code: str) -> int:
         with os.scandir(cache_dir_for_set(set_code)) as set_dir:
             count = 0
             for entry in set_dir:
+                if not entry.name.endswith('.parquet'):
+                    raise ValueError(f"Unexpected file {entry.name} found in local cache, please sort that out!")
                 count += 1
                 os.remove(entry)
             print(f"clear-cache: Removed {count} files from local cache for set {set_code}")

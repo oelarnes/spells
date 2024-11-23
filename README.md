@@ -38,13 +38,12 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Manages grouping and filtering by built-in and custom columns at the row level
 - Provides over 50 explicitly specified, enumerated, documented custom column definitions
 - Supports "Deck Color Data" aggregations out of the box.
-- Provides a CLI tool `spells [add|refresh|remove|clear_local] [SET]` to download and manage external files
+- Provides a CLI tool `spells [add|refresh|clear_local|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
 - Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
 - Uses Polars expressions to support second-stage aggregations like z-scores out of the box with one call to summon
-- Is lightweight: Polars is the only dependency
 
 ## summon
 
@@ -119,27 +118,28 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     ...     expr=(pl.col('gp_wr') - pl.col('gp_wr_mean') + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
     ...     dependencies=['gp_wr', 'gp_wr_mean', 'ata', 'pct_gp']
     ...)
-    >>>spells.summon('BLB', columns=['deq_base'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
+    >>>spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
     ...     .filter(pl.col('deq_base').is_finite())
+    ...     .filter(pl.col('rarity').is_in(['common', 'uncommon'])
     ...     .sort('deq_base', descending=True)
     ...     .head(10)
-    shape: (10, 2)
-    ┌───────────────────────────┬──────────┐
-    │ name                      ┆ deq_base │
-    │ ---                       ┆ ---      │
-    │ str                       ┆ f64      │
-    ╞═══════════════════════════╪══════════╡
-    │ Sword of Fire and Ice     ┆ 0.055695 │
-    │ Valley Questcaller        ┆ 0.052849 │
-    │ Maha, Its Feathers Night  ┆ 0.048736 │
-    │ Season of Loss            ┆ 0.048111 │
-    │ Fecund Greenshell         ┆ 0.045668 │
-    │ Beza, the Bounding Spring ┆ 0.041635 │
-    │ Season of Gathering       ┆ 0.041418 │
-    │ Warren Warleader          ┆ 0.040377 │
-    │ Ygra, Eater of All        ┆ 0.040024 │
-    │ Valley Mightcaller        ┆ 0.039758 │
-    └───────────────────────────┴──────────┘
+    shape: (10, 4)
+    ┌──────────────────────────┬──────────┬──────────┬───────┐
+    │ name                     ┆ deq_base ┆ rarity   ┆ color │
+    │ ---                      ┆ ---      ┆ ---      ┆ ---   │
+    │ str                      ┆ f64      ┆ str      ┆ str   │
+    ╞══════════════════════════╪══════════╪══════════╪═══════╡
+    │ Sheltered by Ghosts      ┆ 0.03945  ┆ uncommon ┆ W     │
+    │ Optimistic Scavenger     ┆ 0.036131 ┆ uncommon ┆ W     │
+    │ Midnight Mayhem          ┆ 0.034278 ┆ uncommon ┆ RW    │
+    │ Splitskin Doll           ┆ 0.03423  ┆ uncommon ┆ W     │
+    │ Fear of Isolation        ┆ 0.033901 ┆ uncommon ┆ U     │
+    │ Floodpits Drowner        ┆ 0.033198 ┆ uncommon ┆ U     │
+    │ Gremlin Tamer            ┆ 0.032048 ┆ uncommon ┆ UW    │
+    │ Arabella, Abandoned Doll ┆ 0.032008 ┆ uncommon ┆ RW    │
+    │ Unnerving Grasp          ┆ 0.030278 ┆ uncommon ┆ U     │
+    │ Oblivious Bookworm       ┆ 0.028605 ┆ uncommon ┆ GU    │
+    └──────────────────────────┴──────────┴──────────┴───────┘
     ```
     
     Note the use of chained calls to the Polars DataFrame api to perform manipulations on the result of `summon`.
@@ -168,7 +168,7 @@ By default, Polars loads the entire selection into memory before aggregation for
 
 Additionally, by default, Spells caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, which can be configured using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
 
-When refreshing a given set's data files from 17Lands using the provided functions, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear_cache(set_code: str)` for further control.
+When refreshing a given set's data files from 17Lands using the provided cli, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear(set_code: str)` for further control.
 
 # Documentation
 In order to give a valid specification for more complex queries, it's important to understand a bit about what Spells is doing under the hood.
@@ -197,15 +197,16 @@ So that's it, that's what Spells does from a high level. `summon` will hand off 
 
 # Roadmap to 1.0
 
+- [ ] Support Traditional and Premier datasets (currently only Premier is supported)
 - [ ] Implement GNS and name-mapped column exprs
+- [ ] Support min and max aggregations over base views
+- [ ] Enhanced profiling
+- [ ] Testing of streaming mode
+- [ ] Optimized caching strategy
 - [ ] Organize and analyze daily downloads from 17Lands (not a scraper!)
 - [ ] Helper functions to generate second-order analysis by card name
-- [ ] Support min and max aggregations over base views
 - [ ] Helper functions for common plotting paradigms
 - [ ] Example notebooks
-- [ ] Enhanced profiling
-- [ ] Optimized caching strategy
-- [ ] Testing of streaming mode
 - [ ] Scientific workflows: regression, MLE, etc
 
 
