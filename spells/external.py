@@ -171,7 +171,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
     """
     mode = "refresh" if force_download else "add"
 
-    cache.spells_print(mode, "Downloading card data and writing card csv file")
+    cache.spells_print(mode, "Fetching card data and writing card csv file")
     card_filepath = data_file_path(draft_set_code, View.CARD)
     if os.path.isfile(card_filepath) and not force_download:
         cache.spells_print(mode, f"File {card_filepath} already exists, use `spells refresh {draft_set_code}` to overwrite")
