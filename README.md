@@ -2,7 +2,7 @@
 
 **spells** is a python package that tutors up customizable, optimized analysis of the public data sets provided by [17Lands](https://www.17lands.com/) and exiles the annoying, fiddly, and slow parts of your workflow. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
 
-```sh
+```
 $ spells add DSK
 🪄 spells ✨ [data home]=/Users/joel/.local/share/spells/
 
@@ -24,7 +24,7 @@ In [1]: import spells
 In [2]: %time spells.summon('DSK')
 CPU times: user 4min 23s, sys: 49.6 s, total: 5min 13s
 Wall time: 2min 23s
-Out[2]:
+Out [2]:
 shape: (286, 14)
 ┌────────────────────────────┬───────┬──────────┬──────────┬───┬────────┬──────────┬─────────┬──────────┐
 │ name                       ┆ color ┆ rarity   ┆ num_seen ┆ … ┆ num_oh ┆ oh_wr    ┆ num_gih ┆ gih_wr   │
