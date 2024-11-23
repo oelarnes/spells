@@ -20,8 +20,11 @@ $ python
 ```
 
 ```python
->>> import spells
->>> spells.summon('DSK')
+In [1]: import spells
+In [2]: %time spells.summon('DSK')
+CPU times: user 4min 23s, sys: 49.6 s, total: 5min 13s
+Wall time: 2min 23s
+Out[2]:
 shape: (286, 14)
 ┌────────────────────────────┬───────┬──────────┬──────────┬───┬────────┬──────────┬─────────┬──────────┐
 │ name                       ┆ color ┆ rarity   ┆ num_seen ┆ … ┆ num_oh ┆ oh_wr    ┆ num_gih ┆ gih_wr   │
@@ -40,6 +43,9 @@ shape: (286, 14)
 │ Withering Torment          ┆ B     ┆ uncommon ┆ 76237    ┆ … ┆ 15901  ┆ 0.511729 ┆ 39323   ┆ 0.542024 │
 │ Zimone, All-Questioning    ┆ GU    ┆ rare     ┆ 20450    ┆ … ┆ 9510   ┆ 0.654574 ┆ 23576   ┆ 0.616686 │
 └────────────────────────────┴───────┴──────────┴──────────┴───┴────────┴──────────┴─────────┴──────────┘
+In [3]: %time spells.summon('DSK')
+CPU times: user 16.3 ms, sys: 66.2 ms, total: 82.5 ms
+Wall time: 80.8 ms
 ```
 
 Coverting to pandas DataFrame is as simple as invoking the chained call `summon(...).to_pandas()`.
