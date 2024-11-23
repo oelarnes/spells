@@ -14,8 +14,6 @@ from spells.schema import schema
 
 if len(sys.argv) > 1 and sys.argv[1] == "test":
     os.environ["SPELLS_PROJECT_DIR"] = "/Users/Joel/Projects/spells/tests"
-else:
-    os.environ["SPELLS_PROJECT_DIR"] = "/Users/Joel/Projects/spells"
 
 myn = ["Cache Grab", "Carrot Cake", "Savor", "Take Out the Trash", "Shore Up"]
 m = spells.manifest.create(None, None, None, None)

@@ -7,27 +7,48 @@ and groupbys.
 Caches are cleared per-set when new files are downloaded.
 """
 
+from enum import StrEnum
 import os
+import sys
 
 import polars as pl
 
-DATA = "data"
-EXT = "local"
+class DataDir(StrEnum):
+    CACHE = "cache"
+    EXTERNAL = "external"
+
+def spells_print(mode, content):
+    print(f"🪄 {mode} ✨ {content}")
 
 
-def data_dir_path(ext: str) -> str:
+def data_home() -> str:
+    is_win = (sys.platform == "win32")
+    return os.environ.get(
+        'SPELLS_DATA_HOME', 
+        os.environ.get(
+            'XDG_DATA_HOME', 
+            os.path.expanduser(r"C:\Users\$USERNAME\AppData\Local\Spells" if is_win else "~/.local/share/spells/")
+        )
+    )
+
+def data_dir_path(cache_dir: DataDir) -> str:
     """
     Where 17Lands data is stored. MDU_DATA_DIR environment variable is used, if it exists,
     otherwise the cwd is used
     """
-    data_dir = os.path.join(DATA, ext)
-    if project_dir := os.environ.get("MDU_PROJECT_DIR"):
-        return os.path.join(project_dir, data_dir)
+    is_win = (sys.platform == "win32")
+
+    ext = {
+        DataDir.CACHE: "Cache" if is_win else "cache",
+        DataDir.EXTERNAL: "External" if is_win else "external",
+    }[cache_dir]
+
+    data_dir = os.path.join(data_home(), ext)
     return data_dir
 
 
 def cache_dir_for_set(set_code: str) -> str:
-    return os.path.join(data_dir_path(EXT), set_code)
+    return os.path.join(data_dir_path(DataDir.CACHE), set_code)
 
 
 def cache_path_for_key(set_code: str, cache_key: str) -> str:
@@ -46,15 +67,14 @@ def read_cache(set_code: str, cache_key: str) -> pl.DataFrame:
 
 def write_cache(set_code: str, cache_key: str, df: pl.DataFrame) -> None:
     cache_dir = cache_dir_for_set(set_code)
-    if not os.path.isdir(data_dir_path(EXT)):
-        os.mkdir(data_dir_path(EXT))
     if not os.path.isdir(cache_dir):
-        os.mkdir(cache_dir)
+        os.makedirs(cache_dir)
 
     df.write_parquet(cache_path_for_key(set_code, cache_key))
 
 
 def clear(set_code: str) -> int:
+    mode = 'clear-cache'
     if os.path.isdir(cache_dir_for_set(set_code)):
         with os.scandir(cache_dir_for_set(set_code)) as set_dir:
             count = 0
@@ -63,8 +83,8 @@ def clear(set_code: str) -> int:
                     raise ValueError(f"Unexpected file {entry.name} found in local cache, please sort that out!")
                 count += 1
                 os.remove(entry)
-            print(f"clear-cache: Removed {count} files from local cache for set {set_code}")
+            spells_print(mode, f"Removed {count} files from local cache for set {set_code}")
         return 0
     else:
-        print(f"clear-cache: No local cache found for set {set_code}")
+        spells_print(mode, f"No local cache found for set {set_code}")
         return 0
