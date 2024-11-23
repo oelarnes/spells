@@ -6,15 +6,15 @@
 $ spells add DSK
 🪄 spells ✨ [data home]=/Users/joel/.local/share/spells/
 
-🪄 add ✨ Downloading draft dataset
+🪄 add ✨ Downloading draft dataset from 17Lands.com
 100% [......................................................................] 250466473 / 250466473
 🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.csv written
 🪄 clear-cache ✨ No local cache found for set DSK
-🪄 add ✨ Downloading game dataset
+🪄 add ✨ Downloading game dataset from 17Lands.com
 100% [........................................................................] 77145600 / 77145600
 🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.csv written
 🪄 clear-cache ✨ No local cache found for set DSK
-🪄 add ✨ Fetching card data and writing card csv file
+🪄 add ✨ Fetching card data from mtgjson.com and writing card csv file
 🪄 add ✨ Wrote 287 lines to file /Users/joel/.local/share/spells/external/DSK/DSK_card.csv
 $ ipython
 ```

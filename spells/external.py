@@ -137,7 +137,7 @@ def download_data_set(
     set_code, dataset_type: View, event_type=EventType.PREMIER, force_download=False, clear_set_cache=True
 ):
     mode = "refresh" if force_download else "add"
-    cache.spells_print(mode, f"Downloading {dataset_type} dataset")
+    cache.spells_print(mode, f"Downloading {dataset_type} dataset from 17Lands.com")
 
     if not os.path.isdir(set_dir := _external_set_path(set_code)):
         os.makedirs(set_dir)
@@ -171,7 +171,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
     """
     mode = "refresh" if force_download else "add"
 
-    cache.spells_print(mode, "Fetching card data and writing card csv file")
+    cache.spells_print(mode, "Fetching card data from mtgjson.com and writing card csv file")
     card_filepath = data_file_path(draft_set_code, View.CARD)
     if os.path.isfile(card_filepath) and not force_download:
         cache.spells_print(mode, f"File {card_filepath} already exists, use `spells refresh {draft_set_code}` to overwrite")
