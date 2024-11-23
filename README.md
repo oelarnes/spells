@@ -114,10 +114,10 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     >>>from spells.columns import ColumnDefinition
     >>>from spells.enums import ColType, View, ColName
     >>>ext = ColumnDefinition(
-    ...  name="deq_base",
-    ...  col_type=ColType.AGG,
-    ...  expr=(pl.col('gp_wr') - 0.55 + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
-    ...  dependencies=['gp_wr', 'ata', 'pct_gp'],
+    ...     name='deq_base',
+    ...     col_type=ColType.AGG,
+    ...     expr=(pl.col('gp_wr') - pl.col('gp_wr_mean') + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
+    ...     dependencies=['gp_wr', 'gp_wr_mean', 'ata', 'pct_gp']
     ...)
     >>>spells.summon('BLB', columns=['deq_base'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
     ...     .filter(pl.col('deq_base').is_finite())
@@ -129,16 +129,16 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     │ ---                       ┆ ---      │
     │ str                       ┆ f64      │
     ╞═══════════════════════════╪══════════╡
-    │ Sword of Fire and Ice     ┆ 0.120815 │
-    │ Valley Questcaller        ┆ 0.111666 │
-    │ Maha, Its Feathers Night  ┆ 0.109158 │
-    │ Season of Loss            ┆ 0.106941 │
-    │ Fecund Greenshell         ┆ 0.106711 │
-    │ Season of Gathering       ┆ 0.101294 │
-    │ Innkeeper's Talent        ┆ 0.100327 │
-    │ Valley Mightcaller        ┆ 0.099933 │
-    │ Beza, the Bounding Spring ┆ 0.099131 │
-    │ Warren Warleader          ┆ 0.098643 │
+    │ Sword of Fire and Ice     ┆ 0.055695 │
+    │ Valley Questcaller        ┆ 0.052849 │
+    │ Maha, Its Feathers Night  ┆ 0.048736 │
+    │ Season of Loss            ┆ 0.048111 │
+    │ Fecund Greenshell         ┆ 0.045668 │
+    │ Beza, the Bounding Spring ┆ 0.041635 │
+    │ Season of Gathering       ┆ 0.041418 │
+    │ Warren Warleader          ┆ 0.040377 │
+    │ Ygra, Eater of All        ┆ 0.040024 │
+    │ Valley Mightcaller        ┆ 0.039758 │
     └───────────────────────────┴──────────┘
     ```
     

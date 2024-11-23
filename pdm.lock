@@ -5,7 +5,7 @@
 groups = ["default", "dev"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:18c2ec41b17a7ac065dd0705f9aec657772a6e247647b6f0a5e779b895bea9a8"
+content_hash = "sha256:4a96421ef210164c95a6720194c69c7d861fef204b908a244fc28d35cb4a9edf"
 
 [[metadata.targets]]
 requires_python = ">=3.12"
@@ -323,4 +323,13 @@ dependencies = [
 files = [
     {file = "wcwidth-0.2.13-py2.py3-none-any.whl", hash = "sha256:3da69048e4540d84af32131829ff948f1e022c1c6bdb8d6102117aac784f6859"},
     {file = "wcwidth-0.2.13.tar.gz", hash = "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5"},
+]
+
+[[package]]
+name = "wget"
+version = "3.2"
+summary = "pure python download utility"
+groups = ["default"]
+files = [
+    {file = "wget-3.2.zip", hash = "sha256:35e630eca2aa50ce998b9b1a127bb26b30dfee573702782aa982f875e3f16061"},
 ]
