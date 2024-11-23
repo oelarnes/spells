@@ -33,7 +33,7 @@ class EventType(Enum):
 
 
 def cli() -> int:
-    if os.getcwd().endswith('/spells/spells') and os.path.isfile("__init__.py"):
+    if os.getcwd().endswith('/spells') and os.path.isfile("__init__.py"):
         print("I think you found yourself inside of the spells module source directory. "
               "You should be up a level in the project root. Did you accidentally type `spells` and change directory?")
         return 1
