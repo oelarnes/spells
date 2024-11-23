@@ -16,7 +16,7 @@ $ spells add DSK
 🪄 clear-cache ✨ No local cache found for set DSK
 🪄 add ✨ Fetching card data and writing card csv file
 🪄 add ✨ Wrote 287 lines to file /Users/joel/.local/share/spells/external/DSK/DSK_card.csv
-$ python
+$ ipython
 ```
 
 ```python
