@@ -97,14 +97,16 @@ def _remove(set_code: str):
             count = 0
             for entry in set_dir:
                 if not entry.name.endswith('.csv'):
-                    raise ValueError(f"Unexpected file {entry.name} found in external cache, please sort that out!")
+                    cache.spells_print(mode, f"Unexpected file {entry.name} found in external cache, please sort that out!")
+                    return 1
                 count += 1
                 os.remove(entry)
             cache.spells_print(mode, f"Removed {count} files from external cache for set {set_code}")
         os.rmdir(dir_path)
     else:
         cache.spells_print(mode, f"No external cache found for set {set_code}")
-    cache.clear(set_code, remove_dir=True)
+
+    return cache.clear(set_code, remove_dir=True)
 
 def _info():
     print("hello from info")
@@ -178,7 +180,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
     draft_filepath = data_file_path(draft_set_code, View.DRAFT)
 
     if not os.path.isfile(draft_filepath):
-        print(f"{mode}: Error: No draft file for set {draft_set_code}")
+        cache.spells_print(mode, f"Error: No draft file for set {draft_set_code}")
         return 1
 
     with open(draft_filepath, encoding="utf-8") as f:
@@ -197,6 +199,6 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
         for row in csv_lines:
             writer.writerow(row)
 
-    print(f"{mode}: Wrote {len(csv_lines)} lines to file {card_filepath}")
+    cache.spells_print(mode, f"Wrote {len(csv_lines)} lines to file {card_filepath}")
     return 0
 

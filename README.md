@@ -185,7 +185,7 @@ A standard way to aggregate information in non-*name_sum* columns over names is 
 
 In the *game* file, the row model represents games, and primarily uses *name_sum* aggregations for the familiar columns, such as "num_gih", from which win rates are derived. For groupings that do not use card names or card attributes (to recreate the "deck color data" page, for example), one can also specify *game_sum* columns which aggregate simply over rows.
 
-## Aggregate View
+### Aggregate View
 
 Once aggregation columns, filters and groupings are determined at the row level for each of the required base views, Spells asks Polars to sum over groups and unpivot as needed to produce the "base aggregate view", which fixes the row model (pre-card attributes) to the provided base groupings. This base aggregate view is cached by default to the local file system, keyed by the *manifest*, which is a function of the specification provided by the user.
 
@@ -194,6 +194,10 @@ Next, card attributes are calculated and joined to the base aggregate view by na
 A final extension and selection stage is applied to the aggregate view, which is where weighted averages like GIH WR are calculated. Polars expression language enables aggregations to be represented as expressions and broadcast back to the row level, enabling Spells to support arbitrary chains of aggregation and extension at the aggregate view level. For example, one could calculate the mean of a metric over groups by archetype, regress a metric by a function of that mean, then calculate the mean of that regressed metric, all expressed declaratively as column expressions and simply specified by name in the `summon` api call.
 
 So that's it, that's what Spells does from a high level. `summon` will hand off a Polars DataFrame which can be cast to pandas, sorted, filtered, used to be generate plots or whatever you like. If a task can be handled as easily via a chained call or outside library, it should stay that way, but if you have a request for features specific to the structure of limited data that could be handled in a general way, please reach out! In particular I am interested in scientific workflows like maximum likelihood estimation, but I haven't yet considered how to build it into Spells.
+
+## CLI
+
+Spells includes a command-line interface `spells` to manage your external data files and local cache. Spells will download files to an appropriate file location on your system, typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows. If you like, create an environment variable `SPELLS_DATA_HOME` in your shell profile or virtual environment to specify the target directory for your files. For details on the usage of `spells`, make sure Spells in installed in your environment using pip or a package manager, and type `spells help` into your shell.
 
 # Roadmap to 1.0
 
