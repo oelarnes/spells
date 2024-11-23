@@ -221,7 +221,10 @@ So that's it, that's what Spells does from a high level. `summon` will hand off 
 
 ## CLI
 
-Spells includes a command-line interface `spells` to manage your external data files and local cache. Spells will download files to an appropriate file location on your system, typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows. If you like, create an environment variable `SPELLS_DATA_HOME` in your shell profile or virtual environment to specify the target directory for your files. For details on the usage of `spells`, make sure Spells in installed in your environment using pip or a package manager, and type `spells help` into your shell.
+Spells includes a command-line interface `spells` to manage your external data files and local cache. Spells will download files to an appropriate file location on your system, 
+typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows. If you like, create an environment variable `SPELLS_DATA_HOME` 
+in your shell profile or virtual environment to specify the target directory for your files. To use `spells`, make sure Spells in installed in your environment 
+using pip or a package manager, and type `spells help` into your shell, or dive in with `spells add DSK` or your favorite set.
 
 # Roadmap to 1.0
 
