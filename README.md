@@ -62,7 +62,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Manages grouping and filtering by built-in and custom columns at the row level
 - Provides over 50 explicitly specified, enumerated, documented custom column definitions
 - Supports "Deck Color Data" aggregations out of the box.
-- Provides a CLI tool `spells [add|refresh|clear_local|info] [SET]` to download and manage external files
+- Provides a CLI tool `spells [add|refresh|clear_local|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
 - Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
@@ -74,7 +74,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 `summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis. Basic functionality not provided by this api can often be managed by simple chained calls using the polars API, e.g. sorting and post-agg filtering.
   - `columns` specifies the desired output columns
     ```python
-    >>spells.summon('BLB', columns=["gp_wr", "ata"])
+    >>> spells.summon('BLB', columns=["gp_wr", "ata"])
     shape: (276, 3)
     ┌─────────────────────────┬──────────┬──────────┐
     │ name                    ┆ gp_wr    ┆ ata      │
@@ -96,7 +96,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     ```
   - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by any of a large set of fundamental and derived columns, including card attributes and your own custom extension.
     ```python
-    >>>spells.summon('BLB', columns=["num_won", "num_games", "game_wr"], group_by=["main_colors"], filter_spec={"num_colors": 2})
+    >>> spells.summon('BLB', columns=["num_won", "num_games", "game_wr"], group_by=["main_colors"], filter_spec={"num_colors": 2})
     shape: (10, 4)
     ┌─────────────┬─────────┬───────────┬──────────┐
     │ main_colors ┆ num_won ┆ num_games ┆ game_wr  │
@@ -117,8 +117,8 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     ```
   - `filter_spec` specifies a row-level filter for the dataset, using an intuitive custom query formulation
     ```python
-    >>>from spells.enums import ColName
-    >>>spells.summon('BLB', columns=["game_wr"], group_by=["player_cohort"], filter_spec={'lhs': 'num_mulligans', 'op': '>', 'rhs': 0})
+    >>> from spells.enums import ColName
+    >>> spells.summon('BLB', columns=["game_wr"], group_by=["player_cohort"], filter_spec={'lhs': 'num_mulligans', 'op': '>', 'rhs': 0})
     shape: (4, 2)
     ┌───────────────┬──────────┐
     │ player_cohort ┆ game_wr  │
@@ -133,16 +133,16 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     ```
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns.
     ```python
-    >>>import polars as pl
-    >>>from spells.columns import ColumnDefinition
-    >>>from spells.enums import ColType, View, ColName
-    >>>ext = ColumnDefinition(
+    >>> import polars as pl
+    >>> from spells.columns import ColumnDefinition
+    >>> from spells.enums import ColType, View, ColName
+    >>> ext = ColumnDefinition(
     ...     name='deq_base',
     ...     col_type=ColType.AGG,
     ...     expr=(pl.col('gp_wr') - pl.col('gp_wr_mean') + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
     ...     dependencies=['gp_wr', 'gp_wr_mean', 'ata', 'pct_gp']
     ...)
-    >>>spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
+    >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
     ...     .filter(pl.col('deq_base').is_finite())
     ...     .filter(pl.col('rarity').is_in(['common', 'uncommon'])
     ...     .sort('deq_base', descending=True)
