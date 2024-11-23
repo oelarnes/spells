@@ -43,6 +43,7 @@ shape: (286, 14)
 │ Withering Torment          ┆ B     ┆ uncommon ┆ 76237    ┆ … ┆ 15901  ┆ 0.511729 ┆ 39323   ┆ 0.542024 │
 │ Zimone, All-Questioning    ┆ GU    ┆ rare     ┆ 20450    ┆ … ┆ 9510   ┆ 0.654574 ┆ 23576   ┆ 0.616686 │
 └────────────────────────────┴───────┴──────────┴──────────┴───┴────────┴──────────┴─────────┴──────────┘
+
 In [3]: %time spells.summon('DSK')
 CPU times: user 16.3 ms, sys: 66.2 ms, total: 82.5 ms
 Wall time: 80.8 ms
