@@ -15,6 +15,7 @@ Note that the extension expr must match the signature provided in the examples h
 
 import re
 from dataclasses import dataclass
+import datetime
 
 import polars as pl
 
@@ -26,6 +27,9 @@ class ColumnDefinition:
     if a column has dependencies that are not in the base view, all of its immediate
     dependencies must be called out.
     If all dependencies are in the base view, they do not need to be called out.
+
+    Generally you do not need to set version or signature, version is to be used only when introducting
+    python code to an expression in order to set the definition signature uniquely
     """
 
     name: str
@@ -33,6 +37,8 @@ class ColumnDefinition:
     expr: pl.functions.col.Col | None = None
     views: tuple[View, ...] = ()
     dependencies: list[str] | None = None
+    version: str | None = None # only needed for user-defined functions with python functions in expr
+    signature: str | None = None # do not set
     
     def name_sum_rename(
         self,
@@ -47,16 +53,34 @@ class ColumnDefinition:
 
     def __post_init__(self):
         if self.expr is not None:
+            try:
+                expr_sig = self.expr.meta.serialize(format='json') # not compatible with renaming
+            except:
+                if self.version is not None:
+                    expr_sig = self.name + self.version
+                else:
+                    expr_sig = str(datetime.datetime.now)
+            self.signature = str((
+                self.name,
+                self.col_type.value,
+                expr_sig,
+                tuple(view.value for view in self.views),
+                tuple(self.dependencies or ())
+            ))
             if self.col_type == ColType.NAME_SUM:
                 self.expr = self.expr.name.map(self.name_sum_rename)
             else:
                 self.expr = self.expr.alias(self.name)
         else:
+            self.signature = str((
+                self.name,
+                self.col_type.value,
+                tuple(view.value for view in self.views)
+            ))
             if self.col_type == ColType.NAME_SUM:
                 self.expr = pl.col(f"^{self.name}_.*$")
             else:
                 self.expr = pl.col(self.name)
-
 
 default_columns = [
     ColName.COLOR,

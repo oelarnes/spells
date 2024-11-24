@@ -9,13 +9,13 @@ import polars as pl
 
 from spells import draft_data
 import spells.columns as mcol
-import spells.cache_17l as c17
+import spells.external as external
 from spells.enums import View, ColName
-from spells.get_schema import schema
+from spells.schema import schema
 
 os.environ["MDU_PROJECT_DIR"] = "tests"  # will only work from project directory
 
-df_path = c17.data_file_path("BLB", View.DRAFT)
+df_path = external.data_file_path("BLB", View.DRAFT)
 draft_df = pl.scan_csv(df_path, schema=schema(df_path))
 
 @pytest.mark.parametrize(
@@ -112,11 +112,11 @@ draft_df = pl.scan_csv(df_path, schema=schema(df_path))
 │ ---           │
 │ str           │
 ╞═══════════════╡
-│ All           │
-│ All           │
-│ All           │
-│ All           │
-│ All           │
+│ Other         │
+│ Other         │
+│ Other         │
+│ Other         │
+│ Other         │
 └───────────────┘"""
         )
     ]

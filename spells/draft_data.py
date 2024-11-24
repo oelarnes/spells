@@ -7,6 +7,7 @@ for performance.
 """
 
 import functools
+import hashlib
 import re
 from typing import Callable, TypeVar
 
@@ -18,6 +19,7 @@ import spells.cache
 import spells.filter
 import spells.manifest
 from spells.columns import ColumnDefinition
+from spells import cache
 from spells.enums import View, ColName, ColType
 
 
@@ -25,7 +27,7 @@ def cache_key(args) -> str:
     """
     cache arguments by __str__ (based on the current value of a mutable, so be careful)
     """
-    return hex(hash(str(args)))[3:]
+    return hashlib.sha256(str(args).encode('utf-8')).hexdigest()[:16]
 
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
@@ -73,18 +75,17 @@ def col_df(
 def fetch_or_cache(
     calc_fn: Callable,
     set_code: str,
-    args: list,
-    non_cache_args: dict,
+    cache_args,
     read_cache: bool = True,
     write_cache: bool = True,
 ):
-    key = cache_key(args)
+    key = cache_key(cache_args)
 
     if read_cache:
         if spells.cache.cache_exists(set_code, key):
             return spells.cache.read_cache(set_code, key)
 
-    df = calc_fn(*args, **non_cache_args)
+    df = calc_fn()
 
     if write_cache:
         spells.cache.write_cache(set_code, key, df)
@@ -186,11 +187,18 @@ def summon(
 ) -> pl.DataFrame:
     m = spells.manifest.create(columns, group_by, filter_spec, extensions)
 
+    calc_fn = functools.partial(base_agg_df, set_code, m, use_streaming=use_streaming)
     agg_df = fetch_or_cache(
-        base_agg_df,
+        calc_fn,
         set_code,
-        [set_code, m],
-        {"use_streaming": use_streaming},
+        (
+            set_code,
+            sorted(m.view_cols.get(View.DRAFT, set())),
+            sorted(m.view_cols.get(View.GAME, set())),
+            sorted(c.signature or '' for c in m.col_def_map.values()),
+            sorted(m.base_view_group_by),
+            filter_spec,
+        ),
         read_cache=read_cache,
         write_cache=write_cache,
     )
