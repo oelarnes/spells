@@ -19,7 +19,6 @@ import spells.cache
 import spells.filter
 import spells.manifest
 from spells.columns import ColumnDefinition
-from spells import cache
 from spells.enums import View, ColName, ColType
 
 
@@ -27,7 +26,7 @@ def cache_key(args) -> str:
     """
     cache arguments by __str__ (based on the current value of a mutable, so be careful)
     """
-    return hashlib.sha256(str(args).encode('utf-8')).hexdigest()[:16]
+    return hashlib.md5(str(args).encode('utf-8')).hexdigest()
 
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
