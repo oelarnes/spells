@@ -23,13 +23,13 @@ def spells_print(mode, content):
 
 def data_home() -> str:
     is_win = (sys.platform == "win32")
-    return os.environ.get(
+    return os.path.expanduser(os.environ.get(
         'SPELLS_DATA_HOME', 
         os.environ.get(
             'XDG_DATA_HOME', 
-            os.path.expanduser(r"C:\Users\$USERNAME\AppData\Local\Spells" if is_win else "~/.local/share/spells/")
+            r"C:\Users\$USERNAME\AppData\Local\Spells" if is_win else "~/.local/share/spells/"
         )
-    )
+    ))
 
 def data_dir_path(cache_dir: DataDir) -> str:
     """

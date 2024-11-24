@@ -26,7 +26,6 @@ print(
 )
 print(
     f"""
-    $SPELLS_PROJECT_DIR    = {os.environ['SPELLS_PROJECT_DIR']}
     set_code            = {(set_code := "BLB")}
     group_by            = {(group_by := ['name'])}
     myn                 = {(myn := myn)}
