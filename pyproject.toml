@@ -9,7 +9,7 @@ dependencies = [
     "polars>=1.14.0",
     "wget>=3.2",
 ]
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 readme = "README.md"
 license = {text = "MIT"}
 
@@ -22,10 +22,6 @@ build-backend = "pdm.backend"
 
 [tool.pdm]
 distribution = true
-
-[tool.pdm.scripts]
-spells = "python scripts/spells.py"
-ispells = "ipython -i scripts/interactive.py"
 
 [tool.pdm.dev-dependencies]
 dev = [

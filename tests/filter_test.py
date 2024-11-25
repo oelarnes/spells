@@ -18,7 +18,9 @@ def format_test_string(test_string: str) -> str:
     """
     strip whitespace from each line to test pasted dataframe outputs
     """
-    return "\n".join([l.strip() for l in test_string.splitlines() if l.strip()])
+    return "\n".join(
+        [line.strip() for line in test_string.splitlines() if line.strip()]
+    )
 
 
 @pytest.mark.parametrize(
@@ -102,7 +104,10 @@ def test_from_spec(filter_spec: dict | None, expected: str | None):
     "test_filter, expected",
     [
         (spells.filter.from_spec({"int": 1}), {"int"}),
-        (spells.filter.from_spec({"$not": {"$or": [{"text": "foo"}, {"int": 1}]}}), {"text", "int"}),
+        (
+            spells.filter.from_spec({"$not": {"$or": [{"text": "foo"}, {"int": 1}]}}),
+            {"text", "int"},
+        ),
         (
             spells.filter.from_spec(
                 {

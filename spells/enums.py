@@ -9,26 +9,27 @@ class View(StrEnum):
     """Values are selected from three "views" before aggregation and joining into
     the unnamed "agg" view, which can have any column (except 'PICK')
     """
+
     GAME = "game"
     DRAFT = "draft"
     CARD = "card"
 
 
 class ColType(StrEnum):
-    FILTER_ONLY = 'filter_only'
-    GROUP_BY = 'group_by'
-    PICK_SUM = 'pick_sum'
-    GAME_SUM = 'game_sum'
-    NAME_SUM = 'name_sum'
-    AGG = 'agg'
-    CARD_ATTR = 'card_attr'
+    FILTER_ONLY = "filter_only"
+    GROUP_BY = "group_by"
+    PICK_SUM = "pick_sum"
+    GAME_SUM = "game_sum"
+    NAME_SUM = "name_sum"
+    AGG = "agg"
+    CARD_ATTR = "card_attr"
 
 
 class ColName(StrEnum):
     """
     A list of all available columns, including built-in extensions.
 
-    "Name-mapped" columns like "deck_<card name>" are identified by the prefix only. 
+    "Name-mapped" columns like "deck_<card name>" are identified by the prefix only.
     Those columns can be referenced simply as e.g. "deck" in formulas for the post-agg stage.
 
     New columns may be registered interactively via DraftData().register_column(), named as strings.
@@ -147,4 +148,3 @@ class ColName(StrEnum):
     WON_DECK_TOTAL = "won_deck_total"
     DECK_TOTAL = "deck_total"
     GP_WR_MEAN = "gp_wr_mean"
-

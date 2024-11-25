@@ -12,7 +12,7 @@ class Manifest:
     col_def_map: dict[str, ColumnDefinition]
     base_view_group_by: frozenset[str]
     view_cols: dict[View, frozenset[str]]
-    group_by: tuple[str,...]
+    group_by: tuple[str, ...]
     filter: spells.filter.Filter | None
 
     def __post_init__(self):
@@ -25,12 +25,18 @@ class Manifest:
         # Col in col_def_map check
         for col in self.columns:
             assert col in self.col_def_map, f"Undefined column {col}!"
-            assert self.col_def_map[col].col_type != ColType.GROUP_BY, f"group_by column {col} must be passed as group_by"
-            assert self.col_def_map[col].col_type != ColType.FILTER_ONLY, f"filter_only column {col} cannot be summoned"
+            assert (
+                self.col_def_map[col].col_type != ColType.GROUP_BY
+            ), f"group_by column {col} must be passed as group_by"
+            assert (
+                self.col_def_map[col].col_type != ColType.FILTER_ONLY
+            ), f"filter_only column {col} cannot be summoned"
 
         # base_view_groupbys have col_type GROUP_BY check
         for col in self.base_view_group_by:
-            assert self.col_def_map[col].col_type == ColType.GROUP_BY, f"Invalid groupby {col}!"
+            assert (
+                self.col_def_map[col].col_type == ColType.GROUP_BY
+            ), f"Invalid groupby {col}!"
 
         for view, cols_for_view in self.view_cols.items():
             # cols_for_view are actually in view check
@@ -38,9 +44,8 @@ class Manifest:
                 assert (
                     view in self.col_def_map[col].views
                 ), f"View cols generated incorrectly, {col} not in view {view}"
-                assert (
-                    self.col_def_map[col].col_type != ColType.GAME_SUM or 
-                    (view == View.GAME and ColName.NAME not in self.base_view_group_by)
+                assert self.col_def_map[col].col_type != ColType.GAME_SUM or (
+                    view == View.GAME and ColName.NAME not in self.base_view_group_by
                 ), f"Invalid manifest for GAME_SUM column {col}"
             if view != View.CARD:
                 for col in self.base_view_group_by:
@@ -56,11 +61,15 @@ class Manifest:
                 # filter cols are in both base_views check
                 if self.filter is not None:
                     for col in self.filter.lhs:
-                        assert col in cols_for_view, f"filter col {col} not found in base view"
-                
+                        assert (
+                            col in cols_for_view
+                        ), f"filter col {col} not found in base view"
+
             if view == View.CARD:
                 # name in groupbys check
-                assert ColName.NAME in self.base_view_group_by, "base views must groupby by name to join card attrs"
+                assert (
+                    ColName.NAME in self.base_view_group_by
+                ), "base views must groupby by name to join card attrs"
 
         for col, cdef in self.col_def_map.items():
             # name_sum extension cols have name_sum first dependency for renaming
@@ -110,12 +119,14 @@ def _resolve_view_cols(
         for col in unresolved_cols:
             cdef = col_def_map[col]
             if cdef.col_type == ColType.PICK_SUM:
-                view_resolution[View.DRAFT] = view_resolution.get(View.DRAFT, frozenset()).union(
-                    {ColName.PICK}
-                )
+                view_resolution[View.DRAFT] = view_resolution.get(
+                    View.DRAFT, frozenset()
+                ).union({ColName.PICK})
             if cdef.views:
                 for view in cdef.views:
-                    view_resolution[view] = view_resolution.get(view, frozenset()).union({col})
+                    view_resolution[view] = view_resolution.get(
+                        view, frozenset()
+                    ).union({col})
             else:
                 if cdef.dependencies is None:
                     raise ValueError(

@@ -10,13 +10,13 @@ import functools
 import polars as pl
 
 
-@dataclass
+@dataclass(frozen=True)
 class Filter:
     expr: pl.Expr
     lhs: frozenset[str]
 
 
-def _negate(f: Filter) -> Filter:
+def __negate(f: Filter) -> Filter:
     return Filter(expr=~f.expr, lhs=f.lhs)
 
 
@@ -45,19 +45,19 @@ def _filter_in(lhs: str, rhs: str) -> Filter:
 
 
 def _filter_gt(lhs: str, rhs: str) -> Filter:
-    return _negate(_filter_leq(lhs, rhs))
+    return __negate(_filter_leq(lhs, rhs))
 
 
 def _filter_nin(lhs: str, rhs: str) -> Filter:
-    return _negate(_filter_in(lhs, rhs))
+    return __negate(_filter_in(lhs, rhs))
 
 
 def _filter_neq(lhs: str, rhs: str) -> Filter:
-    return _negate(_filter_eq(lhs, rhs))
+    return __negate(_filter_eq(lhs, rhs))
 
 
 def _filter_lt(lhs: str, rhs: str) -> Filter:
-    return _negate(_filter_geq(lhs, rhs))
+    return __negate(_filter_geq(lhs, rhs))
 
 
 filter_fn_map = {
@@ -72,23 +72,27 @@ filter_fn_map = {
 }
 
 
-def base(lhs, rhs, op="=") -> Filter:
+def _base(lhs, rhs, op="=") -> Filter:
     return filter_fn_map[op](lhs, rhs)
 
 
-def all_of(filters) -> Filter:
+def _all_of(filters) -> Filter:
     return functools.reduce(_and, filters)
 
 
-def any_of(filters) -> Filter:
+def _any_of(filters) -> Filter:
     return functools.reduce(_or, filters)
 
 
-def negate(fil) -> Filter:
-    return _negate(fil)
+def _negate(fil) -> Filter:
+    return __negate(fil)
 
 
-BUILDER_MAP = {"$and": all_of, "$or": any_of, "$not": negate}
+BUILDER_MAP = {
+    "$and": _all_of,
+    "$or": _any_of, 
+    "$not": _negate
+}
 
 
 def from_spec(filter_spec: dict | None) -> Filter | None:
@@ -98,7 +102,7 @@ def from_spec(filter_spec: dict | None) -> Filter | None:
     or
     {'a': 5}
 
-    higher level keys can be `all_of | any_of | not`
+    higher level keys can be `_all_of | _any_of | not`
 
     e.g.
 
@@ -131,7 +135,7 @@ def from_spec(filter_spec: dict | None) -> Filter | None:
 
     if len(filter_spec) == 1:
         for lhs, rhs in filter_spec.items():
-            return base(lhs, rhs)
+            return _base(lhs, rhs)
 
     assert "lhs" in filter_spec and "rhs" in filter_spec
-    return base(filter_spec["lhs"], filter_spec["rhs"], filter_spec.get("op", "="))
+    return _base(filter_spec["lhs"], filter_spec["rhs"], filter_spec.get("op", "="))

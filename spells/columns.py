@@ -21,6 +21,7 @@ import polars as pl
 
 from spells.enums import View, ColName, ColType
 
+
 @dataclass
 class ColumnDefinition:
     """
@@ -37,9 +38,11 @@ class ColumnDefinition:
     expr: pl.functions.col.Col | None = None
     views: tuple[View, ...] = ()
     dependencies: list[str] | None = None
-    version: str | None = None # only needed for user-defined functions with python functions in expr
-    signature: str | None = None # do not set
-    
+    version: str | None = (
+        None  # only needed for user-defined functions with python functions in expr
+    )
+    signature: str | None = None  # do not set
+
     def name_sum_rename(
         self,
         old_name: str,
@@ -54,33 +57,40 @@ class ColumnDefinition:
     def __post_init__(self):
         if self.expr is not None:
             try:
-                expr_sig = self.expr.meta.serialize(format='json') # not compatible with renaming
-            except:
+                expr_sig = self.expr.meta.serialize(
+                    format="json"
+                )  # not compatible with renaming
+            except pl.exceptions.ComputeError:
                 if self.version is not None:
                     expr_sig = self.name + self.version
                 else:
                     expr_sig = str(datetime.datetime.now)
-            self.signature = str((
-                self.name,
-                self.col_type.value,
-                expr_sig,
-                tuple(view.value for view in self.views),
-                tuple(self.dependencies or ())
-            ))
+            self.signature = str(
+                (
+                    self.name,
+                    self.col_type.value,
+                    expr_sig,
+                    tuple(view.value for view in self.views),
+                    tuple(self.dependencies or ()),
+                )
+            )
             if self.col_type == ColType.NAME_SUM:
                 self.expr = self.expr.name.map(self.name_sum_rename)
             else:
                 self.expr = self.expr.alias(self.name)
         else:
-            self.signature = str((
-                self.name,
-                self.col_type.value,
-                tuple(view.value for view in self.views)
-            ))
+            self.signature = str(
+                (
+                    self.name,
+                    self.col_type.value,
+                    tuple(view.value for view in self.views),
+                )
+            )
             if self.col_type == ColType.NAME_SUM:
                 self.expr = pl.col(f"^{self.name}_.*$")
             else:
                 self.expr = pl.col(self.name)
+
 
 default_columns = [
     ColName.COLOR,
@@ -391,7 +401,7 @@ _column_defs = [
         name=ColName.HAS_SPLASH,
         col_type=ColType.GROUP_BY,
         views=(View.GAME,),
-        expr=pl.col(ColName.SPLASH_COLORS).str.len_chars() > 0
+        expr=pl.col(ColName.SPLASH_COLORS).str.len_chars() > 0,
     ),
     ColumnDefinition(
         name=ColName.ON_PLAY,
@@ -409,7 +419,7 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
-        name=ColName.OPP_NUM_MULLIGANS ,
+        name=ColName.OPP_NUM_MULLIGANS,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
     ),
@@ -432,7 +442,7 @@ _column_defs = [
         name=ColName.NUM_WON,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
-        expr=pl.col(ColName.WON)
+        expr=pl.col(ColName.WON),
     ),
     ColumnDefinition(
         name=ColName.OPENING_HAND,
@@ -461,14 +471,14 @@ _column_defs = [
         name=ColName.EVENT_COUNT,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
-        expr=(pl.col(ColName.GAME_NUMBER) == 1) & (pl.col(ColName.MATCH_NUMBER) == 1)
+        expr=(pl.col(ColName.GAME_NUMBER) == 1) & (pl.col(ColName.MATCH_NUMBER) == 1),
     ),
     ColumnDefinition(
         name=ColName.WON_OPENING_HAND,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
         expr=pl.col("^opening_hand_.*$") * pl.col(ColName.WON),
-        dependencies=[ColName.OPENING_HAND, ColName.WON]
+        dependencies=[ColName.OPENING_HAND, ColName.WON],
     ),
     ColumnDefinition(
         name=ColName.DRAWN,
@@ -480,7 +490,7 @@ _column_defs = [
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
         expr=pl.col("^drawn_.*$") * pl.col(ColName.WON),
-        dependencies=[ColName.DRAWN, ColName.WON]
+        dependencies=[ColName.DRAWN, ColName.WON],
     ),
     ColumnDefinition(
         name=ColName.TUTORED,
@@ -492,7 +502,7 @@ _column_defs = [
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
         expr=pl.col("^tutored_.*$") * pl.col(ColName.WON),
-        dependencies=[ColName.TUTORED, ColName.WON]
+        dependencies=[ColName.TUTORED, ColName.WON],
     ),
     ColumnDefinition(
         name=ColName.DECK,
@@ -504,7 +514,7 @@ _column_defs = [
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
         expr=pl.col("^deck_.*$") * pl.col(ColName.WON),
-        dependencies=[ColName.DECK, ColName.WON]
+        dependencies=[ColName.DECK, ColName.WON],
     ),
     ColumnDefinition(
         name=ColName.SIDEBOARD,
@@ -516,7 +526,7 @@ _column_defs = [
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
         expr=pl.col("^sideboard_.*$") * pl.col(ColName.WON),
-        dependencies=[ColName.SIDEBOARD, ColName.WON]
+        dependencies=[ColName.SIDEBOARD, ColName.WON],
     ),
     ColumnDefinition(
         name=ColName.ALSA,
@@ -538,13 +548,13 @@ _column_defs = [
         dependencies=[ColName.DECK],
     ),
     ColumnDefinition(
-        name=ColName.PCT_GP,        
+        name=ColName.PCT_GP,
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK) / (pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD)),
         dependencies=[ColName.DECK, ColName.SIDEBOARD],
     ),
     ColumnDefinition(
-        name=ColName.GP_WR,        
+        name=ColName.GP_WR,
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_DECK) / pl.col(ColName.DECK),
         dependencies=[ColName.WON_DECK, ColName.DECK],
@@ -553,12 +563,13 @@ _column_defs = [
         name=ColName.NUM_IN_POOL,
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD),
-        dependencies=[ColName.DECK, ColName.SIDEBOARD]
+        dependencies=[ColName.DECK, ColName.SIDEBOARD],
     ),
     ColumnDefinition(
         name=ColName.IN_POOL_WR,
         col_type=ColType.AGG,
-        expr=(pl.col(ColName.WON_DECK) + pl.col(ColName.WON_SIDEBOARD))/pl.col(ColName.NUM_IN_POOL),
+        expr=(pl.col(ColName.WON_DECK) + pl.col(ColName.WON_SIDEBOARD))
+        / pl.col(ColName.NUM_IN_POOL),
         dependencies=[ColName.WON_DECK, ColName.WON_SIDEBOARD, ColName.NUM_IN_POOL],
     ),
     ColumnDefinition(
@@ -661,45 +672,50 @@ _column_defs = [
         name=ColName.NUM_DECK_GIH,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        expr=pl.col("^deck_.*$") * (pl.sum_horizontal("^opening_hand_.*$") + pl.sum_horizontal("^drawn_.*$")),
+        expr=pl.col("^deck_.*$")
+        * (pl.sum_horizontal("^opening_hand_.*$") + pl.sum_horizontal("^drawn_.*$")),
         dependencies=[ColName.DECK, ColName.OPENING_HAND, ColName.DRAWN],
     ),
     ColumnDefinition(
         name=ColName.WON_NUM_DECK_GIH,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        expr=pl.col("^won_deck_.*$") * (pl.sum_horizontal("^won_opening_hand_.*$") + pl.sum_horizontal("^won_drawn_.*$")),
+        expr=pl.col("^won_deck_.*$")
+        * (
+            pl.sum_horizontal("^won_opening_hand_.*$")
+            + pl.sum_horizontal("^won_drawn_.*$")
+        ),
         dependencies=[ColName.WON_DECK, ColName.WON_OPENING_HAND, ColName.WON_DRAWN],
     ),
     ColumnDefinition(
         name=ColName.DECK_GIH_WR,
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_NUM_DECK_GIH) / pl.col(ColName.NUM_DECK_GIH),
-        dependencies=[ColName.WON_NUM_DECK_GIH, ColName.NUM_DECK_GIH]
+        dependencies=[ColName.WON_NUM_DECK_GIH, ColName.NUM_DECK_GIH],
     ),
     ColumnDefinition(
         name=ColName.TROPHY_RATE,
         col_type=ColType.AGG,
         expr=pl.col(ColName.IS_TROPHY_SUM) / pl.col(ColName.NUM_TAKEN),
-        dependencies=[ColName.IS_TROPHY_SUM, ColName.NUM_TAKEN]
+        dependencies=[ColName.IS_TROPHY_SUM, ColName.NUM_TAKEN],
     ),
     ColumnDefinition(
         name=ColName.WON_DECK_TOTAL,
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_DECK).sum(),
-        dependencies=[ColName.WON_DECK]
+        dependencies=[ColName.WON_DECK],
     ),
     ColumnDefinition(
         name=ColName.DECK_TOTAL,
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK).sum(),
-        dependencies=[ColName.DECK]
+        dependencies=[ColName.DECK],
     ),
     ColumnDefinition(
         name=ColName.GP_WR_MEAN,
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_DECK_TOTAL) / pl.col(ColName.DECK_TOTAL),
-        dependencies=[ColName.WON_DECK_TOTAL, ColName.DECK_TOTAL]
+        dependencies=[ColName.WON_DECK_TOTAL, ColName.DECK_TOTAL],
     ),
 ]
 

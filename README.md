@@ -9,11 +9,11 @@ $ spells add DSK
 🪄 add ✨ Downloading draft dataset from 17Lands.com
 100% [......................................................................] 250466473 / 250466473
 🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.csv written
-🪄 clear-cache ✨ No local cache found for set DSK
+🪄 clean ✨ No local cache found for set DSK
 🪄 add ✨ Downloading game dataset from 17Lands.com
 100% [........................................................................] 77145600 / 77145600
 🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.csv written
-🪄 clear-cache ✨ No local cache found for set DSK
+🪄 clean ✨ No local cache found for set DSK
 🪄 add ✨ Fetching card data from mtgjson.com and writing card csv file
 🪄 add ✨ Wrote 287 lines to file /Users/joel/.local/share/spells/external/DSK/DSK_card.csv
 $ ipython
@@ -62,7 +62,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Manages grouping and filtering by built-in and custom columns at the row level
 - Provides over 50 explicitly specified, enumerated, documented custom column definitions
 - Supports "Deck Color Data" aggregations out of the box.
-- Provides a CLI tool `spells [add|refresh|clear_local|remove|info] [SET]` to download and manage external files
+- Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
 - Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
@@ -224,6 +224,9 @@ So that's it, that's what Spells does from a high level. `summon` will hand off 
 Spells includes a command-line interface `spells` to manage your external data files and local cache. Spells will download files to an appropriate file location on your system, 
 typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows. 
 To use `spells`, make sure Spells in installed in your environment using pip or a package manager, and type `spells help` into your shell, or dive in with `spells add DSK` or your favorite set.
+
+## API
+
 
 # Roadmap to 1.0
 

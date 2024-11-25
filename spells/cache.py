@@ -13,30 +13,37 @@ import sys
 
 import polars as pl
 
+
 class DataDir(StrEnum):
     CACHE = "cache"
     EXTERNAL = "external"
+
 
 def spells_print(mode, content):
     print(f"🪄 {mode} ✨ {content}")
 
 
 def data_home() -> str:
-    is_win = (sys.platform == "win32")
-    return os.path.expanduser(os.environ.get(
-        'SPELLS_DATA_HOME', 
+    is_win = sys.platform == "win32"
+    return os.path.expanduser(
         os.environ.get(
-            'XDG_DATA_HOME', 
-            r"C:\Users\$USERNAME\AppData\Local\Spells" if is_win else "~/.local/share/spells/"
+            "SPELLS_DATA_HOME",
+            os.environ.get(
+                "XDG_DATA_HOME",
+                r"C:\Users\$USERNAME\AppData\Local\Spells"
+                if is_win
+                else "~/.local/share/spells/",
+            ),
         )
-    ))
+    )
+
 
 def data_dir_path(cache_dir: DataDir) -> str:
     """
     Where 17Lands data is stored. MDU_DATA_DIR environment variable is used, if it exists,
     otherwise the cwd is used
     """
-    is_win = (sys.platform == "win32")
+    is_win = sys.platform == "win32"
 
     ext = {
         DataDir.CACHE: "Cache" if is_win else "cache",
@@ -74,18 +81,23 @@ def write_cache(set_code: str, cache_key: str, df: pl.DataFrame) -> None:
 
 
 def clear(set_code: str) -> int:
-    mode = 'clear-cache'
+    mode = "clean"
     cache_dir = cache_dir_for_set(set_code)
     if os.path.isdir(cache_dir):
         with os.scandir(cache_dir) as set_dir:
             count = 0
             for entry in set_dir:
-                if not entry.name.endswith('.parquet'):
-                    spells_print(mode, f"Unexpected file {entry.name} found in local cache, please sort that out!")
+                if not entry.name.endswith(".parquet"):
+                    spells_print(
+                        mode,
+                        f"Unexpected file {entry.name} found in local cache, please sort that out!",
+                    )
                     return 1
                 count += 1
                 os.remove(entry)
-            spells_print(mode, f"Removed {count} files from local cache for set {set_code}")
+            spells_print(
+                mode, f"Removed {count} files from local cache for set {set_code}"
+            )
         os.rmdir(cache_dir)
         spells_print(mode, f"Removed local cache dir {cache_dir}")
         return 0

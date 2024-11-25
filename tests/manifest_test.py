@@ -1,6 +1,7 @@
 """
 test manifest creation and validation
 """
+
 import pytest
 
 import polars as pl
@@ -9,10 +10,16 @@ from spells.columns import ColumnDefinition
 from spells.enums import ColType, View
 import spells.manifest
 
+
 @pytest.mark.parametrize(
     "columns, group_by, filter_spec, extensions, expected",
     [
-        (None, None, None, None, """{
+        (
+            None,
+            None,
+            None,
+            None,
+            """{
   columns:
     alsa
     ata
@@ -50,8 +57,14 @@ import spells.manifest
   group_by:
     name
 }
-"""),
-        (None, ["player_cohort"], None, None, """{
+""",
+        ),
+        (
+            None,
+            ["player_cohort"],
+            None,
+            None,
+            """{
   columns:
     alsa
     ata
@@ -86,8 +99,14 @@ import spells.manifest
   group_by:
     player_cohort
 }
-"""),
-        (["ata"], ["draft_week", "name"], None, None, """{
+""",
+        ),
+        (
+            ["ata"],
+            ["draft_week", "name"],
+            None,
+            None,
+            """{
   columns:
     ata
   base_view_group_by:
@@ -103,8 +122,14 @@ import spells.manifest
     draft_week
     name
 }
-"""),
-        (["alsa"], None, {"rank": "gold"}, None, """{
+""",
+        ),
+        (
+            ["alsa"],
+            None,
+            {"rank": "gold"},
+            None,
+            """{
   columns:
     alsa
   base_view_group_by:
@@ -117,8 +142,18 @@ import spells.manifest
   group_by:
     name
 }
-"""),
-        (["alsa_plus_one"], None, None, [ColumnDefinition('alsa_plus_one', ColType.AGG, pl.col('alsa') + 1, (), ['alsa'])], """{
+""",
+        ),
+        (
+            ["alsa_plus_one"],
+            None,
+            None,
+            [
+                ColumnDefinition(
+                    "alsa_plus_one", ColType.AGG, pl.col("alsa") + 1, (), ["alsa"]
+                )
+            ],
+            """{
   columns:
     alsa_plus_one
   base_view_group_by:
@@ -130,8 +165,14 @@ import spells.manifest
   group_by:
     name
 }
-"""),
-        (["gp_wr", "num_gp", "pct_gp"], ["color"], None, None, """{
+""",
+        ),
+        (
+            ["gp_wr", "num_gp", "pct_gp"],
+            ["color"],
+            None,
+            None,
+            """{
   columns:
     gp_wr
     num_gp
@@ -148,8 +189,21 @@ import spells.manifest
   group_by:
     color
 }
-"""),
-        (["event_match_wins_sum"], ["is_winner"], None, [ColumnDefinition('is_winner', ColType.GROUP_BY, pl.col('user_game_win_rate_bucket') > 0.55, (View.DRAFT, View.GAME))], """{
+""",
+        ),
+        (
+            ["event_match_wins_sum"],
+            ["is_winner"],
+            None,
+            [
+                ColumnDefinition(
+                    "is_winner",
+                    ColType.GROUP_BY,
+                    pl.col("user_game_win_rate_bucket") > 0.55,
+                    (View.DRAFT, View.GAME),
+                )
+            ],
+            """{
   columns:
     event_match_wins_sum
   base_view_group_by:
@@ -162,8 +216,9 @@ import spells.manifest
   group_by:
     is_winner
 }
-"""),
-    ]
+""",
+        ),
+    ],
 )
 def test_create_manifest(
     columns: list[str] | None,
@@ -176,7 +231,3 @@ def test_create_manifest(
 
     print(m.test_str())
     assert m.test_str() == expected
-
-
-
-
