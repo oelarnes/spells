@@ -303,7 +303,7 @@ A list of all included columns. Columns can be referenced by enum or by string v
 | `USER_N_GAMES_BUCKET`       | `"user_n_games_bucket"`      | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Int             |     |
 | `USER_GAME_WIN_RATE_BUCKET` | `"user_game_win_rate_bucket` | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Float           |     |
 | `DRAFT_DATE`                | `"draft_date"`               | `DRAFT, GAME` | `GROUP_BY`    |                 | `datetime.date` |     |
-| `DRAFT_DAY_OF_WEEK`         | `"draft_day_of_week`         | `DRAFT, GAME` | `GROUP_BY`    | "Sunday", etc.  | String          |     |
+| `DRAFT_DAY_OF_WEEK`         | `"draft_day_of_week`         | `DRAFT, GAME` | `GROUP_BY`    | 1-7 (Mon-Sun)  | Int          |     |
 | `DRAFT_HOUR`                | `"draft_hour"`               | `DRAFT, GAME` | `GROUP_BY`    | 0-23            | Int             |     |
 | `DRAFT_WEEK`                | `"draft_week"`               | `DRAFT, GAME` | `GROUP_BY`    | 1-53            | Int             |     |
 
