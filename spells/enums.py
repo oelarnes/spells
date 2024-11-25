@@ -6,10 +6,6 @@ from enum import StrEnum
 
 
 class View(StrEnum):
-    """Values are selected from three "views" before aggregation and joining into
-    the unnamed "agg" view, which can have any column (except 'PICK')
-    """
-
     GAME = "game"
     DRAFT = "draft"
     CARD = "card"

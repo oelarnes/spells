@@ -254,6 +254,14 @@ aggregations of non-numeric (or numeric) data types are not supported, so use `g
 
 - extensions: a list of `spells.columns.ColumnDefinition` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
 
+### Enums
+
+```python
+from spells.enums import ColName, ColType, View
+```
+
+Recommended to import `ColName` for any usage of `summon`, and to import `ColType` and `View` when defining custom extensions. 
+
 ### ColumnDefinition
 
 ```python
@@ -274,11 +282,20 @@ Used to define extensions in `summon`
 
 - `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
 
-- `views`: For a column defined at the row level on a base view (see col_types above), the base views on which it is supported. All col_types except `AGG` and `CARD_ATTR` must specify at least one base view.
+- `views`: For a column defined at the row level on a view (see col_types above), the views on which it is supported. All col_types except `AGG` must specify at least one base view. For `CARD_ATTR` columns, `views` must be exactly `(View.CARD,)`.
 
-- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns, for now, are defined using wildcard expressions like `pl.col("^deck_.*")`, but this is going to change. Check back in...
+- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns, for now, are defined using wildcard expressions like `pl.col("^deck_.*")`, but this is going to change. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
 
 - `dependencies`: A list of column names. All dependencies must be declared by name, except for base view columns that depend on columns in the data file.
+
+### Columns
+
+A list of all included columns. Columns can be referenced by enum or by string value in arguments and filter specs. The string value is always the lowercase version of the enum attribute.
+
+#### Shared Columns in Both Views
+
+- `ColName.DRAFT_ID = "draft_id"` Base column. Filter-only (meaning, use only in filter_specs).
+- 
 
 # Roadmap to 1.0
 
