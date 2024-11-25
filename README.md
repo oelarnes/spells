@@ -240,8 +240,8 @@ summon(
 
 #### parameters
 
-- columns: a list of string or `ColName` values to display as non-grouped columns. Valid `ColTypes` are `ColType.PICK_SUM`, `ColType.NAME_SUM`, `ColType.GAME_SUM`, `ColType.AGG`. Min/Max/Unique 
-aggregations of non-numeric (or numeric) data types are not supported, so use `group_by` to specify categorical columns. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
+- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `ColType.PICK_SUM`, `ColType.NAME_SUM`, `ColType.GAME_SUM`, `ColType.CARD_ATTR`,  `ColType.AGG`. Min/Max/Unique 
+aggregations of non-numeric (or numeric) data types are not supported. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
 
 - group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `ColType.GROUP_BY` and `ColType.CARD_ATTR`. By default, group by "name" (card name).
 
