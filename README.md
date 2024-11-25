@@ -345,11 +345,15 @@ A list of all included columns. Columns can be referenced by enum or by string v
 | `SPLASH_COLORS`    | `"splash_colors"`   | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | String          |
 | `HAS_SPLASH`       | `"has_splash"`      | `GAME`        | `GROUP_BY`    |                                                                                                                                            | Boolean         |
 
-# Why did you make this?
+# Why did you make this? Who is it for?
 
 Earlier this year I developed a card quality metric called [DEq](https://docs.google.com/spreadsheets/d/1n1pfrb5q_2ICYk-vfF3Uwo8t61DJU-5T_DFe0dwk8DY/edit), short for "Estimated Draft Equity", which is designed to estimate the average value of selecting a card in draft relative to a comparable baseline, in order to improve on commonly-used metrics like GIH WR, which has a number of major and minor problems when interpreted as a card quality metric. That metric depends on the daily drops from 17Lands.com and won't be replaced by this static kind of analysis.
 
-While the modeling underpinning DEq remains sound, the estimation of the value depends on several parameters which should be inferred statistically, particularly the value of a pick and the pool bias estimate, and that process has been, let's say, somewhat less sound. In order to provide more scientific estimates of the parameters, and to continue on with deeper research, I felt the need to build a python library to enable quicker iteration and repeatable declarations of analysis. That compounded with a feeling that the barrier to entry to working with these datasets is too high and that a tool like this would benefit the community. So that's what this is. I hope you find it useful. If you're interested in the fruits of my DEq research, or in checking my work, keep an eye on my [deq](https://GitHub.com/oelarnes/deq) repository.
+While the modeling underpinning DEq remains sound, the estimation of the value depends on several parameters which should be inferred statistically, particularly the value of a pick and the pool bias estimate, and that process has been, let's say, somewhat less sound. In order to provide more scientific estimates of the parameters, and to continue on with deeper research, I felt the need to build a python library to enable quicker iteration and repeatable declarations of analysis. 
+
+That need compounded with a feeling that the barrier to entry to working with these datasets is too high and that a tool like this would benefit the community. So that's what this is. It is for data-curious beginning programmers and professional developers and scientists. I hope you find it useful. 
+
+If you're interested in the fruits of my DEq research, or in checking my work, keep an eye on my [deq](https://GitHub.com/oelarnes/deq) repository.
 
 # Roadmap to 1.0
 
