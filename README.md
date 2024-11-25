@@ -265,6 +265,8 @@ Recommended to import `ColName` for any usage of `summon`, and to import `ColTyp
 ### ColumnDefinition
 
 ```python
+from spells.columns import ColumnDefinition
+
 ColumnDefinition(
     name: str,
     col_type: spells.enums.ColType,
