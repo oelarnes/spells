@@ -60,7 +60,7 @@ class Manifest:
                 
             if view == View.CARD:
                 # name in groupbys check
-                assert ColName.NAME in self.base_view_group_by, f"base views must groupby by name to join card attrs"
+                assert ColName.NAME in self.base_view_group_by, "base views must groupby by name to join card attrs"
 
         for col, cdef in self.col_def_map.items():
             # name_sum extension cols have name_sum first dependency for renaming
