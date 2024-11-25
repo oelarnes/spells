@@ -326,7 +326,24 @@ A list of all included columns. Columns can be referenced by enum or by string v
 | `PICK_SIDEBOARD_IN_RATE` | `"pick_sideboard_in_rate`  | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |
 | `PICK`                   | `"pick"`                   | `DRAFT` | `FILTER_ONLY` | Dataset Column, joined as "name"             | String   |
 | `NAME`                   | `"name"`                   |         | `GROUP_BY`    | Special handling, don't use in `filter_spec` | String   |
-|                          |                            |         |               |                                              |          |
+| `PACK_CARD`        | `"pack_card`        | `DRAFT`       | `NAME_SUM`    | Dataset Column                                                                                                                             | Int             |
+| `LAST_SEEN`        | `"last_seen"`       | `DRAFT`       | `NAME_SUM`    | `PACK_CARD` times `min(8, PICK_NUM)`, add 8 to give last pick num seen when summed                                                         | Int             |
+| `NUM_SEEN`         | `"num_seen"`        | `DRAFT`       | `NAME_SUM`    | `PACK_CARD` for `PICK_NUM` less than 9                                                                                                     | Int             |
+| `PLAYER_COHORT`    | `"player_cohort"`   | `DRAFT, GAME` | `GROUP_BY`    | In-sample version of "Top", "Middle", "Bottom", etc based on `USER_GAME_WIN_RATE_BUCKET`. Thresholds are 49% and 57% and 100 games played. | String          |
+| `POOL`             | `"pool"`            | `DRAFT`       | `NAME_SUM`    | Dataset Column                                                                                                                             | Int             |
+| `GAME_TIME`        | `"game_time"`       | `GAME`        | `FILTER_ONLY` | Dataset Column                                                                                                                             | String          |
+| `GAME_DATE`        | `"game_date"`       | `GAME`        | `GROUP_BY`    |                                                                                                                                            | `datetime.date` |
+| `GAME_DAY_OF_WEEK` | `"game_day_of_week` | `GAME`        | `GROUP_BY`    | 1-7 (Mon-Sun)                                                                                                                              | Int             |
+| `GAME_WEEK`        | `"game_week"`       | `GAME`        | `GROUP_BY`    | 1-53                                                                                                                                       | Int             |
+| `GAME_HOUR`        | `"game_hour"`       | `GAME`        | `GROUP_BY`    | 0-23                                                                                                                                       | Int             |
+| `BUILD_INDEX`      | `"build_index"`     | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | Int             |
+| `MATCH_NUMBER`     | `"match_number"`    | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | Int             |
+| `GAME_NUMBER`      | `"game_number"`     | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | Int             |
+| `OPP_RANK`         | `"opp_rank"`        | `GAME`        | `GROUP_BY`    | Dataset Column (tends to be blank)                                                                                                         | String          |
+| `MAIN_COLORS`      | `"main_colors"`     | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | String          |
+| `NUM_COLORS`       | `"num_colors"`      | `GAME`        | `GROUP_BY`    | `len(MAIN_COLORS)`                                                                                                                         | Int             |
+| `SPLASH_COLORS`    | `"splash_colors"`   | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | String          |
+| `HAS_SPLASH`       | `"has_splash"`      | `GAME`        | `GROUP_BY`    |                                                                                                                                            | Boolean         |
 
 
 # Roadmap to 1.0
