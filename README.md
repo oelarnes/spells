@@ -292,10 +292,21 @@ Used to define extensions in `summon`
 
 A list of all included columns. Columns can be referenced by enum or by string value in arguments and filter specs. The string value is always the lowercase version of the enum attribute.
 
-#### Shared Columns in Both Views
 
-- `ColName.DRAFT_ID = "draft_id"` Base column. Filter-only (meaning, use only in filter_specs).
-- 
+| `ColName`                   | **Name**                     | `View`        | `ColType`     | **Description** | **Type**        |     |
+| --------------------------- | ---------------------------- | ------------- | ------------- | --------------- | --------------- | --- |
+| `DRAFT_ID`                  | `"draft_id"`                 | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |     |
+| `EXPANSION`                 | `"expansion"`                | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | String          |     |
+| `EVENT_TYPE`                | `"event_type"`               | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | String          |     |
+| `DRAFT_TIME`                | `"draft_time"`               | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |     |
+| `RANK`                      | `"rank"`                     | `DRAFT, GAME` | `GROUP_BY`    | Dataset column  | String          |     |
+| `USER_N_GAMES_BUCKET`       | `"user_n_games_bucket"`      | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Int             |     |
+| `USER_GAME_WIN_RATE_BUCKET` | `"user_game_win_rate_bucket` | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Float           |     |
+| `DRAFT_DATE`                | `"draft_date"`               | `DRAFT, GAME` | `GROUP_BY`    |                 | `datetime.date` |     |
+| `DRAFT_DAY_OF_WEEK`         | `"draft_day_of_week`         | `DRAFT, GAME` | `GROUP_BY`    | "Sunday", etc.  | String          |     |
+| `DRAFT_HOUR`                | `"draft_hour"`               | `DRAFT, GAME` | `GROUP_BY`    | 0-23            | Int             |     |
+| `DRAFT_WEEK`                | `"draft_week"`               | `DRAFT, GAME` | `GROUP_BY`    | 1-53            | Int             |     |
+
 
 # Roadmap to 1.0
 
