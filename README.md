@@ -227,12 +227,14 @@ To use `spells`, make sure Spells in installed in your environment using pip or 
 
 ## API
 
+### Summon
+
 ```python
 summon(
-    columns: list[str | None] = None,
-    group_by: list[str | None] = None,
-    filter_spec: list[str | None ] = None,
-    extensions: list[str | None ] = None,
+    columns: list[str] | None = None,
+    group_by: list[str] | None = None,
+    filter_spec: dict | None = None,
+    extensions: list[str] | None = None,
 ) -> polars.DataFrame
 ```
 
@@ -244,13 +246,15 @@ aggregations of non-numeric (or numeric) data types are not supported, so use `g
 - group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `ColType.GROUP_BY` and `ColType.CARD_ATTR`. By default, group by "name" (card name).
 
 - filter_spec: a dictionary specifying a filter, using a small number of paradigms. Columns used must be in each base view ("draft" and "game") that the `columns` and `group_by` columns depend on, so 
-`ColType.AGG` and `ColType.CARD_ATTR` columns are not valid. `ColType.NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. The specification is best understood with examples:
+`ColType.AGG` and `ColType.CARD_ATTR` columns are not valid. `ColType.NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
 
     - `{'player_cohort': 'Top'}` "player_cohort" value equals "Top".
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
     - `{'$and': [{'lhs': 'draft_date', 'op': '>', 'rhs': datetime.date(2024, 10, 7)}, {'rank': 'Mythic'}]}` Drafts after October 7 by Mythic-ranked players. Supported values for query construction keys are `$and`, `$or`, and `$not`.
 
 - extensions: a list of `spells.columns.ColumnDefinition` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
+
+### ColumnDefinition
 
 ```python
 ColumnDefinition(
@@ -262,6 +266,19 @@ ColumnDefinition(
 )
 ```
 
+Used to define extensions in `summon`
+
+#### parameters
+
+- `name`: any string, including existing columns, although this is very likely to break dependent columns, so don't do it. For `ColType.NAME_SUM` columns, the name is the prefix without the underscore, e.g. "drawn".
+
+- `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
+
+- `views`: For a column defined at the row level on a base view (see col_types above), the base views on which it is supported. All col_types except `AGG` and `CARD_ATTR` must specify at least one base view.
+
+- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns, for now, are defined using wildcard expressions like `pl.col("^deck_.*")`, but this is going to change. Check back in...
+
+- `dependencies`: A list of column names. All dependencies must be declared by name, except for base view columns that depend on columns in the data file.
 
 # Roadmap to 1.0
 
