@@ -227,6 +227,41 @@ To use `spells`, make sure Spells in installed in your environment using pip or 
 
 ## API
 
+```python
+summon(
+    columns: list[str | None] = None,
+    group_by: list[str | None] = None,
+    filter_spec: list[str | None ] = None,
+    extensions: list[str | None ] = None,
+) -> polars.DataFrame
+```
+
+#### parameters
+
+- columns: a list of string or `ColName` values to display as non-grouped columns. Valid `ColTypes` are `ColType.PICK_SUM`, `ColType.NAME_SUM`, `ColType.GAME_SUM`, `ColType.AGG`. Min/Max/Unique 
+aggregations of non-numeric (or numeric) data types are not supported, so use `group_by` to specify categorical columns. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
+
+- group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `ColType.GROUP_BY` and `ColType.CARD_ATTR`. By default, group by "name" (card name).
+
+- filter_spec: a dictionary specifying a filter, using a small number of paradigms. Columns used must be in each base view ("draft" and "game") that the `columns` and `group_by` columns depend on, so 
+`ColType.AGG` and `ColType.CARD_ATTR` columns are not valid. `ColType.NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. The specification is best understood with examples:
+
+    - `{'player_cohort': 'Top'}` "player_cohort" value equals "Top".
+    - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
+    - `{'$and': [{'lhs': 'draft_date', 'op': '>', 'rhs': datetime.date(2024, 10, 7)}, {'rank': 'Mythic'}]}` Drafts after October 7 by Mythic-ranked players. Supported values for query construction keys are `$and`, `$or`, and `$not`.
+
+- extensions: a list of `spells.columns.ColumnDefinition` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
+
+```python
+ColumnDefinition(
+    name: str,
+    col_type: spells.enums.ColType,
+    views: tuple(spells.enums.View...) = (),
+    expr: pl.Expr | None = None,
+    dependencies: list[str] | None = None
+)
+```
+
 
 # Roadmap to 1.0
 
