@@ -308,6 +308,25 @@ A list of all included columns. Columns can be referenced by enum or by string v
 | `DRAFT_DAY_OF_WEEK`         | `"draft_day_of_week`         | `DRAFT, GAME` | `GROUP_BY`    | 1-7 (Mon-Sun)  | Int          |    
 | `DRAFT_HOUR`                | `"draft_hour"`               | `DRAFT, GAME` | `GROUP_BY`    | 0-23            | Int             |   
 | `DRAFT_WEEK`                | `"draft_week"`               | `DRAFT, GAME` | `GROUP_BY`    | 1-53            | Int             |   
+| `EVENT_MATCH_WINS`       | `"event_match_wins`        | `DRAFT` | `GROUP_BY`    | Dataset Column                               | Int      |
+| `EVENT_MATCH_LOSSES`     | `"event_match_losses`      | `DRAFT` | `GROUP_BY`    | Dataset Column                               | Int      |
+| `EVENT_MATCHES`          | `"event_matches"`          | `DRAFT` | `GROUP_BY`    |                                              | Int      |
+| `EVENT_MATCH_WINS_SUM`   | `"event_match_wins_sum`    | `DRAFT` | `PICK_SUM`    |                                              | Int      |
+| `EVENT_MATCH_LOSSES_SUM` | `"event_match_losses_sum"` | `DRAFT` | `PICK_SUM`    |                                              | Int      |
+| `EVENT_MATCHES_SUM`      | `"event_matches_sum"`      | `DRAFT` | `PICK_SUM`    |                                              | Int      |
+| `IS_TROPHY`              | `"is_trophy"`              | `DRAFT` | `GROUP_BY`    | 3 Match Wins if "Traditional", 7 if Premier  | Boolean  |
+| `IS_TROPHY_SUM`          | `"is_trophy_sum"`          | `DRAFT` | `PICK_SUM`    |                                              | Int      |
+| `PACK_NUMBER`            | `"pack_number`             | `DRAFT` | `FILTER_ONLY` | Dataset Column                               | Int      |
+| `PICK_NUMBER`            | `"pick_number"`            | `DRAFT` | `FILTER_ONLY` | Dataset Column                               | Int      |
+| `PACK_NUM`               | `"pack_num"`               | `DRAFT` | `GROUP_BY`    | 1-indexed                                    | Int      |
+| `PICK_NUM`               | `"pick_num"`               | `DRAFT` | `GROUP_BY`    | 1-indexed                                    | Int      |
+| `TAKEN_AT`               | `"taken_at`                | `DRAFT` | `PICK_SUM`    | Summable alias of `PICK_NUM`                 | Int      |
+| `NUM_TAKEN`              | `"num_taken"`              | `DRAFT` | `PICK_SUM`    | Sum 1 over rows                              | Int      |
+| `PICK_MAINDECK_RATE`     | `"pick_maindeck_rate"`     | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |
+| `PICK_SIDEBOARD_IN_RATE` | `"pick_sideboard_in_rate`  | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |
+| `PICK`                   | `"pick"`                   | `DRAFT` | `FILTER_ONLY` | Dataset Column, joined as "name"             | String   |
+| `NAME`                   | `"name"`                   |         | `GROUP_BY`    | Special handling, don't use in `filter_spec` | String   |
+|                          |                            |         |               |                                              |          |
 
 
 # Roadmap to 1.0
