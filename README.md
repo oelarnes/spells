@@ -398,18 +398,18 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `GAME_WR` | `"game_wr"` | | `AGG` | `NUM_WON` / `NUM_GAMES` | Float |
 | `ALSA` | `"alsa"` | | `AGG` | `LAST_SEEN` / `NUM_SEEN` | Float |
 | `ATA` | `"ata"` | | `AGG` | `PICKED_AT` / `NUM_PICKED` | Float |
-| `NUM_GP` | `"num_gp"` | | `AGG` | `DECK` | Float |
+| `NUM_GP` | `"num_gp"` | | `AGG` | `DECK` | Int |
 | `PCT_GP` | `"pct_gp"` | | `AGG` | `DECK` / (`DECK` + `SIDEBOARD`) | Float |
 | `GP_WR` | `"gp_wr"` | | `AGG` | `WON_DECK` / `DECK` | Float |
-| `NUM_OH` | `"num_oh"` | | `AGG` || Float |
+| `NUM_OH` | `"num_oh"` | | `AGG` || Int |
 | `OH_WR` | `"oh_wr"` | | `AGG` || Float |
-| `NUM_GIH` | `"num_gih"` | | `AGG` |`OPENING_HAND` + `DRAWN`| Float |
-| `NUM_GIH_WON` | `"num_gih_won"` | | `AGG` | `WON_OPENING_HAND` + `WON_DRAWN` | Float |
+| `NUM_GIH` | `"num_gih"` | | `AGG` |`OPENING_HAND` + `DRAWN`| Int |
+| `NUM_GIH_WON` | `"num_gih_won"` | | `AGG` | `WON_OPENING_HAND` + `WON_DRAWN` | Int |
 | `GIH_WR` | `"gih_wr"` | | `AGG` | `NUM_GIH_WON` / `NUM_GIH` | Float |
-| `NUM_IN_POOL` | `"num_in_pool"` | | `AGG` | `DECK` + `SIDEBOARD`| Float |
+| `NUM_IN_POOL` | `"num_in_pool"` | | `AGG` | `DECK` + `SIDEBOARD`| Int |
 | `IN_POOL_WR` | `"in_pool_wr"` | | `AGG` || Float |
-| `DECK_TOTAL` | `"deck_total"` | | `AGG` | Sum `DECK` over all rows and broadcast back to row level| Float |
-| `WON_DECK_TOTAL` | `"won_deck_total"` | | `AGG` || Float |
+| `DECK_TOTAL` | `"deck_total"` | | `AGG` | Sum `DECK` over all rows and broadcast back to row level| Int |
+| `WON_DECK_TOTAL` | `"won_deck_total"` | | `AGG` || Int |
 | `GP_WR_MEAN` | `"gp_wr_mean"` | | `AGG` | `WON_DECK_TOTAL` / `DECK_TOTAL` | Float |
 
 # Roadmap to 1.0
