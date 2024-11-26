@@ -311,35 +311,35 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `ColName`                   | **Name**                     | `View`        | `ColType`     | **Description** | **Type**        |     
 | --------------------------- | ---------------------------- | ------------- | ------------- | --------------- | --------------- |
 | `NAME`                   | `"name"`                   |         | `GROUP_BY`    | Special handling, don't use in `filter_spec` | String   |
-| `DRAFT_ID`                  | `"draft_id"`                 | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |   
 | `EXPANSION`                 | `"expansion"`                | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | String          |    
 | `EVENT_TYPE`                | `"event_type"`               | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | String          |    
+| `DRAFT_ID`                  | `"draft_id"`                 | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |   
 | `DRAFT_TIME`                | `"draft_time"`               | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |    
-| `RANK`                      | `"rank"`                     | `DRAFT, GAME` | `GROUP_BY`    | Dataset column  | String          |    
-| `USER_N_GAMES_BUCKET`       | `"user_n_games_bucket"`      | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Int             |    
-| `USER_GAME_WIN_RATE_BUCKET` | `"user_game_win_rate_bucket` | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Float           |    
-| `PLAYER_COHORT`    | `"player_cohort"`   | `DRAFT, GAME` | `GROUP_BY`    | In-sample version of "Top", "Middle", "Bottom", etc based on `USER_GAME_WIN_RATE_BUCKET`. Thresholds are 49% and 57% and 100 games played. | String          |
 | `DRAFT_DATE`                | `"draft_date"`               | `DRAFT, GAME` | `GROUP_BY`    |                 | `datetime.date` |
 | `DRAFT_DAY_OF_WEEK`         | `"draft_day_of_week`         | `DRAFT, GAME` | `GROUP_BY`    | 1-7 (Mon-Sun)  | Int          |    
 | `DRAFT_HOUR`                | `"draft_hour"`               | `DRAFT, GAME` | `GROUP_BY`    | 0-23            | Int             |   
 | `DRAFT_WEEK`                | `"draft_week"`               | `DRAFT, GAME` | `GROUP_BY`    | 1-53            | Int             |   
+| `RANK`                      | `"rank"`                     | `DRAFT, GAME` | `GROUP_BY`    | Dataset column  | String          |    
+| `USER_N_GAMES_BUCKET`       | `"user_n_games_bucket"`      | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Int             |    
+| `USER_GAME_WIN_RATE_BUCKET` | `"user_game_win_rate_bucket` | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Float           |    
+| `PLAYER_COHORT`    | `"player_cohort"`   | `DRAFT, GAME` | `GROUP_BY`    | In-sample version of "Top", "Middle", "Bottom", etc based on `USER_GAME_WIN_RATE_BUCKET`. Thresholds are 49% and 57% and 100 games played. | String          |
 | `EVENT_MATCH_WINS`       | `"event_match_wins`        | `DRAFT` | `GROUP_BY`    | Dataset Column                               | Int      |
-| `EVENT_MATCH_LOSSES`     | `"event_match_losses`      | `DRAFT` | `GROUP_BY`    | Dataset Column                               | Int      |
-| `EVENT_MATCHES`          | `"event_matches"`          | `DRAFT` | `GROUP_BY`    |                                              | Int      |
 | `EVENT_MATCH_WINS_SUM`   | `"event_match_wins_sum`    | `DRAFT` | `PICK_SUM`    |                                              | Int      |
+| `EVENT_MATCH_LOSSES`     | `"event_match_losses`      | `DRAFT` | `GROUP_BY`    | Dataset Column                               | Int      |
 | `EVENT_MATCH_LOSSES_SUM` | `"event_match_losses_sum"` | `DRAFT` | `PICK_SUM`    |                                              | Int      |
+| `EVENT_MATCHES`          | `"event_matches"`          | `DRAFT` | `GROUP_BY`    |                                              | Int      |
 | `EVENT_MATCHES_SUM`      | `"event_matches_sum"`      | `DRAFT` | `PICK_SUM`    |                                              | Int      |
 | `IS_TROPHY`              | `"is_trophy"`              | `DRAFT` | `GROUP_BY`    | 3 Match Wins if "Traditional", 7 if Premier  | Boolean  |
 | `IS_TROPHY_SUM`          | `"is_trophy_sum"`          | `DRAFT` | `PICK_SUM`    |                                              | Int      |
 | `PACK_NUMBER`            | `"pack_number`             | `DRAFT` | `FILTER_ONLY` | Dataset Column                               | Int      |
-| `PICK_NUMBER`            | `"pick_number"`            | `DRAFT` | `FILTER_ONLY` | Dataset Column                               | Int      |
 | `PACK_NUM`               | `"pack_num"`               | `DRAFT` | `GROUP_BY`    | 1-indexed                                    | Int      |
+| `PICK_NUMBER`            | `"pick_number"`            | `DRAFT` | `FILTER_ONLY` | Dataset Column                               | Int      |
 | `PICK_NUM`               | `"pick_num"`               | `DRAFT` | `GROUP_BY`    | 1-indexed                                    | Int      |
 | `TAKEN_AT`               | `"taken_at`                | `DRAFT` | `PICK_SUM`    | Summable alias of `PICK_NUM`                 | Int      |
 | `NUM_TAKEN`              | `"num_taken"`              | `DRAFT` | `PICK_SUM`    | Sum 1 over rows                              | Int      |
+| `PICK`                   | `"pick"`                   | `DRAFT` | `FILTER_ONLY` | Dataset Column, joined as "name"             | String   |
 | `PICK_MAINDECK_RATE`     | `"pick_maindeck_rate"`     | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |
 | `PICK_SIDEBOARD_IN_RATE` | `"pick_sideboard_in_rate`  | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |
-| `PICK`                   | `"pick"`                   | `DRAFT` | `FILTER_ONLY` | Dataset Column, joined as "name"             | String   |
 | `PACK_CARD`        | `"pack_card`        | `DRAFT`       | `NAME_SUM`    | Dataset Column                                                                                                                             | Int             |
 | `LAST_SEEN`        | `"last_seen"`       | `DRAFT`       | `NAME_SUM`    | `PACK_CARD` times `min(8, PICK_NUM)`, add 8 to give last pick num seen when summed                                                         | Int             |
 | `NUM_SEEN`         | `"num_seen"`        | `DRAFT`       | `NAME_SUM`    | `PACK_CARD` for `PICK_NUM` less than 9                                                                                                     | Int             |
@@ -347,18 +347,21 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `GAME_TIME`        | `"game_time"`       | `GAME`        | `FILTER_ONLY` | Dataset Column                                                                                                                             | String          |
 | `GAME_DATE`        | `"game_date"`       | `GAME`        | `GROUP_BY`    |                                                                                                                                            | `datetime.date` |
 | `GAME_DAY_OF_WEEK` | `"game_day_of_week` | `GAME`        | `GROUP_BY`    | 1-7 (Mon-Sun)                                                                                                                              | Int             |
-| `GAME_WEEK`        | `"game_week"`       | `GAME`        | `GROUP_BY`    | 1-53                                                                                                                                       | Int             |
 | `GAME_HOUR`        | `"game_hour"`       | `GAME`        | `GROUP_BY`    | 0-23                                                                                                                                       | Int             |
+| `GAME_WEEK`        | `"game_week"`       | `GAME`        | `GROUP_BY`    | 1-53                                                                                                                                       | Int             |
 | `BUILD_INDEX`      | `"build_index"`     | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | Int             |
 | `MATCH_NUMBER`     | `"match_number"`    | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | Int             |
 | `GAME_NUMBER`      | `"game_number"`     | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | Int             |
+| `NUM_EVENTS` | `"num_events"` | `GAME` | `GAME_SUM` | | Int |
+| `NUM_MATCHES` | `"num_matches"` | `GAME` | `GAME_SUM` | | Int |
+| `NUM_GAMES` | `"num_games"` | `GAME` | `GAME_SUM` | | Int |
 | `OPP_RANK`         | `"opp_rank"`        | `GAME`        | `GROUP_BY`    | Dataset Column (tends to be blank)                                                                                                         | String          |
 | `MAIN_COLORS`      | `"main_colors"`     | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | String          |
 | `NUM_COLORS`       | `"num_colors"`      | `GAME`        | `GROUP_BY`    | `len(MAIN_COLORS)`                                                                                                                         | Int             |
 | `SPLASH_COLORS`    | `"splash_colors"`   | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | String          |
 | `HAS_SPLASH`       | `"has_splash"`      | `GAME`        | `GROUP_BY`    |                                                                                                                                            | Boolean         |
 | `ON_PLAY`               | `"on_play"`               | `GAME` | `GROUP_BY` | Dataset Column | Boolean |
-| `ON_PLAY_SUM`           | `"on_play_sum"`           | `GAME` | `GAME_SUM` |                | Int     |
+| `NUM_ON_PLAY`           | `"num_on_play"`           | `GAME` | `GAME_SUM` |                | Int     |
 | `NUM_MULLIGANS`         | `"num_mulligans"`         | `GAME` | `GROUP_BY` | Dataset Column | Boolean |
 | `NUM_MULLIGANS_SUM`     | `"num_mulligans_sum"`     | `GAME` | `GAME_SUM` |                | Int     |
 | `OPP_NUM_MULLIGANS`     | `"opp_num_mulligans"`     | `GAME` | `GROUP_BY` | Dataset Column | Boolean |
@@ -367,7 +370,18 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `NUM_TURNS`             | `"num_turns"`             | `GAME` | `GROUP_BY` | Dataset Column | Int     |
 | `NUM_TURNS_SUM`         | `"num_turns_sum"`         | `GAME` | `GROUP_BY` |                | Int     |
 | `WON`             | `"won"`   |   `GAME` | `GROUP_BY` | Dataset Column | Boolean |
-| `NUM_WON` |   `"num_won"` | `GAME` | `GAME_SUM` | | Int |
+| `NUM_WON` |   `"num_won"` | `GAME` | `GAME_SUM` |   | Int |
+| `OPENING_HAND` | `"opening_hand"` | `GAME` | `NAME_SUM` | | Int |
+| `WON_OPENING_HAND` | `"won_opening_hand"` | `GAME` | `NAME_SUM` | `WON * OPENING_HAND`| Int |
+| `DRAWN` | `"drawn"` | `GAME` | `NAME_SUM` | | Int |
+| `WON_DRAWN` | `"won_drawn"` | `GAME` | `NAME_SUM` | `WON * DRAWN`| Int |
+| `TUTORED` | `"tutored"` | `GAME` | `NAME_SUM` | | Int |
+| `WON_TUTORED` | `"won_tutored"` | `GAME` | `NAME_SUM` | `WON * TUTORED`| Int |
+| `DECK` | `"deck"` | `GAME` | `NAME_SUM` | | Int |
+| `WON_DECK` | `"won_deck"` | `GAME` | `NAME_SUM` | `WON * DECK`| Int |
+| `SIDEBOARD` | `"sideboard"` | `GAME` | `NAME_SUM` | | Int |
+| `WON_SIDEBOARD` | `"won_sideboard"` | `GAME` | `NAME_SUM` | `WON * SIDEBOARD`| Int |
+
 
 
 # Roadmap to 1.0

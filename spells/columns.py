@@ -110,6 +110,22 @@ default_columns = [
 
 _column_defs = [
     ColumnDefinition(
+        name=ColName.NAME,
+        col_type=ColType.GROUP_BY,
+        views=(),
+        # handled by internals, derived from both 'pick' and "name mapped" columns
+    ),
+    ColumnDefinition(
+        name=ColName.EXPANSION,
+        col_type=ColType.GROUP_BY,
+        views=(View.GAME, View.DRAFT),
+    ),
+    ColumnDefinition(
+        name=ColName.EVENT_TYPE,
+        col_type=ColType.GROUP_BY,
+        views=(View.GAME, View.DRAFT),
+    ),
+    ColumnDefinition(
         name=ColName.DRAFT_ID,
         views=(View.GAME, View.DRAFT),
         col_type=ColType.FILTER_ONLY,
@@ -151,6 +167,32 @@ _column_defs = [
         name=ColName.RANK,
         col_type=ColType.GROUP_BY,
         views=(View.GAME, View.DRAFT),
+    ),
+    ColumnDefinition(
+        name=ColName.USER_N_GAMES_BUCKET,
+        col_type=ColType.GROUP_BY,
+        views=(View.DRAFT, View.GAME),
+    ),
+    ColumnDefinition(
+        name=ColName.USER_GAME_WIN_RATE_BUCKET,
+        col_type=ColType.GROUP_BY,
+        views=(View.DRAFT, View.GAME),
+    ),
+    ColumnDefinition(
+        name=ColName.PLAYER_COHORT,
+        col_type=ColType.GROUP_BY,
+        views=(View.DRAFT, View.GAME),
+        expr=pl.when(pl.col("user_n_games_bucket") < 100)
+        .then(pl.lit("Other"))
+        .otherwise(
+            pl.when(pl.col("user_game_win_rate_bucket") > 0.57)
+            .then(pl.lit("Top"))
+            .otherwise(
+                pl.when(pl.col("user_game_win_rate_bucket") < 0.49)
+                .then(pl.lit("Bottom"))
+                .otherwise(pl.lit("Middle"))
+            )
+        ),
     ),
     ColumnDefinition(
         name=ColName.EVENT_MATCH_WINS,
@@ -247,12 +289,6 @@ _column_defs = [
         views=(View.DRAFT,),
     ),
     ColumnDefinition(
-        name=ColName.NAME,
-        col_type=ColType.GROUP_BY,
-        views=(),
-        # handled by internals, derived from both 'pick' and "name mapped" columns
-    ),
-    ColumnDefinition(
         name=ColName.PICK_MAINDECK_RATE,
         col_type=ColType.PICK_SUM,
         views=(View.DRAFT,),
@@ -285,32 +321,6 @@ _column_defs = [
         name=ColName.POOL,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
-    ),
-    ColumnDefinition(
-        name=ColName.USER_N_GAMES_BUCKET,
-        col_type=ColType.GROUP_BY,
-        views=(View.DRAFT, View.GAME),
-    ),
-    ColumnDefinition(
-        name=ColName.USER_GAME_WIN_RATE_BUCKET,
-        col_type=ColType.GROUP_BY,
-        views=(View.DRAFT, View.GAME),
-    ),
-    ColumnDefinition(
-        name=ColName.PLAYER_COHORT,
-        col_type=ColType.GROUP_BY,
-        views=(View.DRAFT, View.GAME),
-        expr=pl.when(pl.col("user_n_games_bucket") < 100)
-        .then(pl.lit("Other"))
-        .otherwise(
-            pl.when(pl.col("user_game_win_rate_bucket") > 0.57)
-            .then(pl.lit("Top"))
-            .otherwise(
-                pl.when(pl.col("user_game_win_rate_bucket") < 0.49)
-                .then(pl.lit("Bottom"))
-                .otherwise(pl.lit("Middle"))
-            )
-        ),
     ),
     ColumnDefinition(
         name=ColName.GAME_TIME,
@@ -361,6 +371,24 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
+        name=ColName.NUM_GAMES,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col(ColName.GAME_NUMBER).is_not_null(),
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_MATCHES,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col(ColName.GAME_NUMBER) == 1,
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_EVENTS,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=(pl.col(ColName.GAME_NUMBER) == 1) & (pl.col(ColName.MATCH_NUMBER) == 1),
+    ),
+    ColumnDefinition(
         name=ColName.OPP_RANK,
         col_type=ColType.GROUP_BY,
         views=(View.GAME,),
@@ -393,19 +421,31 @@ _column_defs = [
         views=(View.GAME,),
     ),
     ColumnDefinition(
-        name=ColName.ON_PLAY_SUM,
+        name=ColName.NUM_ON_PLAY,
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.ON_PLAY),
     ),
     ColumnDefinition(
         name=ColName.NUM_MULLIGANS,
+        col_type=ColType.GROUP_BY,
+        views=(View.GAME,),
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_MULLIGANS_SUM,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
+        expr=pl.col(ColName.NUM_MULLIGANS),
     ),
     ColumnDefinition(
         name=ColName.OPP_NUM_MULLIGANS,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
+    ),
+    ColumnDefinition(
+        name=ColName.OPP_NUM_MULLIGANS_SUM,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col(ColName.OPP_NUM_MULLIGANS),
     ),
     ColumnDefinition(
         name=ColName.OPP_COLORS,
@@ -416,6 +456,12 @@ _column_defs = [
         name=ColName.NUM_TURNS,
         col_type=ColType.GROUP_BY,
         views=(View.GAME,),
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_TURNS_SUM,
+        col_type=ColType.GAME_SUM,
+        views=(View.GAME,),
+        expr=pl.col(ColName.NUM_TURNS),
     ),
     ColumnDefinition(
         name=ColName.WON,
@@ -432,30 +478,6 @@ _column_defs = [
         name=ColName.OPENING_HAND,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_GAMES,
-        col_type=ColType.GAME_SUM,
-        views=(View.GAME,),
-        expr=pl.col(ColName.GAME_NUMBER).is_not_null(),
-    ),
-    ColumnDefinition(
-        name=ColName.GAME_WR,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.NUM_WON) / pl.col(ColName.NUM_GAMES),
-        dependencies=[ColName.NUM_WON, ColName.NUM_GAMES],
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_MATCHES,
-        col_type=ColType.GAME_SUM,
-        views=(View.GAME,),
-        expr=pl.col(ColName.GAME_NUMBER) == 1,
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_EVENTS,
-        col_type=ColType.GAME_SUM,
-        views=(View.GAME,),
-        expr=(pl.col(ColName.GAME_NUMBER) == 1) & (pl.col(ColName.MATCH_NUMBER) == 1),
     ),
     ColumnDefinition(
         name=ColName.WON_OPENING_HAND,
@@ -511,6 +533,12 @@ _column_defs = [
         views=(View.GAME,),
         expr=pl.col("^sideboard_.*$") * pl.col(ColName.WON),
         dependencies=[ColName.SIDEBOARD, ColName.WON],
+    ),
+    ColumnDefinition(
+        name=ColName.GAME_WR,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.NUM_WON) / pl.col(ColName.NUM_GAMES),
+        dependencies=[ColName.NUM_WON, ColName.NUM_GAMES],
     ),
     ColumnDefinition(
         name=ColName.ALSA,
