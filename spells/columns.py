@@ -704,6 +704,72 @@ _column_defs = [
         expr=pl.col(ColName.WON_DECK_TOTAL) / pl.col(ColName.DECK_TOTAL),
         dependencies=[ColName.WON_DECK_TOTAL, ColName.DECK_TOTAL],
     ),
+    ColumnDefinition(
+        name=ColName.GP_WR_EXCESS,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.GP_WR) - pl.col(ColName.GP_WR_MEAN),
+        dependencies=[ColName.GP_WR, ColName.GP_WR_MEAN],
+    ),
+    ColumnDefinition(
+        name=ColName.GP_WR_VAR,
+        col_type=ColType.AGG,
+        expr=(pl.col(ColName.GP_WR_EXCESS).pow(2) * pl.col(ColName.NUM_GP)).sum() / pl.col(ColName.DECK_TOTAL),
+        dependencies=[ColName.GP_WR_EXCESS, ColName.NUM_GP, ColName.DECK_TOTAL],
+    ),
+    ColumnDefinition(
+        name=ColName.GP_WR_STDEV,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.GP_WR_VAR).sqrt(),
+        dependencies=[ColName.GP_WR_VAR],
+    ),
+    ColumnDefinition(
+        name=ColName.GP_WR_Z,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.GP_WR_EXCESS) / pl.col(ColName.GP_WR_STDEV),
+        dependencies=[ColName.GP_WR_EXCESS, ColName.GP_WR_STDEV],
+    ),
+    ColumnDefinition(
+        name=ColName.GIH_TOTAL,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.NUM_GIH).sum(),
+        dependencies=[ColName.NUM_GIH],
+    ),
+    ColumnDefinition(
+        name=ColName.WON_GIH_TOTAL,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.NUM_GIH_WON).sum(),
+        dependencies=[ColName.NUM_GIH_WON],
+    ),
+    ColumnDefinition(
+        name=ColName.GIH_WR_MEAN,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_GIH_TOTAL) / pl.col(ColName.GIH_TOTAL),
+        dependencies=[ColName.WON_GIH_TOTAL, ColName.GIH_TOTAL],
+    ),
+    ColumnDefinition(
+        name=ColName.GIH_WR_EXCESS,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.GIH_WR) - pl.col(ColName.GIH_WR_MEAN),
+        dependencies=[ColName.GIH_WR, ColName.GIH_WR_MEAN],
+    ),
+    ColumnDefinition(
+        name=ColName.GIH_WR_VAR,
+        col_type=ColType.AGG,
+        expr=(pl.col(ColName.GIH_WR_EXCESS).pow(2) * pl.col(ColName.NUM_GIH)).sum() / pl.col(ColName.DECK_TOTAL),
+        dependencies=[ColName.GIH_WR_EXCESS, ColName.NUM_GIH, ColName.GIH_TOTAL],
+    ),
+    ColumnDefinition(
+        name=ColName.GIH_WR_STDEV,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.GIH_WR_VAR).sqrt(),
+        dependencies=[ColName.GIH_WR_VAR],
+    ),
+    ColumnDefinition(
+        name=ColName.GIH_WR_Z,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.GIH_WR_EXCESS) / pl.col(ColName.GIH_WR_STDEV),
+        dependencies=[ColName.GIH_WR_EXCESS, ColName.GIH_WR_STDEV],
+    ),
 ]
 
 col_def_map = {col.name: col for col in _column_defs}
