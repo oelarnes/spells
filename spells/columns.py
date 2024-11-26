@@ -535,97 +535,17 @@ _column_defs = [
         dependencies=[ColName.SIDEBOARD, ColName.WON],
     ),
     ColumnDefinition(
-        name=ColName.GAME_WR,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.NUM_WON) / pl.col(ColName.NUM_GAMES),
-        dependencies=[ColName.NUM_WON, ColName.NUM_GAMES],
-    ),
-    ColumnDefinition(
-        name=ColName.ALSA,
-        col_type=ColType.AGG,
-        views=(),
-        expr=pl.col(ColName.LAST_SEEN) / pl.col(ColName.NUM_SEEN),
-        dependencies=[ColName.LAST_SEEN, ColName.NUM_SEEN],
-    ),
-    ColumnDefinition(
-        name=ColName.ATA,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.TAKEN_AT) / pl.col(ColName.NUM_TAKEN),
-        dependencies=[ColName.TAKEN_AT, ColName.NUM_TAKEN],
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_GP,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.DECK),
-        dependencies=[ColName.DECK],
-    ),
-    ColumnDefinition(
-        name=ColName.PCT_GP,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.DECK) / (pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD)),
-        dependencies=[ColName.DECK, ColName.SIDEBOARD],
-    ),
-    ColumnDefinition(
-        name=ColName.GP_WR,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.WON_DECK) / pl.col(ColName.DECK),
-        dependencies=[ColName.WON_DECK, ColName.DECK],
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_IN_POOL,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD),
-        dependencies=[ColName.DECK, ColName.SIDEBOARD],
-    ),
-    ColumnDefinition(
-        name=ColName.IN_POOL_WR,
-        col_type=ColType.AGG,
-        expr=(pl.col(ColName.WON_DECK) + pl.col(ColName.WON_SIDEBOARD))
-        / pl.col(ColName.NUM_IN_POOL),
-        dependencies=[ColName.WON_DECK, ColName.WON_SIDEBOARD, ColName.NUM_IN_POOL],
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_OH,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.OPENING_HAND),
-        dependencies=[ColName.OPENING_HAND],
-    ),
-    ColumnDefinition(
-        name=ColName.OH_WR,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.WON_OPENING_HAND) / pl.col(ColName.OPENING_HAND),
-        dependencies=[ColName.WON_OPENING_HAND, ColName.OPENING_HAND],
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_GIH,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.OPENING_HAND) + pl.col(ColName.DRAWN),
-        dependencies=[ColName.OPENING_HAND, ColName.DRAWN],
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_GIH_WON,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.WON_OPENING_HAND) + pl.col(ColName.WON_DRAWN),
-        dependencies=[ColName.WON_OPENING_HAND, ColName.WON_DRAWN],
-    ),
-    ColumnDefinition(
-        name=ColName.GIH_WR,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.NUM_GIH_WON) / pl.col(ColName.NUM_GIH),
-        dependencies=[ColName.NUM_GIH_WON, ColName.NUM_GIH],
-    ),
-    ColumnDefinition(
         name=ColName.SET_CODE,
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
     ColumnDefinition(
-        name=ColName.RARITY,
+        name=ColName.COLOR,
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
     ColumnDefinition(
-        name=ColName.COLOR,
+        name=ColName.RARITY,
         col_type=ColType.CARD_ATTR,
         views=(View.CARD,),
     ),
@@ -675,35 +595,10 @@ _column_defs = [
         views=(View.CARD,),
     ),
     ColumnDefinition(
-        name=ColName.IHD,
+        name=ColName.PICKED_MATCH_WR,
         col_type=ColType.AGG,
-        expr=pl.col(ColName.GIH_WR) - pl.col(ColName.GP_WR),
-        dependencies=[ColName.GIH_WR, ColName.GP_WR],
-    ),
-    ColumnDefinition(
-        name=ColName.NUM_DECK_GIH,
-        col_type=ColType.NAME_SUM,
-        views=(View.GAME,),
-        expr=pl.col("^deck_.*$")
-        * (pl.sum_horizontal("^opening_hand_.*$") + pl.sum_horizontal("^drawn_.*$")),
-        dependencies=[ColName.DECK, ColName.OPENING_HAND, ColName.DRAWN],
-    ),
-    ColumnDefinition(
-        name=ColName.WON_NUM_DECK_GIH,
-        col_type=ColType.NAME_SUM,
-        views=(View.GAME,),
-        expr=pl.col("^won_deck_.*$")
-        * (
-            pl.sum_horizontal("^won_opening_hand_.*$")
-            + pl.sum_horizontal("^won_drawn_.*$")
-        ),
-        dependencies=[ColName.WON_DECK, ColName.WON_OPENING_HAND, ColName.WON_DRAWN],
-    ),
-    ColumnDefinition(
-        name=ColName.DECK_GIH_WR,
-        col_type=ColType.AGG,
-        expr=pl.col(ColName.WON_NUM_DECK_GIH) / pl.col(ColName.NUM_DECK_GIH),
-        dependencies=[ColName.WON_NUM_DECK_GIH, ColName.NUM_DECK_GIH],
+        expr=pl.col(ColName.EVENT_MATCH_WINS_SUM) / pl.col(ColName.EVENT_MATCHES),
+        dependencies = [ColName.EVENT_MATCH_WINS_SUM, ColName.EVENT_MATCHES],
     ),
     ColumnDefinition(
         name=ColName.TROPHY_RATE,
@@ -712,16 +607,96 @@ _column_defs = [
         dependencies=[ColName.IS_TROPHY_SUM, ColName.NUM_TAKEN],
     ),
     ColumnDefinition(
-        name=ColName.WON_DECK_TOTAL,
+        name=ColName.GAME_WR,
         col_type=ColType.AGG,
-        expr=pl.col(ColName.WON_DECK).sum(),
-        dependencies=[ColName.WON_DECK],
+        expr=pl.col(ColName.NUM_WON) / pl.col(ColName.NUM_GAMES),
+        dependencies=[ColName.NUM_WON, ColName.NUM_GAMES],
+    ),
+    ColumnDefinition(
+        name=ColName.ALSA,
+        col_type=ColType.AGG,
+        views=(),
+        expr=pl.col(ColName.LAST_SEEN) / pl.col(ColName.NUM_SEEN),
+        dependencies=[ColName.LAST_SEEN, ColName.NUM_SEEN],
+    ),
+    ColumnDefinition(
+        name=ColName.ATA,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.TAKEN_AT) / pl.col(ColName.NUM_TAKEN),
+        dependencies=[ColName.TAKEN_AT, ColName.NUM_TAKEN],
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_GP,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.DECK),
+        dependencies=[ColName.DECK],
+    ),
+    ColumnDefinition(
+        name=ColName.PCT_GP,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.DECK) / (pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD)),
+        dependencies=[ColName.DECK, ColName.SIDEBOARD],
+    ),
+    ColumnDefinition(
+        name=ColName.GP_WR,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_DECK) / pl.col(ColName.DECK),
+        dependencies=[ColName.WON_DECK, ColName.DECK],
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_OH,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.OPENING_HAND),
+        dependencies=[ColName.OPENING_HAND],
+    ),
+    ColumnDefinition(
+        name=ColName.OH_WR,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_OPENING_HAND) / pl.col(ColName.OPENING_HAND),
+        dependencies=[ColName.WON_OPENING_HAND, ColName.OPENING_HAND],
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_GIH,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.OPENING_HAND) + pl.col(ColName.DRAWN),
+        dependencies=[ColName.OPENING_HAND, ColName.DRAWN],
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_GIH_WON,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_OPENING_HAND) + pl.col(ColName.WON_DRAWN),
+        dependencies=[ColName.WON_OPENING_HAND, ColName.WON_DRAWN],
+    ),
+    ColumnDefinition(
+        name=ColName.GIH_WR,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.NUM_GIH_WON) / pl.col(ColName.NUM_GIH),
+        dependencies=[ColName.NUM_GIH_WON, ColName.NUM_GIH],
+    ),
+    ColumnDefinition(
+        name=ColName.NUM_IN_POOL,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD),
+        dependencies=[ColName.DECK, ColName.SIDEBOARD],
+    ),
+    ColumnDefinition(
+        name=ColName.IN_POOL_WR,
+        col_type=ColType.AGG,
+        expr=(pl.col(ColName.WON_DECK) + pl.col(ColName.WON_SIDEBOARD))
+        / pl.col(ColName.NUM_IN_POOL),
+        dependencies=[ColName.WON_DECK, ColName.WON_SIDEBOARD, ColName.NUM_IN_POOL],
     ),
     ColumnDefinition(
         name=ColName.DECK_TOTAL,
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK).sum(),
         dependencies=[ColName.DECK],
+    ),
+    ColumnDefinition(
+        name=ColName.WON_DECK_TOTAL,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.WON_DECK).sum(),
+        dependencies=[ColName.WON_DECK],
     ),
     ColumnDefinition(
         name=ColName.GP_WR_MEAN,

@@ -28,8 +28,6 @@ class ColName(StrEnum):
     "Name-mapped" columns like "deck_<card name>" are identified by the prefix only.
     Those columns can be referenced simply as e.g. "deck" in formulas for the post-agg stage.
 
-    New columns may be registered interactively via DraftData().register_column(), named as strings.
-
     The definitions of the columns and how they may be used is defined in `column_defs`
     """
 
@@ -120,10 +118,10 @@ class ColName(StrEnum):
     TOUGHNESS = "toughness"
     IS_BONUS_SHEET = "is_bonus_sheet"
     IS_DFC = "is_dfc"
-
-    # extensions
-
     # agg extensions
+    PICKED_MATCH_WR = "picked_match_wr"
+    TROPHY_RATE = "trophy_rate"
+    GAME_WR = "game_wr"
     ALSA = "alsa"
     ATA = "ata"
     NUM_GP = "num_gp"
@@ -136,12 +134,6 @@ class ColName(StrEnum):
     GIH_WR = "gih_wr"
     NUM_IN_POOL = "num_in_pool"
     IN_POOL_WR = "in_pool_wr"
-    IHD = "ihd"
-    NUM_DECK_GIH = "num_deck_gih"
-    WON_NUM_DECK_GIH = "won_num_deck_gih"
-    DECK_GIH_WR = "deck_gih_wr"
-    TROPHY_RATE = "trophy_rate"
-    GAME_WR = "game_wr"
-    WON_DECK_TOTAL = "won_deck_total"
     DECK_TOTAL = "deck_total"
+    WON_DECK_TOTAL = "won_deck_total"
     GP_WR_MEAN = "gp_wr_mean"

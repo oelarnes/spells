@@ -381,8 +381,36 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `WON_DECK` | `"won_deck"` | `GAME` | `NAME_SUM` | `WON * DECK`| Int |
 | `SIDEBOARD` | `"sideboard"` | `GAME` | `NAME_SUM` | | Int |
 | `WON_SIDEBOARD` | `"won_sideboard"` | `GAME` | `NAME_SUM` | `WON * SIDEBOARD`| Int |
-
-
+| `SET_CODE` | `"set_code"` | `CARD` | `CARD_ATTR` | | String |
+| `COLOR` | `"color"` | `CARD` | `CARD_ATTR` | | String |
+| `RARITY` | `"rarity"` | `CARD` | `CARD_ATTR` | | String |
+| `COLOR_IDENTITY` | `"color_identity"` | `CARD` | `CARD_ATTR` | | String |
+| `CARD_TYPE` | `"card_type"` | `CARD` | `CARD_ATTR` | | String |
+| `SUBTYPE` | `"subtype"` | `CARD` | `CARD_ATTR` | | String |
+| `MANA_VALUE` | `"mana_value"` | `CARD` | `CARD_ATTR` | | Float |
+| `MANA_COST` | `"mana_cost"` | `CARD` | `CARD_ATTR` | | String |
+| `POWER` | `"power"` | `CARD` | `CARD_ATTR` | | Float |
+| `TOUGHNESS` | `"toughness"` | `CARD` | `CARD_ATTR` | | Float |
+| `IS_BONUS_SHEET` | `"is_bonus_sheet"` | `CARD` | `CARD_ATTR` | `SET_CODE` != `EXPANSION` | Boolean |
+| `IS_DFC` | `"is_dfc"` | `CARD` | `CARD_ATTR` | Includes split cards | Boolean |
+| `PICKED_MATCH_WR` | `"picked_match_wr"` | | `AGG` | `EVENT_MATCH_WINS` / `EVENT_MATCHES` | Float |
+| `TROPHY_RATE` | `"trophy_rate"` | | `AGG` || Float |
+| `GAME_WR` | `"game_wr"` | | `AGG` | `NUM_WON` / `NUM_GAMES` | Float |
+| `ALSA` | `"alsa"` | | `AGG` | `LAST_SEEN` / `NUM_SEEN` | Float |
+| `ATA` | `"ata"` | | `AGG` | `PICKED_AT` / `NUM_PICKED` | Float |
+| `NUM_GP` | `"num_gp"` | | `AGG` | `DECK` | Float |
+| `PCT_GP` | `"pct_gp"` | | `AGG` | `DECK` / (`DECK` + `SIDEBOARD`) | Float |
+| `GP_WR` | `"gp_wr"` | | `AGG` | `WON_DECK` / `DECK` | Float |
+| `NUM_OH` | `"num_oh"` | | `AGG` || Float |
+| `OH_WR` | `"oh_wr"` | | `AGG` || Float |
+| `NUM_GIH` | `"num_gih"` | | `AGG` |`OPENING_HAND` + `DRAWN`| Float |
+| `NUM_GIH_WON` | `"num_gih_won"` | | `AGG` | `WON_OPENING_HAND` + `WON_DRAWN` | Float |
+| `GIH_WR` | `"gih_wr"` | | `AGG` | `NUM_GIH_WON` / `NUM_GIH` | Float |
+| `NUM_IN_POOL` | `"num_in_pool"` | | `AGG` | `DECK` + `SIDEBOARD`| Float |
+| `IN_POOL_WR` | `"in_pool_wr"` | | `AGG` || Float |
+| `DECK_TOTAL` | `"deck_total"` | | `AGG` | Sum `DECK` over all rows and broadcast back to row level| Float |
+| `WON_DECK_TOTAL` | `"won_deck_total"` | | `AGG` || Float |
+| `GP_WR_MEAN` | `"gp_wr_mean"` | | `AGG` | `WON_DECK_TOTAL` / `DECK_TOTAL` | Float |
 
 # Roadmap to 1.0
 
