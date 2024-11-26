@@ -67,7 +67,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
-- Uses Polars expressions to support second-stage aggregations like z-scores with one call to summon
+- Uses Polars expressions to support second-stage aggregations and beyond like game-weighted z-scores with one call to summon
 - Intended support for larger-than-memory datasets (once I/Polars get it working)
 
 ## summon
@@ -75,25 +75,25 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 `summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis. Basic functionality not provided by this api can often be managed by simple chained calls using the polars API, e.g. sorting and post-agg filtering.
   - `columns` specifies the desired output columns
     ```python
-    >>> spells.summon('BLB', columns=["gp_wr", "ata"])
-    shape: (276, 3)
-    ┌─────────────────────────┬──────────┬──────────┐
-    │ name                    ┆ gp_wr    ┆ ata      │
-    │ ---                     ┆ ---      ┆ ---      │
-    │ str                     ┆ f64      ┆ f64      │
-    ╞═════════════════════════╪══════════╪══════════╡
-    │ Agate Assault           ┆ 0.538239 ┆ 6.162573 │
-    │ Agate-Blade Assassin    ┆ 0.546623 ┆ 7.904145 │
-    │ Alania's Pathmaker      ┆ 0.538747 ┆ 8.886676 │
-    │ Alania, Divergent Storm ┆ 0.489466 ┆ 5.601287 │
-    │ Artist's Talent         ┆ 0.466227 ┆ 7.515328 │
-    │ …                       ┆ …        ┆ …        │
-    │ Wick, the Whorled Mind  ┆ 0.525859 ┆ 3.618172 │
-    │ Wildfire Howl           ┆ 0.513218 ┆ 8.632178 │
-    │ Wishing Well            ┆ 0.533792 ┆ 8.56727  │
-    │ Ygra, Eater of All      ┆ 0.570971 ┆ 1.559604 │
-    │ Zoraline, Cosmos Caller ┆ 0.570701 ┆ 2.182625 │
-    └─────────────────────────┴──────────┴──────────┘
+    >>> spells.summon('DSK', columns=["num_gp", "pct_gp", "gp_wr", "gp_wr_z"])
+    shape: (286, 5)
+    ┌────────────────────────────┬────────┬──────────┬──────────┬───────────┐
+    │ name                       ┆ num_gp ┆ pct_gp   ┆ gp_wr    ┆ gp_wr_z   │
+    │ ---                        ┆ ---    ┆ ---      ┆ ---      ┆ ---       │
+    │ str                        ┆ i64    ┆ f64      ┆ f64      ┆ f64       │
+    ╞════════════════════════════╪════════╪══════════╪══════════╪═══════════╡
+    │ Abandoned Campground       ┆ 114632 ┆ 0.643404 ┆ 0.546444 ┆ 0.12494   │
+    │ Abhorrent Oculus           ┆ 26046  ┆ 0.908476 ┆ 0.561852 ┆ 1.245212  │
+    │ Acrobatic Cheerleader      ┆ 188674 ┆ 0.705265 ┆ 0.541474 ┆ -0.236464 │
+    │ Altanak, the Thrice-Called ┆ 87285  ┆ 0.798662 ┆ 0.538695 ┆ -0.438489 │
+    │ Anthropede                 ┆ 50634  ┆ 0.214676 ┆ 0.515444 ┆ -2.129016 │
+    │ …                          ┆ …      ┆ …        ┆ …        ┆ …         │
+    │ Wildfire Wickerfolk        ┆ 106557 ┆ 0.725806 ┆ 0.565331 ┆ 1.498173  │
+    │ Winter's Intervention      ┆ 157534 ┆ 0.616868 ┆ 0.531758 ┆ -0.942854 │
+    │ Winter, Misanthropic Guide ┆ 7794   ┆ 0.197207 ┆ 0.479985 ┆ -4.70721  │
+    │ Withering Torment          ┆ 92468  ┆ 0.875387 ┆ 0.525858 ┆ -1.371877 │
+    │ Zimone, All-Questioning    ┆ 54687  ┆ 0.844378 ┆ 0.560974 ┆ 1.181387  │
+    └────────────────────────────┴────────┴──────────┴──────────┴───────────┘
     ```
   - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by any of a large set of fundamental and derived columns, including card attributes and your own custom extension.
     ```python
@@ -140,8 +140,8 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     >>> ext = ColumnDefinition(
     ...     name='deq_base',
     ...     col_type=ColType.AGG,
-    ...     expr=(pl.col('gp_wr') - pl.col('gp_wr_mean') + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
-    ...     dependencies=['gp_wr', 'gp_wr_mean', 'ata', 'pct_gp']
+    ...     expr=(pl.col('gp_wr_excess') + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
+    ...     dependencies=['gp_wr_excess', 'ata', 'pct_gp']
     ...)
     >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
     ...     .filter(pl.col('deq_base').is_finite())
