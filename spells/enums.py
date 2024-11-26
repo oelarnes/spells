@@ -99,8 +99,6 @@ class ColName(StrEnum):
     NUM_TAKEN = "num_taken"
     PACK_NUM = "pack_num"  # pack_number plus 1
     PICK_NUM = "pick_num"  # pick_number plus 1
-    PACK_NUM_CARD = "pack_num_card"
-    PICK_NUM_CARD = "pick_num_card"
     LAST_SEEN = "last_seen"
     NUM_SEEN = "num_seen"
     NAME = "name"  # special column for card name index
@@ -114,8 +112,8 @@ class ColName(StrEnum):
     ON_PLAY_SUM = "on_play_sum"
     NUM_WON = "num_won"
     NUM_GAMES = "num_games"
-    MATCH_COUNT = "match_count"
-    EVENT_COUNT = "event_count"
+    NUM_MATCHES = "num_matches"
+    NUM_EVENTS = "num_events"
     WON_OPENING_HAND = "won_opening_hand"
     WON_DRAWN = "won_drawn"
     WON_TUTORED = "won_tutored"

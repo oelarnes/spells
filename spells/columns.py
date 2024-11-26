@@ -268,20 +268,6 @@ _column_defs = [
         views=(View.DRAFT,),
     ),
     ColumnDefinition(
-        name=ColName.PACK_NUM_CARD,
-        col_type=ColType.NAME_SUM,
-        views=(View.DRAFT,),
-        expr=pl.col("^pack_card_.*$") * pl.col("pack_num"),
-        dependencies=[ColName.PACK_CARD, ColName.PACK_NUM],
-    ),
-    ColumnDefinition(
-        name=ColName.PICK_NUM_CARD,
-        col_type=ColType.NAME_SUM,
-        views=(View.DRAFT,),
-        expr=pl.col("^pack_card_.*$") * pl.col("pick_num"),
-        dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
-    ),
-    ColumnDefinition(
         name=ColName.LAST_SEEN,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
@@ -460,13 +446,13 @@ _column_defs = [
         dependencies=[ColName.NUM_WON, ColName.NUM_GAMES],
     ),
     ColumnDefinition(
-        name=ColName.MATCH_COUNT,
+        name=ColName.NUM_MATCHES,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
         expr=pl.col(ColName.GAME_NUMBER) == 1,
     ),
     ColumnDefinition(
-        name=ColName.EVENT_COUNT,
+        name=ColName.NUM_EVENTS,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
         expr=(pl.col(ColName.GAME_NUMBER) == 1) & (pl.col(ColName.MATCH_NUMBER) == 1),
