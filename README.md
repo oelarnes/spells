@@ -357,6 +357,15 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `NUM_COLORS`       | `"num_colors"`      | `GAME`        | `GROUP_BY`    | `len(MAIN_COLORS)`                                                                                                                         | Int             |
 | `SPLASH_COLORS`    | `"splash_colors"`   | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | String          |
 | `HAS_SPLASH`       | `"has_splash"`      | `GAME`        | `GROUP_BY`    |                                                                                                                                            | Boolean         |
+| `ON_PLAY`               | `"on_play"`               | `GAME` | `GROUP_BY` | Dataset Column | Boolean |
+| `ON_PLAY_SUM`           | `"on_play_sum"`           | `GAME` | `GAME_SUM` |                | Int     |
+| `NUM_MULLIGANS`         | `"num_mulligans"`         | `GAME` | `GROUP_BY` | Dataset Column | Boolean |
+| `NUM_MULLIGANS_SUM`     | `"num_mulligans_sum"`     | `GAME` | `GAME_SUM` |                | Int     |
+| `OPP_NUM_MULLIGANS`     | `"opp_num_mulligans"`     | `GAME` | `GROUP_BY` | Dataset Column | Boolean |
+| `OPP_NUM_MULLIGANS_SUM` | `"opp_num_mulligans_sum"` | `GAME` | `GAME_SUM` |                | Int     |
+| `OPP_COLORS`            | `"opp_colors"`            | `GAME` | `GROUP_BY` | Dataset Column | Boolean |
+| `NUM_TURNS`             | `"num_turns"`             | `GAME` | `GROUP_BY` | Dataset Column | Int     |
+| `NUM_TURNS_SUM`         | `"num_turns_sum"`         | `GAME` | `GROUP_BY` |                | Int     |
 | `WON`             | `"won"`   |   `GAME` | `GROUP_BY` | Dataset Column | Boolean |
 | `NUM_WON` |   `"num_won"` | `GAME` | `GAME_SUM` | | Int |
 
