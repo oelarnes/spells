@@ -1,6 +1,6 @@
 # 🪄 spells ✨
 
-**spells** is a python package that tutors up customizable, optimized analysis of the public data sets provided by [17Lands](https://www.17lands.com/) and exiles the annoying, fiddly, and slow parts of your workflow. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
+**spells** is a python package that tutors up customizable, optimized analysis of the public data sets provided by [17Lands](https://www.17lands.com/) and exiles the annoying and slow parts of your workflow. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
 
 ```
 $ spells add DSK
@@ -55,19 +55,20 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 
 ## spells
 
-- Uses [Polars](https://docs.pola.rs/) for high-performance, multi-threaded, chunked aggregations of large datasets
+- Uses [Polars](https://docs.pola.rs/) for high-performance, multi-threaded aggregations of large datasets
 - Uses Polars to power an expressive query language for specifying custom extensions and optimizing complex queries
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
 - Provides over 50 explicitly specified, enumerated, documented custom column definitions
-- Supports "Deck Color Data" aggregations out of the box.
+- Supports "Deck Color Data" aggregations with built-in column definitions.
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
 - Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
-- Uses Polars expressions to support second-stage aggregations like z-scores out of the box with one call to summon
+- Uses Polars expressions to support second-stage aggregations like z-scores with one call to summon
+- Intended support for larger-than-memory datasets (once I/Polars get it working)
 
 ## summon
 
@@ -196,7 +197,7 @@ Spells provides several features out of the box to optimize performance to the d
 
 Firstly, it is built on top of Polars, a modern, well-supported DataFrame engine that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis, at the lowest depth possible per column, and uses "concat" rather than "with" throughout to ensure the best performance and flexibility for optimization. 
 
-By default, Polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too memory-intensive, Spells exposes the Polars parameter `streaming`, which performs aggregations in chunks based on available system resources. `polars.Config` exposes settings for further tweaking your execution plan. Spells and Polars do not support distributed computation.
+By default, Polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too memory-intensive, Spells exposes the Polars parameter `streaming`, which should perform aggregations in chunks based on available system resources. Unfortunately, this does not work at the moment despite the query plan fitting the parallelizable map-reduce paradigm. Further investigation is needed, check back in a few months. Spells and Polars do not support distributed computation.
 
 ### Local Caching
 
@@ -240,6 +241,8 @@ To use `spells`, make sure Spells in installed in your environment using pip or 
 ### Summon
 
 ```python
+from spell import summon
+
 summon(
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
@@ -250,13 +253,13 @@ summon(
 
 #### parameters
 
-- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `ColType.PICK_SUM`, `ColType.NAME_SUM`, `ColType.GAME_SUM`, `ColType.CARD_ATTR`,  `ColType.AGG`. Min/Max/Unique 
+- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`,  `AGG`. Min/Max/Unique 
 aggregations of non-numeric (or numeric) data types are not supported. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
 
-- group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `ColType.GROUP_BY` and `ColType.CARD_ATTR`. By default, group by "name" (card name).
+- group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `GROUP_BY` and `CARD_ATTR`. By default, group by "name" (card name).
 
 - filter_spec: a dictionary specifying a filter, using a small number of paradigms. Columns used must be in each base view ("draft" and "game") that the `columns` and `group_by` columns depend on, so 
-`ColType.AGG` and `ColType.CARD_ATTR` columns are not valid. `ColType.NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
+`AGG` and `CARD_ATTR` columns are not valid. `NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
 
     - `{'player_cohort': 'Top'}` "player_cohort" value equals "Top".
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
@@ -290,23 +293,24 @@ Used to define extensions in `summon`
 
 #### parameters
 
-- `name`: any string, including existing columns, although this is very likely to break dependent columns, so don't do it. For `ColType.NAME_SUM` columns, the name is the prefix without the underscore, e.g. "drawn".
+- `name`: any string, including existing columns, although this is very likely to break dependent columns, so don't do it. For `NAME_SUM` columns, the name is the prefix without the underscore, e.g. "drawn".
 
 - `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
 
 - `views`: For a column defined at the row level on a view (see col_types above), the views on which it is supported. All col_types except `AGG` must specify at least one base view. For `CARD_ATTR` columns, `views` must be exactly `(View.CARD,)`.
 
-- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns, for now, are defined using wildcard expressions like `pl.col("^deck_.*")`, but this is going to change. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
+- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns, for now, are defined using wildcard expressions like `pl.col("^deck_.*$")`, but this is going to change. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
 
-- `dependencies`: A list of column names. All dependencies must be declared by name, except for base view columns that depend on columns in the data file.
+- `dependencies`: A list of column names. All dependencies must be declared by name, except for view columns that depend on columns in the data file.
 
 ### Columns
 
-A list of all included columns. Columns can be referenced by enum or by string value in arguments and filter specs. The string value is always the lowercase version of the enum attribute.
+A table of all included columns. Columns can be referenced by enum or by string value in arguments and filter specs. The string value is always the lowercase version of the enum attribute.
 
 
 | `ColName`                   | **Name**                     | `View`        | `ColType`     | **Description** | **Type**        |     
 | --------------------------- | ---------------------------- | ------------- | ------------- | --------------- | --------------- |
+| `NAME`                   | `"name"`                   |         | `GROUP_BY`    | Special handling, don't use in `filter_spec` | String   |
 | `DRAFT_ID`                  | `"draft_id"`                 | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |   
 | `EXPANSION`                 | `"expansion"`                | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | String          |    
 | `EVENT_TYPE`                | `"event_type"`               | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | String          |    
@@ -314,6 +318,7 @@ A list of all included columns. Columns can be referenced by enum or by string v
 | `RANK`                      | `"rank"`                     | `DRAFT, GAME` | `GROUP_BY`    | Dataset column  | String          |    
 | `USER_N_GAMES_BUCKET`       | `"user_n_games_bucket"`      | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Int             |    
 | `USER_GAME_WIN_RATE_BUCKET` | `"user_game_win_rate_bucket` | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Float           |    
+| `PLAYER_COHORT`    | `"player_cohort"`   | `DRAFT, GAME` | `GROUP_BY`    | In-sample version of "Top", "Middle", "Bottom", etc based on `USER_GAME_WIN_RATE_BUCKET`. Thresholds are 49% and 57% and 100 games played. | String          |
 | `DRAFT_DATE`                | `"draft_date"`               | `DRAFT, GAME` | `GROUP_BY`    |                 | `datetime.date` |
 | `DRAFT_DAY_OF_WEEK`         | `"draft_day_of_week`         | `DRAFT, GAME` | `GROUP_BY`    | 1-7 (Mon-Sun)  | Int          |    
 | `DRAFT_HOUR`                | `"draft_hour"`               | `DRAFT, GAME` | `GROUP_BY`    | 0-23            | Int             |   
@@ -335,11 +340,9 @@ A list of all included columns. Columns can be referenced by enum or by string v
 | `PICK_MAINDECK_RATE`     | `"pick_maindeck_rate"`     | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |
 | `PICK_SIDEBOARD_IN_RATE` | `"pick_sideboard_in_rate`  | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |
 | `PICK`                   | `"pick"`                   | `DRAFT` | `FILTER_ONLY` | Dataset Column, joined as "name"             | String   |
-| `NAME`                   | `"name"`                   |         | `GROUP_BY`    | Special handling, don't use in `filter_spec` | String   |
 | `PACK_CARD`        | `"pack_card`        | `DRAFT`       | `NAME_SUM`    | Dataset Column                                                                                                                             | Int             |
 | `LAST_SEEN`        | `"last_seen"`       | `DRAFT`       | `NAME_SUM`    | `PACK_CARD` times `min(8, PICK_NUM)`, add 8 to give last pick num seen when summed                                                         | Int             |
 | `NUM_SEEN`         | `"num_seen"`        | `DRAFT`       | `NAME_SUM`    | `PACK_CARD` for `PICK_NUM` less than 9                                                                                                     | Int             |
-| `PLAYER_COHORT`    | `"player_cohort"`   | `DRAFT, GAME` | `GROUP_BY`    | In-sample version of "Top", "Middle", "Bottom", etc based on `USER_GAME_WIN_RATE_BUCKET`. Thresholds are 49% and 57% and 100 games played. | String          |
 | `POOL`             | `"pool"`            | `DRAFT`       | `NAME_SUM`    | Dataset Column                                                                                                                             | Int             |
 | `GAME_TIME`        | `"game_time"`       | `GAME`        | `FILTER_ONLY` | Dataset Column                                                                                                                             | String          |
 | `GAME_DATE`        | `"game_date"`       | `GAME`        | `GROUP_BY`    |                                                                                                                                            | `datetime.date` |
@@ -354,6 +357,9 @@ A list of all included columns. Columns can be referenced by enum or by string v
 | `NUM_COLORS`       | `"num_colors"`      | `GAME`        | `GROUP_BY`    | `len(MAIN_COLORS)`                                                                                                                         | Int             |
 | `SPLASH_COLORS`    | `"splash_colors"`   | `GAME`        | `GROUP_BY`    | Dataset Column                                                                                                                             | String          |
 | `HAS_SPLASH`       | `"has_splash"`      | `GAME`        | `GROUP_BY`    |                                                                                                                                            | Boolean         |
+| `WON`             | `"won"`   |   `GAME` | `GROUP_BY` | Dataset Column | Boolean |
+| `NUM_WON` |   `"num_won"` | `GAME` | `GAME_SUM` | | Int |
+
 
 # Roadmap to 1.0
 
