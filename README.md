@@ -415,11 +415,10 @@ A table of all included columns. Columns can be referenced by enum or by string 
 # Roadmap to 1.0
 
 - [ ] Support Traditional and Premier datasets (currently only Premier is supported)
-- [ ] Implement GNS and name-mapped column exprs
 - [ ] Enable configuration using $XDG_CONFIG_HOME/cfg.toml
 - [ ] Support min and max aggregations over base views
 - [ ] Enhanced profiling
-- [ ] Testing of streaming mode
+- [ ] Debugging of streaming mode
 - [ ] Optimized caching strategy
 - [ ] Organize and analyze daily downloads from 17Lands (not a scraper!)
 - [ ] Helper functions to generate second-order analysis by card name
