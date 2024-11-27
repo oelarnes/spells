@@ -143,16 +143,11 @@ def _resolve_view_cols(
 
 
 def create(
+    col_def_map: dict[str, ColumnDefinition],
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
-    extensions: list[ColumnDefinition] | None = None,
 ):
-    col_def_map = dict(spells.columns.col_def_map)
-    if extensions is not None:
-        for cdef in extensions:
-            col_def_map[cdef.name] = cdef
-
     gbs = (ColName.NAME,) if group_by is None else tuple(group_by)
     if columns is None:
         cols = tuple(spells.columns.default_columns)

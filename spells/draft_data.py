@@ -6,9 +6,10 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
+import datetime
 import functools
 import hashlib
-import  re
+import re
 from typing import Callable, TypeVar
 
 import polars as pl
@@ -18,8 +19,11 @@ from spells.schema import schema
 import spells.cache
 import spells.filter
 import spells.manifest
-from spells.columns import ColumnDefinition
+from spells.columns import ColumnDefinition, ColumnSpec
 from spells.enums import View, ColName, ColType
+
+
+DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 
 
 def _cache_key(args) -> str:
@@ -29,7 +33,72 @@ def _cache_key(args) -> str:
     return hashlib.md5(str(args).encode("utf-8")).hexdigest()
 
 
-DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
+@functools.lru_cache(maxsize=None)
+def _get_names(set_code: str) -> tuple[str, ...]:
+    fp = data_file_path(set_code, View.CARD)
+    card_view = pl.read_csv(fp)
+    card_names_set = frozenset(card_view.get_column("name").to_list())
+
+    game_view = pl.scan_csv(fp, schema=schema(fp))
+    cols = game_view.collect_schema().names()
+
+    names = tuple(col[5:] for col in cols if col.startswith("deck_"))
+    game_names_set = frozenset(names)
+
+    assert game_names_set == card_names_set, "names mismatch between card and game file"
+    return names
+
+
+def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
+    names = _get_names(set_code)
+    assert len(names) > 0, "there should be names"
+    hydrated = {}
+    for key, spec in col_spec_map.items():
+        if spec.col_type == ColType.NAME_SUM and spec.exprMap is not None:
+            unnamed_exprs = map(spec.exprMap, names)
+            expr = tuple(
+                map(
+                    lambda ex, name: ex.alias(f"{spec.name}_{name}"),
+                    unnamed_exprs,
+                    names,
+                )
+            )
+        elif spec.expr is not None:
+            expr = spec.expr.alias(spec.name)
+        else:
+            expr = pl.col(spec.name)
+
+        try:
+            sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
+            expr_sig = sig_expr.meta.serialize(
+                format="json"
+            )  # not compatible with renaming
+        except pl.exceptions.ComputeError:
+            if spec.version is not None:
+                expr_sig = spec.name + spec.version
+            else:
+                expr_sig = str(datetime.datetime.now)
+
+        dependencies = tuple(spec.dependencies or ())
+        signature = str(
+            (
+                spec.name,
+                spec.col_type.value,
+                expr_sig,
+                tuple(view.value for view in spec.views),
+                dependencies,
+            )
+        )
+        cdef = ColumnDefinition(
+            name=spec.name,
+            col_type=spec.col_type,
+            views=spec.views,
+            expr=expr,
+            dependencies=dependencies,
+            signature=signature,
+        )
+        hydrated[key] = cdef
+    return hydrated
 
 
 def _col_df(
@@ -187,12 +256,18 @@ def summon(
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
-    extensions: list[ColumnDefinition] | None = None,
+    extensions: list[ColumnSpec] | None = None,
     use_streaming: bool = False,
     read_cache: bool = True,
     write_cache: bool = True,
 ) -> pl.DataFrame:
-    m = spells.manifest.create(columns, group_by, filter_spec, extensions)
+    col_spec_map = dict(spells.columns.col_spec_map)
+    if extensions is not None:
+        for spec in extensions:
+            col_spec_map[spec.name] = spec
+
+    col_def_map = _hydrate_col_defs(set_code, col_spec_map)
+    m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)
 
     calc_fn = functools.partial(_base_agg_df, set_code, m, use_streaming=use_streaming)
     agg_df = _fetch_or_cache(

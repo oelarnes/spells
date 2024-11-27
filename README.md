@@ -135,9 +135,9 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns.
     ```python
     >>> import polars as pl
-    >>> from spells.columns import ColumnDefinition
+    >>> from spells.columns import ColumnSpec
     >>> from spells.enums import ColType, View, ColName
-    >>> ext = ColumnDefinition(
+    >>> ext = ColumnSpec(
     ...     name='deq_base',
     ...     col_type=ColType.AGG,
     ...     expr=(pl.col('gp_wr_excess') + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
@@ -265,7 +265,7 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
     - `{'$and': [{'lhs': 'draft_date', 'op': '>', 'rhs': datetime.date(2024, 10, 7)}, {'rank': 'Mythic'}]}` Drafts after October 7 by Mythic-ranked players. Supported values for query construction keys are `$and`, `$or`, and `$not`.
 
-- extensions: a list of `spells.columns.ColumnDefinition` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
+- extensions: a list of `spells.columns.ColumnSpec` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
 
 ### Enums
 
@@ -275,12 +275,12 @@ from spells.enums import ColName, ColType, View
 
 Recommended to import `ColName` for any usage of `summon`, and to import `ColType` and `View` when defining custom extensions. 
 
-### ColumnDefinition
+### ColumnSpec
 
 ```python
-from spells.columns import ColumnDefinition
+from spells.columns import ColumnSpec
 
-ColumnDefinition(
+ColumnSpec(
     name: str,
     col_type: spells.enums.ColType,
     views: tuple(spells.enums.View...) = (),

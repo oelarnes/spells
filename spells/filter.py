@@ -88,11 +88,7 @@ def _negate(fil) -> Filter:
     return __negate(fil)
 
 
-BUILDER_MAP = {
-    "$and": _all_of,
-    "$or": _any_of, 
-    "$not": _negate
-}
+BUILDER_MAP = {"$and": _all_of, "$or": _any_of, "$not": _negate}
 
 
 def from_spec(filter_spec: dict | None) -> Filter | None:

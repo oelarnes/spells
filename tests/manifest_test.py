@@ -6,7 +6,7 @@ import pytest
 
 import polars as pl
 
-from spells.columns import ColumnDefinition
+from spells.columns import ColumnSpec
 from spells.enums import ColType, View
 import spells.manifest
 
@@ -149,8 +149,12 @@ import spells.manifest
             None,
             None,
             [
-                ColumnDefinition(
-                    "alsa_plus_one", ColType.AGG, pl.col("alsa") + 1, (), ["alsa"]
+                ColumnSpec(
+                    "alsa_plus_one",
+                    ColType.AGG,
+                    pl.col("alsa") + 1,
+                    views=(),
+                    dependencies=["alsa"],
                 )
             ],
             """{
@@ -196,11 +200,11 @@ import spells.manifest
             ["is_winner"],
             None,
             [
-                ColumnDefinition(
+                ColumnSpec(
                     "is_winner",
                     ColType.GROUP_BY,
                     pl.col("user_game_win_rate_bucket") > 0.55,
-                    (View.DRAFT, View.GAME),
+                    views=(View.DRAFT, View.GAME),
                 )
             ],
             """{
@@ -224,7 +228,7 @@ def test_create_manifest(
     columns: list[str] | None,
     group_by: list[str] | None,
     filter_spec: dict | None,
-    extensions: list[ColumnDefinition] | None,
+    extensions: list[ColumnSpec] | None,
     expected: str,
 ):
     m = spells.manifest.create(columns, group_by, filter_spec, extensions)

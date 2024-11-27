@@ -33,8 +33,8 @@ class ColName(StrEnum):
 
     # shared
     NAME = "name"  # special column for card name index
-    EXPANSION = 'expansion'
-    EVENT_TYPE = 'event_type'
+    EXPANSION = "expansion"
+    EVENT_TYPE = "event_type"
     DRAFT_ID = "draft_id"
     DRAFT_TIME = "draft_time"  # modified, cast to time
     DRAFT_DATE = "draft_date"
