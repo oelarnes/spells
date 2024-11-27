@@ -50,24 +50,11 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     return names
 
 
-def name_sum_rename(
-    spec: ColumnSpec,
-    old_name: str,
-):
-    if spec.dependencies is None:
-        raise ValueError("name_sum columns must name their dependencies")
-    name_sum_dep = spec.dependencies[0]
-    name_pattern = f"^{name_sum_dep}_"
-    card_name = re.split(name_pattern, old_name)[1]
-    return spec.name + "_" + card_name
-
-
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
     names = _get_names(set_code)
     assert len(names) > 0, "there should be names"
     hydrated = {}
     for key, spec in col_spec_map.items():
-        rename = functools.partial(name_sum_rename, spec)
         if spec.col_type == ColType.NAME_SUM and spec.exprMap is not None:
             unnamed_exprs = map(spec.exprMap, names)
             expr = tuple(
@@ -77,15 +64,12 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
                     names,
                 )
             )
-        elif spec.expr is not None:            
-            if spec.col_type == ColType.NAME_SUM:
-                expr = spec.expr.name.map(rename)
-            else:
-                expr = spec.expr.alias(spec.name)
-        
+        elif spec.expr is not None:
+            expr = spec.expr.alias(spec.name)
+
         else:
             if spec.col_type == ColType.NAME_SUM:
-                expr = pl.col(f"^{spec.name}_.*$")
+                expr = tuple(map(lambda name: pl.col(f"{spec.name}_{name}"), names))
             else:
                 expr = pl.col(spec.name)
 
@@ -134,23 +118,17 @@ def _col_df(
         return df.select(pl.col(cdef.name))
     if not cdef.dependencies and is_view:
         return df.select(cdef.expr)
-    assert (
-        cdef.dependencies
-    ), f"Column {col} should declare its dependencies"
+    assert cdef.dependencies, f"Column {col} should declare its dependencies"
 
-    root_col_exprs = []
     col_dfs = []
     for dep in cdef.dependencies:
         dep_def = col_def_map[dep]
         if not is_view and dep_def.col_type != ColType.AGG:
-            root_col_exprs.append(pl.col(dep_def.name))
+            col_dfs.append(df.select(pl.col(dep_def.name)))
         elif not dep_def.dependencies and is_view:
-            root_col_exprs.append(dep_def.expr)
+            col_dfs.append(df.select(dep_def.expr))
         else:
             col_dfs.append(_col_df(df, dep, col_def_map, is_view, anchor_col))
-
-    if root_col_exprs:
-        col_dfs.append(df.select(root_col_exprs))
 
     if anchor_col != "":
         col_dfs.append(df.select(anchor_col))

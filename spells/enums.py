@@ -105,6 +105,8 @@ class ColName(StrEnum):
     WON_DECK = "won_deck"
     SIDEBOARD = "sideboard"
     WON_SIDEBOARD = "won_sideboard"
+    NUM_GNS = "num_gns"
+    WON_NUM_GNS = "won_num_gns"
     # card
     SET_CODE = "set_code"
     COLOR = "color"
@@ -132,6 +134,8 @@ class ColName(StrEnum):
     NUM_GIH = "num_gih"
     NUM_GIH_WON = "num_gih_won"
     GIH_WR = "gih_wr"
+    GNS_WR = "gns_wr"
+    IWD = "iwd"
     NUM_IN_POOL = "num_in_pool"
     IN_POOL_WR = "in_pool_wr"
     DECK_TOTAL = "deck_total"
