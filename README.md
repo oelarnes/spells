@@ -60,7 +60,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
-- Provides over 50 explicitly specified, enumerated, documented custom column definitions
+- Provides 116 explicitly specified, enumerated, documented column definitions
 - Supports "Deck Color Data" aggregations with built-in column definitions.
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
@@ -68,7 +68,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
 - Uses Polars expressions to support second-stage aggregations and beyond like game-weighted z-scores with one call to summon
-- Intended support for larger-than-memory datasets (once I/Polars get it working)
+- Planned support for larger-than-memory datasets (once I/Polars get it working)
 
 ## summon
 
@@ -285,7 +285,9 @@ ColumnSpec(
     col_type: spells.enums.ColType,
     views: tuple(spells.enums.View...) = (),
     expr: pl.Expr | None = None,
+    exprMap: Callable[[str], pl.Expr] | None = None
     dependencies: list[str] | None = None
+    version: str | None = None
 )
 ```
 
