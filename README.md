@@ -299,9 +299,16 @@ Used to define extensions in `summon`
 
 - `views`: For a column defined at the row level on a view (see col_types above), the views on which it is supported. All col_types except `AGG` must specify at least one base view. For `CARD_ATTR` columns, `views` must be exactly `(View.CARD,)`.
 
-- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns, for now, are defined using wildcard expressions like `pl.col("^deck_.*$")`, but this is going to change. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
+- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns support two standards for specifying expressions. Polars natively supports
+regular-expression-style selection using the pattern `pl.col("^deck_.*$")` (be sure to exactly copy the pattern `^{name}_.*$`), and this expression can be used in expressions alongside single column expressions. When using this form, be sure to list the base `NAME_SUM` column first in the dependencies, and to use the dependent `NAME_SUM` column first in the column expression, or it will not work. When a `NAME_SUM` column must depend on multiple other `NAME_SUM` columns (as in the case of `NUM_GNS`), the `exprMap` attribute must be used instead. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
 
-- `dependencies`: A list of column names. All dependencies must be declared by name, except for view columns that depend on columns in the data file.
+- `exprMap`: A function of card name that returns the expression for a more complicated `NAME_SUM` column. This is about three times slower than using the wildcard selection expression, so 
+only use if necessary. Do not use alongside `expr`.
+
+- `dependencies`: A list of column names. All dependencies must be declared by name, except for view columns that depend on columns in the data file.A
+
+- `version`: When defining a column using a python function, as opposed to Polars expressions, add a unique version number so that the unique hashed signature of the column specification can be derived 
+for caching purposes, since Polars cannot generate a serialization natively. When changing the definition, be sure to increment the version value. Otherwise you do not need to use this parameter.
 
 ### Columns
 
@@ -381,6 +388,8 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `WON_DECK` | `"won_deck"` | `GAME` | `NAME_SUM` | `WON * DECK`| Int |
 | `SIDEBOARD` | `"sideboard"` | `GAME` | `NAME_SUM` | | Int |
 | `WON_SIDEBOARD` | `"won_sideboard"` | `GAME` | `NAME_SUM` | `WON * SIDEBOARD`| Int |
+| `NUM_GNS` | '"num_ns"` | `GAME` | `NAME_SUM` | `max(DECK - TUTORED - DRAWN - OPENING_HAND)` | Int |
+| `WON_NUM_GNS` | `"won_num_gms"` | `GAME` | `NAME_SUM` | | Int |
 | `SET_CODE` | `"set_code"` | `CARD` | `CARD_ATTR` | | String |
 | `COLOR` | `"color"` | `CARD` | `CARD_ATTR` | | String |
 | `RARITY` | `"rarity"` | `CARD` | `CARD_ATTR` | | String |
@@ -406,11 +415,24 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `NUM_GIH` | `"num_gih"` | | `AGG` |`OPENING_HAND` + `DRAWN`| Int |
 | `NUM_GIH_WON` | `"num_gih_won"` | | `AGG` | `WON_OPENING_HAND` + `WON_DRAWN` | Int |
 | `GIH_WR` | `"gih_wr"` | | `AGG` | `NUM_GIH_WON` / `NUM_GIH` | Float |
+| `GNS_WR` | `"gns_Wr"` | | `AGG` | `WON_NUM_GNS` / `NUM_GNS` | Float |
+| `IWD` | `"iwd"` | | `AGG` | `GIH_WR - GNS_WR` | Float |
 | `NUM_IN_POOL` | `"num_in_pool"` | | `AGG` | `DECK` + `SIDEBOARD`| Int |
 | `IN_POOL_WR` | `"in_pool_wr"` | | `AGG` || Float |
 | `DECK_TOTAL` | `"deck_total"` | | `AGG` | Sum `DECK` over all rows and broadcast back to row level| Int |
 | `WON_DECK_TOTAL` | `"won_deck_total"` | | `AGG` || Int |
 | `GP_WR_MEAN` | `"gp_wr_mean"` | | `AGG` | `WON_DECK_TOTAL` / `DECK_TOTAL` | Float |
+| `GP_WR_EXCESS` | `"gp_wr_excess"` | | `AGG` | `GP_WR - GP_WR_MEAN` | Float |
+| `GP_WR_VAR` | `"gp_wr_var"` | | `AGG` | Game-weighted Variance | Float |
+| `GP_WR_STDEV` | `"gp_wr_stdev"` | | `AGG` | Sqrt of `GP_WR_VAR` | Float |
+| `GP_WR_Z` | `"gp_wr_z"` | | `AGG` | `GP_WR_EXCESS` / `GP_WR_STDEV` | Float |
+| `GIH_TOTAL` | `"gih_total"` | | `AGG` | Sum `NUM_GIH` over all rows and broadcast back to row level| Float |
+| `WON_GIH_TOTAL` | `"won_gih_total"` | | `AGG` | | Float |
+| `GIH_WR_MEAN` | `"gih_wr_mean"` | | `AGG` |  `GIH_WR - GIH_WR_MEAN` | Float |
+| `GIH_WR_EXCESS` | `"gih_wr_excess"` | | `AGG` | `GIH_WR - GIH_WR_MEAN` | Float |
+| `GIH_WR_VAR` | `"gih_wr_var"` | | `AGG` | Game-weighted Variance | Float |
+| `GIH_WR_STDEV` | `"gh_wr_stdev"` | | `AGG` | Sqrt of `GIH_WR_VAR` | Float |
+| `GIH_WR_Z` | `"gih_wr_z"` | | `AGG` |`GIH_WR_EXCESS` / `GIH_WR_STDEV` | Float |
 
 # Roadmap to 1.0
 
