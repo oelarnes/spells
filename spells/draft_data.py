@@ -120,18 +120,24 @@ def _col_df(
     assert cdef.dependencies, f"Column {col} should declare its dependencies"
 
     col_dfs = []
+    col_selects = []
     for dep in cdef.dependencies:
         dep_def = col_def_map[dep]
         if not is_view and dep_def.col_type != ColType.AGG:
-            col_dfs.append(df.select(pl.col(dep_def.name)))
+            col_selects.append(pl.col(dep_def.name))
         elif not dep_def.dependencies and is_view:
-            col_dfs.append(df.select(dep_def.expr))
+            if isinstance(dep_def.expr, tuple):
+                col_selects.extend(list(dep_def.expr))
+            else:
+                col_selects.append(dep_def.expr)
         else:
             col_dfs.append(_col_df(df, dep, col_def_map, is_view, anchor_col))
 
     if anchor_col != "":
-        col_dfs.append(df.select(anchor_col))
+        col_selects.append(anchor_col)
 
+    if len(col_selects):
+        col_dfs.append(df.select(col_selects))
     dep_df = pl.concat(col_dfs, how="horizontal")
 
     if anchor_col != "":

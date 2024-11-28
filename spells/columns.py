@@ -251,7 +251,7 @@ _column_specs = [
         name=ColName.NUM_SEEN,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
-        exprMap=lambda name: pl.col(f"pack_card_{name}") * pl.col("pick_num") <= 8,
+        exprMap=lambda name: pl.col(f"pack_card_{name}") * (pl.col("pick_num") <= 8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnSpec(
