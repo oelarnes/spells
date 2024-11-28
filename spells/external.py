@@ -15,10 +15,12 @@ import sys
 from enum import StrEnum
 
 import wget
+import polars as pl
 
 from spells import cards
 from spells import cache
 from spells.enums import View
+from spells.schema import schema
 
 
 URL_TEMPLATE = (
@@ -26,6 +28,10 @@ URL_TEMPLATE = (
     + "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
 )
 
+
+class FileFormat(StrEnum):
+    CSV = "csv"
+    PARQUET = "parquet"
 
 class EventType(StrEnum):
     PREMIER = "PremierDraft"
@@ -145,7 +151,7 @@ def _info():
                     file_count = 0
                     cache.spells_print(mode, f"Archive {entry.name} contents:")
                     for item in os.scandir(entry):
-                        if not re.match(f"^{entry.name}_.*\\.csv", item.name):
+                        if not re.match(f"^{entry.name}_.*\\.csv" , item.name) or not re.match(f"^{entry.name}_.*\\.parquet", item.name):
                             print(
                                 f"!!! imposter file {item.name}! Please sort that out"
                             )
@@ -203,14 +209,14 @@ def _external_set_path(set_code):
 
 
 def data_file_path(
-    set_code, dataset_type: str, event_type=EventType.PREMIER, zipped=False
+    set_code, dataset_type: str, event_type=EventType.PREMIER, zipped=False, format=FileFormat.CSV
 ):
     if dataset_type == "card":
-        return os.path.join(_external_set_path(set_code), f"{set_code}_card.csv")
+        return os.path.join(_external_set_path(set_code), f"{set_code}_card.{format.value}")
 
     return os.path.join(
         _external_set_path(set_code),
-        f"{set_code}_{event_type}_{dataset_type}.csv{'.gz' if zipped else ''}",
+        f"{set_code}_{event_type}_{dataset_type}.{format.value}{'.gz' if zipped else ''}",
     )
 
 
@@ -218,6 +224,10 @@ def _process_zipped_file(target_path_zipped, target_path):
     with gzip.open(target_path_zipped, "rb") as f_in:
         with open(target_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)  # type: ignore
+    
+    parquet_path = target_path[:-4] + ".parquet"
+    df = pl.scan_csv(target_path, schema=schema(target_path))
+    df.sink_parquet(parquet_path)
 
     os.remove(target_path_zipped)
 

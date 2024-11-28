@@ -14,7 +14,7 @@ from typing import Callable, TypeVar
 
 import polars as pl
 
-from spells.external import data_file_path
+from spells.external import data_file_path, FileFormat
 from spells.schema import schema
 import spells.cache
 import spells.filter
@@ -39,8 +39,8 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     card_view = pl.read_csv(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
 
-    game_fp = data_file_path(set_code, View.GAME)
-    game_view = pl.scan_csv(game_fp, schema=schema(game_fp))
+    game_fp = data_file_path(set_code, View.GAME, format=FileFormat.PARQUET)
+    game_view = pl.scan_parquet(game_fp)
     cols = game_view.collect_schema().names()
 
     names = tuple(col[5:] for col in cols if col.startswith("deck_"))
@@ -183,8 +183,8 @@ def _base_agg_df(
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
             continue
-        df_path = data_file_path(set_code, view)
-        base_view_df = pl.scan_csv(df_path, schema=schema(df_path))
+        df_path = data_file_path(set_code, view, format=FileFormat.PARQUET)
+        base_view_df = pl.scan_parquet(df_path)
         col_dfs = [
             _col_df(base_view_df, col, m.col_def_map, is_view=True)
             for col in cols_for_view

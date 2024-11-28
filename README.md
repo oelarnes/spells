@@ -1,6 +1,6 @@
 # 🪄 spells ✨
 
-**spells** is a python package that tutors up customizable, optimized analysis of the public data sets provided by [17Lands](https://www.17lands.com/) and exiles the annoying and slow parts of your workflow. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
+**spells** is a python package that tutors up blazing-fast and extensible analysis of the public data sets provided by [17Lands](https://www.17lands.com/) and exiles the annoying and slow parts of your workflow. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
 
 ```
 $ spells add DSK
@@ -22,8 +22,8 @@ $ ipython
 ```python
 In [1]: import spells
 In [2]: %time spells.summon('DSK')
-CPU times: user 4min 23s, sys: 49.6 s, total: 5min 13s
-Wall time: 2min 23s
+CPU times: user 35.9 s, sys: 17.5 s, total: 53.4 s
+Wall time: 17.7 s
 Out [2]:
 shape: (286, 14)
 ┌────────────────────────────┬───────┬──────────┬──────────┬───┬────────┬──────────┬─────────┬──────────┐
@@ -48,6 +48,7 @@ In [3]: %time spells.summon('DSK')
 CPU times: user 16.3 ms, sys: 66.2 ms, total: 82.5 ms
 Wall time: 80.8 ms
 ```
+Times above are on my 2024 MacBook Air.
 
 Coverting to pandas DataFrame is as simple as invoking the chained call `summon(...).to_pandas()`.
 
@@ -57,6 +58,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 
 - Uses [Polars](https://docs.pola.rs/) for high-performance, multi-threaded aggregations of large datasets
 - Uses Polars to power an expressive query language for specifying custom extensions and optimizing complex queries
+- Converts csv datasets to parquet for 10x faster calculations and 20x smaller file sizes
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
