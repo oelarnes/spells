@@ -49,25 +49,11 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     assert game_names_set == card_names_set, "names mismatch between card and game file"
     return names
 
-
-def name_sum_rename(
-    spec: ColumnSpec,
-    old_name: str,
-):
-    if spec.dependencies is None:
-        raise ValueError("name_sum columns must name their dependencies")
-    name_sum_dep = spec.dependencies[0]
-    name_pattern = f"^{name_sum_dep}_"
-    card_name = re.split(name_pattern, old_name)[1]
-    return spec.name + "_" + card_name
-
-
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
     names = _get_names(set_code)
     assert len(names) > 0, "there should be names"
     hydrated = {}
     for key, spec in col_spec_map.items():
-        rename = functools.partial(name_sum_rename, spec)
         if spec.col_type == ColType.NAME_SUM and spec.exprMap is not None:
             unnamed_exprs = map(spec.exprMap, names)
             expr = tuple(
@@ -82,7 +68,7 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
         elif spec.expr is not None:
             sig_expr = spec.expr
             if spec.col_type == ColType.NAME_SUM:
-                expr = spec.expr.name.map(rename)
+                expr = spec.expr.name.map(spec.name_sum_rename)
             else:
                 expr = spec.expr.alias(spec.name)
 

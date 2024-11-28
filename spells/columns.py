@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from collections.abc import Callable
+import re
 
 import polars as pl
 
@@ -17,6 +18,16 @@ class ColumnSpec:
     version: str | None = (
         None  # only needed for user-defined functions with python functions in expr
     )
+    def name_sum_rename(
+        self,
+        old_name: str,
+    ):
+        if self.dependencies is None:
+            raise ValueError("name_sum columns must name their dependencies")
+        name_sum_dep = self.dependencies[0]
+        name_pattern = f"^{name_sum_dep}_"
+        card_name = re.split(name_pattern, old_name)[1]
+        return self.name + "_" + card_name
 
 
 @dataclass(frozen=True)
