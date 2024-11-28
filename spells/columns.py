@@ -244,14 +244,14 @@ _column_specs = [
         name=ColName.LAST_SEEN,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
-        exprMap=lambda name: pl.col(f"pack_card_{name}") * pl.min_horizontal("pick_num", 8),
+        expr=pl.col("^pack_card_.*$") * pl.min_horizontal("pick_num", 8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnSpec(
         name=ColName.NUM_SEEN,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
-        exprMap=lambda name: pl.col(f"pack_card_{name}") * pl.col("pick_num") <= 8,
+        expr=pl.col("^pack_card_.*$") * pl.col("pick_num") <= 8,
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnSpec(
@@ -420,7 +420,7 @@ _column_specs = [
         name=ColName.WON_OPENING_HAND,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.col(f"opening_hand_{name}") * pl.col(ColName.WON),
+        expr=pl.col("^opening_hand_.*$") * pl.col(ColName.WON),
         dependencies=[ColName.OPENING_HAND, ColName.WON],
     ),
     ColumnSpec(
@@ -432,7 +432,7 @@ _column_specs = [
         name=ColName.WON_DRAWN,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.col(f"drawn_{name}") * pl.col(ColName.WON),
+        expr=pl.col("^drawn_.*$") * pl.col(ColName.WON),
         dependencies=[ColName.DRAWN, ColName.WON],
     ),
     ColumnSpec(
@@ -444,7 +444,7 @@ _column_specs = [
         name=ColName.WON_TUTORED,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.col(f"tutored_{name}") * pl.col(ColName.WON),
+        expr=pl.col("^tutored_.*$") * pl.col(ColName.WON),
         dependencies=[ColName.TUTORED, ColName.WON],
     ),
     ColumnSpec(
@@ -456,7 +456,7 @@ _column_specs = [
         name=ColName.WON_DECK,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.col(f"deck_{name}") * pl.col(ColName.WON),
+        expr=pl.col("^deck_.*$") * pl.col(ColName.WON),
         dependencies=[ColName.DECK, ColName.WON],
     ),
     ColumnSpec(
@@ -468,20 +468,26 @@ _column_specs = [
         name=ColName.WON_SIDEBOARD,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.col(f"sideboard_{name}") * pl.col(ColName.WON),
+        expr=pl.col("^sideboard_.*$") * pl.col(ColName.WON),
         dependencies=[ColName.SIDEBOARD, ColName.WON],
     ),
     ColumnSpec(
         name=ColName.NUM_GNS,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.max_horizontal(0, pl.col(f"deck_{name}") - pl.col(f"drawn_{name}") - pl.col(f"tutored_{name}") - pl.col(f"opening_hand_{name}")),
+        exprMap=lambda name: pl.max_horizontal(
+            0,
+            pl.col(f"deck_{name}")
+            - pl.col(f"drawn_{name}")
+            - pl.col(f"tutored_{name}")
+            - pl.col(f"opening_hand_{name}"),
+        ),
     ),
     ColumnSpec(
         name=ColName.WON_NUM_GNS,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.col(ColName.WON) * pl.col(f"num_gns_{name}"),
+        expr=pl.col("^num_gns_.*$") * pl.col(ColName.WON), 
         dependencies=[ColName.NUM_GNS, ColName.WON],
     ),
     ColumnSpec(
