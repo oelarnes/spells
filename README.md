@@ -195,7 +195,7 @@ Spells provides several features out of the box to optimize performance to the d
 
 ### Query Optimization
 
-Firstly, it is built on top of Polars, a modern, well-supported DataFrame engine that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis, at the lowest depth possible per column, and uses "concat" rather than "with" throughout to ensure the best performance and flexibility for optimization. 
+Firstly, it is built on top of Polars, a modern, well-supported DataFrame engine written for performance in Rust that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis, at the lowest depth possible per column, selecting columns together when possible.
 
 By default, Polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too memory-intensive, Spells exposes the Polars parameter `streaming`, which should perform aggregations in chunks based on available system resources. Unfortunately, this does not work at the moment despite the query plan fitting the parallelizable map-reduce paradigm. Further investigation is needed, check back in a few months. Spells and Polars do not support distributed computation.
 
@@ -299,11 +299,9 @@ Used to define extensions in `summon`
 
 - `views`: For a column defined at the row level on a view (see col_types above), the views on which it is supported. All col_types except `AGG` must specify at least one base view. For `CARD_ATTR` columns, `views` must be exactly `(View.CARD,)`.
 
-- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. `NAME_SUM` columns support two standards for specifying expressions. Polars natively supports
-regular-expression-style selection using the pattern `pl.col("^deck_.*$")` (be sure to exactly copy the pattern `^{name}_.*$`), and this expression can be used in expressions alongside single column expressions. When using this form, be sure to list the base `NAME_SUM` column first in the dependencies, and to use the dependent `NAME_SUM` column first in the column expression, or it will not work. When a `NAME_SUM` column must depend on multiple other `NAME_SUM` columns (as in the case of `NUM_GNS`), the `exprMap` attribute must be used instead. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
+- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. For `NAME_SUM` columns the `exprMap` attribute must be used instead. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
 
-- `exprMap`: A function of card name that returns the expression for a more complicated `NAME_SUM` column. This is about three times slower than using the wildcard selection expression, so 
-only use if necessary. Do not use alongside `expr`.
+- `exprMap`: A function of card name that returns the expression for a `NAME_SUM` column. 
 
 - `dependencies`: A list of column names. All dependencies must be declared by name, except for view columns that depend on columns in the data file.A
 
