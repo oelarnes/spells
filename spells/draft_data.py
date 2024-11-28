@@ -63,23 +63,17 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
                     names,
                 )
             )
-            sig_expr = expr[0]
-
         elif spec.expr is not None:
-            sig_expr = spec.expr
-            if spec.col_type == ColType.NAME_SUM:
-                expr = spec.expr.name.map(spec.name_sum_rename)
-            else:
-                expr = spec.expr.alias(spec.name)
+            expr = spec.expr.alias(spec.name)
 
         else:
             if spec.col_type == ColType.NAME_SUM:
-                expr = pl.col(f"^{spec.name}_.*$")
+                expr = tuple(map(lambda name: pl.col(f"{spec.name}_{name}"), names))
             else:
                 expr = pl.col(spec.name)
-            sig_expr = expr
 
         try:
+            sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
             expr_sig = sig_expr.meta.serialize(
                 format="json"
             )  # not compatible with renaming
