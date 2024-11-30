@@ -36,7 +36,7 @@ def _cache_key(args) -> str:
 @functools.lru_cache(maxsize=None)
 def _get_names(set_code: str) -> tuple[str, ...]:
     card_fp = data_file_path(set_code, View.CARD)
-    card_view = pl.read_csv(card_fp)
+    card_view = pl.read_parquet(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
 
     game_fp = data_file_path(set_code, View.GAME, format=FileFormat.PARQUET)
@@ -292,7 +292,7 @@ def summon(
     if View.CARD in m.view_cols:
         card_cols = m.view_cols[View.CARD].union({ColName.NAME})
         fp = data_file_path(set_code, View.CARD)
-        card_df = pl.read_csv(fp)
+        card_df = pl.read_parquet(fp)
         cols_df = pl.concat(
             [_col_df(card_df, col, m.col_def_map, is_view=True) for col in card_cols],
             how="horizontal",

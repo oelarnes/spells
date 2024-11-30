@@ -23,11 +23,8 @@ from spells.enums import View
 from spells.schema import schema
 
 
-URL_TEMPLATE = (
-    "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
-    + "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
-)
-
+DATASET_TEMPLATE = "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
+RESOURCE_TEMPLATE = "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
 
 class FileFormat(StrEnum):
     CSV = "csv"
@@ -117,7 +114,7 @@ def _remove(set_code: str):
         with os.scandir(dir_path) as set_dir:
             count = 0
             for entry in set_dir:
-                if not entry.name.endswith(".csv"):
+                if not entry.name.endswith(".parquet"):
                     cache.spells_print(
                         mode,
                         f"Unexpected file {entry.name} found in external cache, please sort that out!",
@@ -220,16 +217,22 @@ def data_file_path(
     )
 
 
-def _process_zipped_file(target_path_zipped, target_path):
-    with gzip.open(target_path_zipped, "rb") as f_in:
-        with open(target_path, "wb") as f_out:
+def _process_zipped_file(source_path, target_path):
+    csv_path = source_path[:-3]
+    # if polars supports streaming from file obj, we can just stream straight
+    # from urllib.Request through GzipFile to sink_parquet without intermediate files
+    with gzip.open(source_path, "rb") as f_in:
+        with open(csv_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)  # type: ignore
     
     parquet_path = target_path[:-4] + ".parquet"
     df = pl.scan_csv(target_path, schema=schema(target_path))
     df.sink_parquet(parquet_path)
 
-    os.remove(target_path_zipped)
+    df = pl.scan_csv(csv_path, schema=schema(csv_path))
+    df.sink_parquet(target_path)
+
+    os.remove(csv_path)
 
 
 def download_data_set(
@@ -245,7 +248,6 @@ def download_data_set(
     if not os.path.isdir(set_dir := _external_set_path(set_code)):
         os.makedirs(set_dir)
 
-    target_path_zipped = data_file_path(set_code, dataset_type, zipped=True)
     target_path = data_file_path(set_code, dataset_type)
 
     if os.path.isfile(target_path) and not force_download:
@@ -255,15 +257,16 @@ def download_data_set(
         )
         return 1
 
+    dataset_file = DATASET_TEMPLATE.format(set_code=set_code, dataset_type=dataset_type, event_type=event_type)
     wget.download(
-        URL_TEMPLATE.format(
-            set_code=set_code, dataset_type=dataset_type, event_type=event_type
-        ),
-        out=target_path_zipped,
+        RESOURCE_TEMPLATE.format(
+            dataset_type=dataset_type 
+        ) + dataset_file,
+        out=dataset_file
     )
     print()
 
-    _process_zipped_file(target_path_zipped, target_path)
+    _process_zipped_file(dataset_file, target_path)
     cache.spells_print(mode, f"File {target_path} written")
     if clear_set_cache:
         cache.clear(set_code)
@@ -279,7 +282,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
     mode = "refresh" if force_download else "add"
 
     cache.spells_print(
-        mode, "Fetching card data from mtgjson.com and writing card csv file"
+        mode, "Fetching card data from mtgjson.com and writing card file"
     )
     card_filepath = data_file_path(draft_set_code, View.CARD)
     if os.path.isfile(card_filepath) and not force_download:
@@ -295,25 +298,18 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
         cache.spells_print(mode, f"Error: No draft file for set {draft_set_code}")
         return 1
 
-    with open(draft_filepath, encoding="utf-8") as f:
-        columns = csv.DictReader(f).fieldnames
-
-    if columns is None:
-        raise ValueError("no columns found!")
+    columns = pl.scan_parquet(draft_filepath).collect_schema().names()
 
     pattern = "^pack_card_"
-    names = (
+    names = [
         re.split(pattern, name)[1]
         for name in columns
         if re.search(pattern, name) is not None
-    )
+    ]
 
-    csv_lines = cards.card_file_lines(draft_set_code, names)
+    card_df = cards.card_df(draft_set_code, names)
 
-    with open(card_filepath, "w", newline="") as f:
-        writer = csv.writer(f)
-        for row in csv_lines:
-            writer.writerow(row)
+    card_df.write_parquet(card_filepath)
 
-    cache.spells_print(mode, f"Wrote {len(csv_lines)} lines to file {card_filepath}")
+    cache.spells_print(mode, f"Wrote file {card_filepath}")
     return 0

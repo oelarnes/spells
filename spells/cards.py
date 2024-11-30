@@ -2,6 +2,8 @@ import json
 import urllib.request
 from enum import StrEnum
 
+import polars as pl
+
 from spells.enums import ColName
 
 
@@ -53,20 +55,20 @@ def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
         case CardAttr.SUBTYPE:
             return " ".join(card_dict.get("subtypes", []))
         case CardAttr.MANA_VALUE:
-            return str(card_dict.get("manaValue", ""))
+            return card_dict.get("manaValue", 0)
         case CardAttr.MANA_COST:
             return card_dict.get("manaCost", "")
         case CardAttr.POWER:
-            return str(card_dict.get("power", ""))
+            return card_dict.get("power", None)
         case CardAttr.TOUGHNESS:
-            return str(card_dict.get("toughness", ""))
+            return card_dict.get("toughness", None)
         case CardAttr.IS_BONUS_SHEET:
-            return str(card_dict.get("setCode", set_code) != set_code)
+            return card_dict.get("setCode", set_code) != set_code
         case CardAttr.IS_DFC:
-            return str(len(card_dict.get("otherFaceIds", [])) > 0)
+            return len(card_dict.get("otherFaceIds", [])) > 0
 
 
-def card_file_lines(draft_set_code, names):
+def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     draft_set_json = _fetch_mtg_json(draft_set_code)
     set_codes = draft_set_json["data"]["booster"]["play"]["sourceSetCodes"]
     set_codes.reverse()
@@ -83,14 +85,6 @@ def card_file_lines(draft_set_code, names):
         card_data_map.update({item["faceName"]: item for item in face_name_cards})
         card_data_map.update({item["name"]: item for item in card_data})
 
-    lines = [[field for field in CardAttr]]
-
-    for name in names:
-        lines.append(
-            [
-                _extract_value(draft_set_code, name, card_data_map.get(name, {}), field)
-                for field in CardAttr
-            ]
-        )  # type: ignore
-
-    return lines
+    return pl.DataFrame([ 
+            { field: _extract_value(draft_set_code, name, card_data_map[name], field) for field in CardAttr } for name in names
+         ])
