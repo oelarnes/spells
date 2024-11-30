@@ -14,8 +14,7 @@ from typing import Callable, TypeVar
 
 import polars as pl
 
-from spells.external import data_file_path, FileFormat
-from spells.schema import schema
+from spells.external import data_file_path
 import spells.cache
 import spells.filter
 import spells.manifest
@@ -39,7 +38,7 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     card_view = pl.read_parquet(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
 
-    game_fp = data_file_path(set_code, View.GAME, format=FileFormat.PARQUET)
+    game_fp = data_file_path(set_code, View.GAME)
     game_view = pl.scan_parquet(game_fp)
     cols = game_view.collect_schema().names()
 
@@ -104,6 +103,62 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
         hydrated[key] = cdef
     return hydrated
 
+
+def _view_select_recur(
+    df: DF,
+    select_stack: list[frozenset[str]],
+    col_def_map: dict[str, ColumnDefinition],
+    is_agg_view: bool,
+) -> DF:
+    if len(select_stack) == 0:
+        return df
+
+    df = _view_select_recur(
+        df,
+        select_stack[1:],
+        col_def_map,
+        is_agg_view
+    )
+
+    cdefs = [col_def_map[v] for v in select_stack[0]]
+    select = []
+    for cdef in cdefs:
+        if is_agg_view and cdef.col_type != ColType.AGG:
+            select.append(cdef.name)
+        elif isinstance(cdef.expr, tuple):
+            select.extend(list(cdef.expr))
+        else:
+            select.append(cdef.expr)
+    return df.select(select)
+        
+def _view_select(
+    df: DF,
+    view_cols: frozenset[str],
+    col_def_map: dict[str, ColumnDefinition],
+    is_agg_view: bool,
+) -> DF:
+
+    select_stack = [view_cols]
+    go_deeper = True
+    while go_deeper:
+        select_cols = frozenset() 
+        go_deeper = False
+        cdefs = [col_def_map[v] for v in select_stack[-1]]
+        for cdef in cdefs:
+            if is_agg_view and cdef.col_type == ColType.AGG or cdef.dependencies:
+                select_cols = select_cols.union(cdef.dependencies)
+                go_deeper = True
+            else:
+                select_cols = select_cols.union(frozenset({cdef.name}))
+        select_stack.append(select_cols)
+
+    return _view_select_recur(
+        df,
+        select_stack,
+        col_def_map,
+        is_agg_view
+    )
+             
 
 def _col_df(
     df: DF,
@@ -183,14 +238,15 @@ def _base_agg_df(
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
             continue
-        df_path = data_file_path(set_code, view, format=FileFormat.PARQUET)
+        df_path = data_file_path(set_code, view)
         base_view_df = pl.scan_parquet(df_path)
-        col_dfs = [
-            _col_df(base_view_df, col, m.col_def_map, is_view=True)
-            for col in cols_for_view
-        ]
-        base_df_prefilter = pl.concat(col_dfs, how="horizontal")
-
+#        col_dfs = [
+#            _col_df(base_view_df, col, m.col_def_map, is_view=True)
+#            for col in cols_for_view
+#        ]
+#        base_df_prefilter = pl.concat(col_dfs, how="horizontal")
+        base_df_prefilter = _view_select(base_view_df, cols_for_view, m.col_def_map, is_agg_view=False)
+        
         if m.filter is not None:
             base_df = base_df_prefilter.filter(m.filter.expr)
         else:

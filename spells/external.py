@@ -148,7 +148,7 @@ def _info():
                     file_count = 0
                     cache.spells_print(mode, f"Archive {entry.name} contents:")
                     for item in os.scandir(entry):
-                        if not re.match(f"^{entry.name}_.*\\.csv" , item.name) or not re.match(f"^{entry.name}_.*\\.parquet", item.name):
+                        if not re.match(f"^{entry.name}_.*\\.parquet", item.name):
                             print(
                                 f"!!! imposter file {item.name}! Please sort that out"
                             )
@@ -206,29 +206,26 @@ def _external_set_path(set_code):
 
 
 def data_file_path(
-    set_code, dataset_type: str, event_type=EventType.PREMIER, zipped=False, format=FileFormat.CSV
+    set_code, dataset_type: str, event_type=EventType.PREMIER
 ):
     if dataset_type == "card":
-        return os.path.join(_external_set_path(set_code), f"{set_code}_card.{format.value}")
+        return os.path.join(_external_set_path(set_code), f"{set_code}_card.parquet")
 
     return os.path.join(
         _external_set_path(set_code),
-        f"{set_code}_{event_type}_{dataset_type}.{format.value}{'.gz' if zipped else ''}",
+        f"{set_code}_{event_type}_{dataset_type}.parquet"
     )
 
 
-def _process_zipped_file(source_path, target_path):
-    csv_path = source_path[:-3]
+def _process_zipped_file(gzip_path, target_path):
+    csv_path = gzip_path[:-3]
     # if polars supports streaming from file obj, we can just stream straight
     # from urllib.Request through GzipFile to sink_parquet without intermediate files
-    with gzip.open(source_path, "rb") as f_in:
+    with gzip.open(gzip_path, "rb") as f_in:
         with open(csv_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)  # type: ignore
     
-    parquet_path = target_path[:-4] + ".parquet"
-    df = pl.scan_csv(target_path, schema=schema(target_path))
-    df.sink_parquet(parquet_path)
-
+    os.remove(gzip_path)
     df = pl.scan_csv(csv_path, schema=schema(csv_path))
     df.sink_parquet(target_path)
 
@@ -258,15 +255,17 @@ def download_data_set(
         return 1
 
     dataset_file = DATASET_TEMPLATE.format(set_code=set_code, dataset_type=dataset_type, event_type=event_type)
+    dataset_path = os.path.join(_external_set_path(set_code), dataset_file)
     wget.download(
         RESOURCE_TEMPLATE.format(
             dataset_type=dataset_type 
         ) + dataset_file,
-        out=dataset_file
+        out=dataset_path
     )
     print()
 
-    _process_zipped_file(dataset_file, target_path)
+    cache.spells_print(mode, "Unzipping and transforming to parquet...")
+    _process_zipped_file(dataset_path, target_path)
     cache.spells_print(mode, f"File {target_path} written")
     if clear_set_cache:
         cache.clear(set_code)
