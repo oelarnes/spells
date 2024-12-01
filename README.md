@@ -8,30 +8,33 @@ $ spells add DSK
 
 🪄 add ✨ Downloading draft dataset from 17Lands.com
 100% [......................................................................] 250466473 / 250466473
-🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.csv written
+🪄 add ✨ Unzipping and transforming to parquet...
+🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.parquet written
 🪄 clean ✨ No local cache found for set DSK
 🪄 add ✨ Downloading game dataset from 17Lands.com
 100% [........................................................................] 77145600 / 77145600
-🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.csv written
+🪄 add ✨ Unzipping and transforming to parquet...
+🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.parquet written
 🪄 clean ✨ No local cache found for set DSK
-🪄 add ✨ Fetching card data from mtgjson.com and writing card csv file
-🪄 add ✨ Wrote 287 lines to file /Users/joel/.local/share/spells/external/DSK/DSK_card.csv
+🪄 add ✨ Fetching card data from mtgjson.com and writing card parquet file
+🪄 add ✨ Wrote 287 lines to file /Users/joel/.local/share/spells/external/DSK/DSK_card.parquet
 $ ipython
 ```
 
 ```python
-In [1]: import spells
-In [2]: %time spells.summon('DSK')
-CPU times: user 35.9 s, sys: 17.5 s, total: 53.4 s
-Wall time: 17.7 s
-Out [2]:
+In [1]: from spells import summon
+
+In [2]: %time summon('DSK')
+CPU times: user 20.3 s, sys: 7.9 s, total: 28.2 s
+Wall time: 7.55 s
+Out[2]:
 shape: (286, 14)
 ┌────────────────────────────┬───────┬──────────┬──────────┬───┬────────┬──────────┬─────────┬──────────┐
 │ name                       ┆ color ┆ rarity   ┆ num_seen ┆ … ┆ num_oh ┆ oh_wr    ┆ num_gih ┆ gih_wr   │
 │ ---                        ┆ ---   ┆ ---      ┆ ---      ┆   ┆ ---    ┆ ---      ┆ ---     ┆ ---      │
 │ str                        ┆ str   ┆ str      ┆ i64      ┆   ┆ i64    ┆ f64      ┆ i64     ┆ f64      │
 ╞════════════════════════════╪═══════╪══════════╪══════════╪═══╪════════╪══════════╪═════════╪══════════╡
-│ Abandoned Campground       ┆ null  ┆ common   ┆ 178750   ┆ … ┆ 21350  ┆ 0.559672 ┆ 49376   ┆ 0.547594 │
+│ Abandoned Campground       ┆       ┆ common   ┆ 178750   ┆ … ┆ 21350  ┆ 0.559672 ┆ 49376   ┆ 0.547594 │
 │ Abhorrent Oculus           ┆ U     ┆ mythic   ┆ 6676     ┆ … ┆ 4255   ┆ 0.564042 ┆ 11287   ┆ 0.593337 │
 │ Acrobatic Cheerleader      ┆ W     ┆ common   ┆ 308475   ┆ … ┆ 34177  ┆ 0.541709 ┆ 74443   ┆ 0.532152 │
 │ Altanak, the Thrice-Called ┆ G     ┆ uncommon ┆ 76981    ┆ … ┆ 13393  ┆ 0.513925 ┆ 34525   ┆ 0.539175 │
@@ -48,8 +51,6 @@ In [3]: %time spells.summon('DSK')
 CPU times: user 16.3 ms, sys: 66.2 ms, total: 82.5 ms
 Wall time: 80.8 ms
 ```
-Times above are on my 2024 MacBook Air.
-
 Coverting to pandas DataFrame is as simple as invoking the chained call `summon(...).to_pandas()`.
 
 Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using Spells, and consider supporting their patreon. Spells is free and open-source; please consider contributing and feel free to make use of the source code under the terms of the MIT license.
@@ -70,7 +71,6 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
 - Uses Polars expressions to support second-stage aggregations and beyond like game-weighted z-scores with one call to summon
-- Planned support for larger-than-memory datasets (once I/Polars get it working)
 
 ## summon
 
@@ -142,7 +142,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
     >>> ext = ColumnSpec(
     ...     name='deq_base',
     ...     col_type=ColType.AGG,
-    ...     expr=(pl.col('gp_wr_excess') + (14 - pl.col('ata')).pow(2) * 0.03 / (14 ** 2)) * pl.col('pct_gp'),
+    ...     expr=(pl.col('gp_wr_excess') + 0.03 * (1 - pl.col('ata')/14).pow(2)) * pl.col('pct_gp'),
     ...     dependencies=['gp_wr_excess', 'ata', 'pct_gp']
     ...)
     >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
@@ -195,17 +195,19 @@ If you're interested in the fruits of my DEq research, or in checking my work, k
 
 Spells provides several features out of the box to optimize performance to the degree possible given its generality.
 
+### Parquet Transformation
+
+The most significant optimization used by Spells is the simplest: the csv files are scanned and streamed to Parquet files by Polars. This allows 10x faster compute times with 20x less storage space and lower memory usage compared to csv. Yes, the files are twenty times smaller and ten times faster!
+
 ### Query Optimization
 
-Firstly, it is built on top of Polars, a modern, well-supported DataFrame engine written for performance in Rust that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis, at the lowest depth possible per column, selecting columns together when possible.
-
-By default, Polars loads the entire selection into memory before aggregation for optimal time performance. For query plans that are too memory-intensive, Spells exposes the Polars parameter `streaming`, which should perform aggregations in chunks based on available system resources. Unfortunately, this does not work at the moment despite the query plan fitting the parallelizable map-reduce paradigm. Further investigation is needed, check back in a few months. Spells and Polars do not support distributed computation.
+Firstly, it is built on top of Polars, a modern, well-supported DataFrame engine written for performance in Rust that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis using an optimized recursive selection algorithm traversing the dependency tree.
 
 ### Local Caching
 
 Additionally, by default, Spells caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, which can be configured using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
 
-When refreshing a given set's data files from 17Lands using the provided cli, the cache for that set is automatically cleared. Additionally `summon` has named arguments `read_cache` and `write_cache`, and the project exposes `spells.cache.clear(set_code: str)` for further control.
+When refreshing a given set's data files from 17Lands using the provided cli, the cache for that set is automatically cleared. The `spells` CLI gives additional tools for managing the local and external caches.
 
 # Documentation
 In order to give a valid specification for more complex queries, it's important to understand a bit about what Spells is doing under the hood.
@@ -307,7 +309,7 @@ Used to define extensions in `summon`
 
 - `exprMap`: A function of card name that returns the expression for a `NAME_SUM` column. 
 
-- `dependencies`: A list of column names. All dependencies must be declared by name, except for view columns that depend on columns in the data file.A
+- `dependencies`: A list of column names. All dependencies must be declared by name.
 
 - `version`: When defining a column using a python function, as opposed to Polars expressions, add a unique version number so that the unique hashed signature of the column specification can be derived 
 for caching purposes, since Polars cannot generate a serialization natively. When changing the definition, be sure to increment the version value. Otherwise you do not need to use this parameter.
@@ -442,7 +444,6 @@ A table of all included columns. Columns can be referenced by enum or by string 
 - [ ] Enable configuration using $XDG_CONFIG_HOME/cfg.toml
 - [ ] Support min and max aggregations over base views
 - [ ] Enhanced profiling
-- [ ] Debugging of streaming mode
 - [ ] Optimized caching strategy
 - [ ] Organize and analyze daily downloads from 17Lands (not a scraper!)
 - [ ] Helper functions to generate second-order analysis by card name

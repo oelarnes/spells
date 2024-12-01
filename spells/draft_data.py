@@ -38,14 +38,15 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     card_view = pl.read_parquet(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
 
-    game_fp = data_file_path(set_code, View.GAME)
-    game_view = pl.scan_parquet(game_fp)
-    cols = game_view.collect_schema().names()
+    draft_fp = data_file_path(set_code, View.DRAFT)
+    draft_view = pl.scan_parquet(draft_fp)
+    cols = draft_view.collect_schema().names()
 
-    names = tuple(col[5:] for col in cols if col.startswith("deck_"))
-    game_names_set = frozenset(names)
+    prefix = 'pack_card_'
+    names = tuple(col[len(prefix):] for col in cols if col.startswith(prefix))
+    draft_names_set = frozenset(names)
 
-    assert game_names_set == card_names_set, "names mismatch between card and game file"
+    assert draft_names_set == card_names_set, "names mismatch between card and draft file"
     return names
 
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
@@ -104,33 +105,6 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
     return hydrated
 
 
-def _view_select_recur(
-    df: DF,
-    select_stack: list[frozenset[str]],
-    col_def_map: dict[str, ColumnDefinition],
-    is_agg_view: bool,
-) -> DF:
-    if len(select_stack) == 0:
-        return df
-
-    df = _view_select_recur(
-        df,
-        select_stack[1:],
-        col_def_map,
-        is_agg_view
-    )
-
-    cdefs = [col_def_map[v] for v in select_stack[0]]
-    select = []
-    for cdef in cdefs:
-        if is_agg_view and cdef.col_type != ColType.AGG:
-            select.append(cdef.name)
-        elif isinstance(cdef.expr, tuple):
-            select.extend(list(cdef.expr))
-        else:
-            select.append(cdef.expr)
-    return df.select(select)
-        
 def _view_select(
     df: DF,
     view_cols: frozenset[str],
@@ -138,70 +112,32 @@ def _view_select(
     is_agg_view: bool,
 ) -> DF:
 
-    select_stack = [view_cols]
-    go_deeper = True
-    while go_deeper:
-        select_cols = frozenset() 
-        go_deeper = False
-        cdefs = [col_def_map[v] for v in select_stack[-1]]
-        for cdef in cdefs:
-            if is_agg_view and cdef.col_type == ColType.AGG or cdef.dependencies:
-                select_cols = select_cols.union(cdef.dependencies)
-                go_deeper = True
+    base_cols = frozenset()
+    cdefs = [col_def_map[c] for c in view_cols]
+    select = []
+    for cdef in cdefs:
+        if is_agg_view: 
+            if cdef.col_type == ColType.AGG:
+                base_cols = base_cols.union(cdef.dependencies)
+                select.append(cdef.expr)
             else:
-                select_cols = select_cols.union(frozenset({cdef.name}))
-        select_stack.append(select_cols)
-
-    return _view_select_recur(
-        df,
-        select_stack,
-        col_def_map,
-        is_agg_view
-    )
-             
-
-def _col_df(
-    df: DF,
-    col: str,
-    col_def_map: dict[str, ColumnDefinition],
-    is_view: bool,
-    anchor_col: str = "",
-) -> DF:
-    cdef = col_def_map[col]
-    if not is_view and cdef.col_type != ColType.AGG:
-        return df.select(pl.col(cdef.name))
-    if not cdef.dependencies and is_view:
-        return df.select(cdef.expr)
-    assert cdef.dependencies, f"Column {col} should declare its dependencies"
-
-    col_dfs = []
-    col_selects = []
-    for dep in cdef.dependencies:
-        dep_def = col_def_map[dep]
-        if not is_view and dep_def.col_type != ColType.AGG:
-            col_selects.append(pl.col(dep_def.name))
-        elif not dep_def.dependencies and is_view:
-            if isinstance(dep_def.expr, tuple):
-                col_selects.extend(list(dep_def.expr))
-            else:
-                col_selects.append(dep_def.expr)
+                base_cols = base_cols.union(frozenset({cdef.name}))
+                select.append(cdef.name)
         else:
-            col_dfs.append(_col_df(df, dep, col_def_map, is_view, anchor_col))
+            if cdef.dependencies:
+                base_cols = base_cols.union(cdef.dependencies)
+            else:
+                base_cols = base_cols.union(frozenset({cdef.name}))
+            if isinstance(cdef.expr, tuple):
+                select.extend(cdef.expr)
+            else:
+                select.append(cdef.expr)
 
-    if anchor_col != "":
-        col_selects.append(anchor_col)
+    if base_cols != view_cols:
+        df = _view_select(df, base_cols, col_def_map, is_agg_view)
 
-    if len(col_selects):
-        col_dfs.append(df.select(col_selects))
-    dep_df = pl.concat(col_dfs, how="horizontal")
-
-    if anchor_col != "":
-        res_df = dep_df.select([anchor_col, cdef.expr]).drop(anchor_col)
-    else:
-        res_df = dep_df.select(cdef.expr)
-
-    return res_df
-
+    return df.select(select)
+      
 
 def _fetch_or_cache(
     calc_fn: Callable,
@@ -240,11 +176,6 @@ def _base_agg_df(
             continue
         df_path = data_file_path(set_code, view)
         base_view_df = pl.scan_parquet(df_path)
-#        col_dfs = [
-#            _col_df(base_view_df, col, m.col_def_map, is_view=True)
-#            for col in cols_for_view
-#        ]
-#        base_df_prefilter = pl.concat(col_dfs, how="horizontal")
         base_df_prefilter = _view_select(base_view_df, cols_for_view, m.col_def_map, is_agg_view=False)
         
         if m.filter is not None:
@@ -349,22 +280,13 @@ def summon(
         card_cols = m.view_cols[View.CARD].union({ColName.NAME})
         fp = data_file_path(set_code, View.CARD)
         card_df = pl.read_parquet(fp)
-        cols_df = pl.concat(
-            [_col_df(card_df, col, m.col_def_map, is_view=True) for col in card_cols],
-            how="horizontal",
-        )
+        select_df = _view_select(card_df, card_cols, m.col_def_map, is_agg_view=False)
 
-        agg_df = agg_df.join(cols_df, on="name", how="outer", coalesce=True)
+        agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
         if ColName.NAME not in m.group_by:
             agg_df = agg_df.group_by(m.group_by).sum()
 
     ret_cols = m.group_by + m.columns
-    ret_df = pl.concat(
-        [
-            _col_df(agg_df, col, m.col_def_map, is_view=False, anchor_col=m.group_by[0])
-            for col in ret_cols
-        ],
-        how="horizontal",
-    ).sort(m.group_by)
+    ret_df = _view_select(agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True).select(ret_cols).sort(m.group_by)
 
     return ret_df

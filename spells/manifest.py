@@ -44,6 +44,7 @@ class Manifest:
                 assert (
                     view in self.col_def_map[col].views
                 ), f"View cols generated incorrectly, {col} not in view {view}"
+                # game sum cols on in game, and no NAME groupby
                 assert self.col_def_map[col].col_type != ColType.GAME_SUM or (
                     view == View.GAME and ColName.NAME not in self.base_view_group_by
                 ), f"Invalid manifest for GAME_SUM column {col}"
@@ -57,7 +58,6 @@ class Manifest:
                     assert (
                         col == ColName.NAME or col in cols_for_view
                     ), f"Groupby {col} not in view_cols[view]"
-                    # game sum cols on in game, and no NAME groupby
                 # filter cols are in both base_views check
                 if self.filter is not None:
                     for col in self.filter.lhs:
@@ -70,13 +70,6 @@ class Manifest:
                 assert (
                     ColName.NAME in self.base_view_group_by
                 ), "base views must groupby by name to join card attrs"
-
-        for col, cdef in self.col_def_map.items():
-            # name_sum extension cols have name_sum first dependency for renaming
-            if cdef.col_type == ColType.NAME_SUM and cdef.dependencies:
-                assert (
-                    self.col_def_map[cdef.dependencies[0]].col_type == ColType.NAME_SUM
-                ), "dependency 0 of a name_sum column with dependencies must be a name_sum column to derive names"
 
     def test_str(self):
         result = "{\n" + 2 * " " + "columns:\n"

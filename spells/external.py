@@ -98,8 +98,8 @@ def cli() -> int:
 
 def _add(set_code: str, force_download=False):
     download_data_set(set_code, View.DRAFT, force_download=force_download)
-    download_data_set(set_code, View.GAME, force_download=force_download)
     write_card_file(set_code, force_download=force_download)
+    download_data_set(set_code, View.GAME, force_download=force_download)
     return 0
 
 
