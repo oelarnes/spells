@@ -30,6 +30,9 @@ dev = [
     "ruff>=0.7.4",
 ]
 
+[tool.pdm.scripts]
+publish.env_file = "$HOME/.pypienv"
+
 [tool.pdm.version]
 source = "scm"
 
