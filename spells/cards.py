@@ -85,6 +85,12 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
         card_data_map.update({item["faceName"]: item for item in face_name_cards})
         card_data_map.update({item["name"]: item for item in card_data})
 
-    return pl.DataFrame([ 
-            { field: _extract_value(draft_set_code, name, card_data_map[name], field) for field in CardAttr } for name in names
-         ])
+    return pl.DataFrame(
+        [
+            {
+                field: _extract_value(draft_set_code, name, card_data_map[name], field)
+                for field in CardAttr
+            }
+            for name in names
+        ]
+    )

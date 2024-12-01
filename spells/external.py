@@ -5,7 +5,6 @@ file containing card attributes using MTGJSON
 cli tool `spells`
 """
 
-import csv
 import functools
 import gzip
 import os
@@ -24,11 +23,15 @@ from spells.schema import schema
 
 
 DATASET_TEMPLATE = "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
-RESOURCE_TEMPLATE = "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
+RESOURCE_TEMPLATE = (
+    "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
+)
+
 
 class FileFormat(StrEnum):
     CSV = "csv"
     PARQUET = "parquet"
+
 
 class EventType(StrEnum):
     PREMIER = "PremierDraft"
@@ -205,15 +208,12 @@ def _external_set_path(set_code):
     return os.path.join(cache.data_dir_path(cache.DataDir.EXTERNAL), set_code)
 
 
-def data_file_path(
-    set_code, dataset_type: str, event_type=EventType.PREMIER
-):
+def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
     if dataset_type == "card":
         return os.path.join(_external_set_path(set_code), f"{set_code}_card.parquet")
 
     return os.path.join(
-        _external_set_path(set_code),
-        f"{set_code}_{event_type}_{dataset_type}.parquet"
+        _external_set_path(set_code), f"{set_code}_{event_type}_{dataset_type}.parquet"
     )
 
 
@@ -224,7 +224,7 @@ def _process_zipped_file(gzip_path, target_path):
     with gzip.open(gzip_path, "rb") as f_in:
         with open(csv_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)  # type: ignore
-    
+
     os.remove(gzip_path)
     df = pl.scan_csv(csv_path, schema=schema(csv_path))
     df.sink_parquet(target_path)
@@ -254,13 +254,13 @@ def download_data_set(
         )
         return 1
 
-    dataset_file = DATASET_TEMPLATE.format(set_code=set_code, dataset_type=dataset_type, event_type=event_type)
+    dataset_file = DATASET_TEMPLATE.format(
+        set_code=set_code, dataset_type=dataset_type, event_type=event_type
+    )
     dataset_path = os.path.join(_external_set_path(set_code), dataset_file)
     wget.download(
-        RESOURCE_TEMPLATE.format(
-            dataset_type=dataset_type 
-        ) + dataset_file,
-        out=dataset_path
+        RESOURCE_TEMPLATE.format(dataset_type=dataset_type) + dataset_file,
+        out=dataset_path,
     )
     print()
 

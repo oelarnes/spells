@@ -42,12 +42,15 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     draft_view = pl.scan_parquet(draft_fp)
     cols = draft_view.collect_schema().names()
 
-    prefix = 'pack_card_'
-    names = tuple(col[len(prefix):] for col in cols if col.startswith(prefix))
+    prefix = "pack_card_"
+    names = tuple(col[len(prefix) :] for col in cols if col.startswith(prefix))
     draft_names_set = frozenset(names)
 
-    assert draft_names_set == card_names_set, "names mismatch between card and draft file"
+    assert (
+        draft_names_set == card_names_set
+    ), "names mismatch between card and draft file"
     return names
+
 
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
     names = _get_names(set_code)
@@ -111,12 +114,11 @@ def _view_select(
     col_def_map: dict[str, ColumnDefinition],
     is_agg_view: bool,
 ) -> DF:
-
     base_cols = frozenset()
     cdefs = [col_def_map[c] for c in view_cols]
     select = []
     for cdef in cdefs:
-        if is_agg_view: 
+        if is_agg_view:
             if cdef.col_type == ColType.AGG:
                 base_cols = base_cols.union(cdef.dependencies)
                 select.append(cdef.expr)
@@ -137,7 +139,7 @@ def _view_select(
         df = _view_select(df, base_cols, col_def_map, is_agg_view)
 
     return df.select(select)
-      
+
 
 def _fetch_or_cache(
     calc_fn: Callable,
@@ -176,8 +178,10 @@ def _base_agg_df(
             continue
         df_path = data_file_path(set_code, view)
         base_view_df = pl.scan_parquet(df_path)
-        base_df_prefilter = _view_select(base_view_df, cols_for_view, m.col_def_map, is_agg_view=False)
-        
+        base_df_prefilter = _view_select(
+            base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
+        )
+
         if m.filter is not None:
             base_df = base_df_prefilter.filter(m.filter.expr)
         else:
@@ -287,6 +291,10 @@ def summon(
             agg_df = agg_df.group_by(m.group_by).sum()
 
     ret_cols = m.group_by + m.columns
-    ret_df = _view_select(agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True).select(ret_cols).sort(m.group_by)
+    ret_df = (
+        _view_select(agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True)
+        .select(ret_cols)
+        .sort(m.group_by)
+    )
 
     return ret_df

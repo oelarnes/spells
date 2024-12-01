@@ -130,7 +130,7 @@ _column_specs = [
                 .otherwise(pl.lit("Middle"))
             )
         ),
-        dependencies=[ColName.USER_N_GAMES_BUCKET, ColName.USER_GAME_WIN_RATE_BUCKET]
+        dependencies=[ColName.USER_N_GAMES_BUCKET, ColName.USER_GAME_WIN_RATE_BUCKET],
     ),
     ColumnSpec(
         name=ColName.EVENT_MATCH_WINS,
@@ -161,7 +161,7 @@ _column_specs = [
         col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
         expr=pl.col("event_match_wins") + pl.col("event_match_losses"),
-        dependencies=[ColName.EVENT_MATCH_WINS, ColName.EVENT_MATCH_LOSSES]
+        dependencies=[ColName.EVENT_MATCH_WINS, ColName.EVENT_MATCH_LOSSES],
     ),
     ColumnSpec(
         name=ColName.EVENT_MATCHES_SUM,
@@ -177,7 +177,7 @@ _column_specs = [
         expr=pl.when(pl.col("event_type") == "Traditional")
         .then(pl.col("event_match_wins") == 3)
         .otherwise(pl.col("event_match_wins") == 7),
-        dependencies=[ColName.EVENT_TYPE, ColName.EVENT_MATCH_WINS]
+        dependencies=[ColName.EVENT_TYPE, ColName.EVENT_MATCH_WINS],
     ),
     ColumnSpec(
         name=ColName.IS_TROPHY_SUM,
@@ -208,7 +208,7 @@ _column_specs = [
         col_type=ColType.GROUP_BY,
         views=(View.DRAFT,),
         expr=pl.col("pick_number") + 1,
-        dependencies=[ColName.PICK_NUMBER]
+        dependencies=[ColName.PICK_NUMBER],
     ),
     ColumnSpec(
         name=ColName.TAKEN_AT,
@@ -250,7 +250,8 @@ _column_specs = [
         name=ColName.LAST_SEEN,
         col_type=ColType.NAME_SUM,
         views=(View.DRAFT,),
-        exprMap=lambda name: pl.col(f"pack_card_{name}") * pl.min_horizontal("pick_num", 8),
+        exprMap=lambda name: pl.col(f"pack_card_{name}")
+        * pl.min_horizontal("pick_num", 8),
         dependencies=[ColName.PACK_CARD, ColName.PICK_NUM],
     ),
     ColumnSpec(
@@ -318,14 +319,14 @@ _column_specs = [
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
         expr=pl.col(ColName.GAME_NUMBER).is_not_null(),
-        dependencies=[ColName.GAME_NUMBER]
+        dependencies=[ColName.GAME_NUMBER],
     ),
     ColumnSpec(
         name=ColName.NUM_MATCHES,
         col_type=ColType.GAME_SUM,
         views=(View.GAME,),
         expr=pl.col(ColName.GAME_NUMBER) == 1,
-        dependencies=[ColName.GAME_NUMBER]
+        dependencies=[ColName.GAME_NUMBER],
     ),
     ColumnSpec(
         name=ColName.NUM_EVENTS,
@@ -361,7 +362,7 @@ _column_specs = [
         col_type=ColType.GROUP_BY,
         views=(View.GAME,),
         expr=pl.col(ColName.SPLASH_COLORS).str.len_chars() > 0,
-        dependencies=[ColName.SPLASH_COLORS]
+        dependencies=[ColName.SPLASH_COLORS],
     ),
     ColumnSpec(
         name=ColName.ON_PLAY,
@@ -491,8 +492,19 @@ _column_specs = [
         name=ColName.NUM_GNS,
         col_type=ColType.NAME_SUM,
         views=(View.GAME,),
-        exprMap=lambda name: pl.max_horizontal(0, pl.col(f"deck_{name}") - pl.col(f"drawn_{name}") - pl.col(f"tutored_{name}") - pl.col(f"opening_hand_{name}")),
-        dependencies=[ColName.DECK, ColName.DRAWN, ColName.TUTORED, ColName.OPENING_HAND],
+        exprMap=lambda name: pl.max_horizontal(
+            0,
+            pl.col(f"deck_{name}")
+            - pl.col(f"drawn_{name}")
+            - pl.col(f"tutored_{name}")
+            - pl.col(f"opening_hand_{name}"),
+        ),
+        dependencies=[
+            ColName.DECK,
+            ColName.DRAWN,
+            ColName.TUTORED,
+            ColName.OPENING_HAND,
+        ],
     ),
     ColumnSpec(
         name=ColName.WON_NUM_GNS,
