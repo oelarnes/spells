@@ -30,7 +30,7 @@ def data_home() -> str:
             "SPELLS_DATA_HOME",
             os.environ.get(
                 "XDG_DATA_HOME",
-                r"C:\Users\$USERNAME\AppData\Local\Spells"
+                r"~\AppData\Local\Spells"
                 if is_win
                 else "~/.local/share/spells/",
             ),
