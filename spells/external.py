@@ -264,7 +264,7 @@ def download_data_set(
     )
     print()
 
-    cache.spells_print(mode, "Unzipping and transforming to parquet...")
+    cache.spells_print(mode, "Unzipping and transforming to parquet (this might take a few minutes)...")
     _process_zipped_file(dataset_path, target_path)
     cache.spells_print(mode, f"File {target_path} written")
     if clear_set_cache:

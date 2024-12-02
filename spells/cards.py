@@ -88,7 +88,7 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     return pl.DataFrame(
         [
             {
-                field: _extract_value(draft_set_code, name, card_data_map[name], field)
+                field: _extract_value(draft_set_code, name, card_data_map.get(name, {}), field)
                 for field in CardAttr
             }
             for name in names
