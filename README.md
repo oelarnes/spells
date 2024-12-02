@@ -58,7 +58,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 ## spells
 
 - Uses [Polars](https://docs.pola.rs/) for high-performance, multi-threaded aggregations of large datasets
-- Uses Polars to power an expressive query language for specifying custom extensions and optimizing complex queries
+- Uses Polars to power an expressive query language for specifying custom extensions
 - Converts csv datasets to parquet for 10x faster calculations and 20x smaller file sizes
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
@@ -67,10 +67,11 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Supports "Deck Color Data" aggregations with built-in column definitions.
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
-- Downloads and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
+- Retrieves and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
 - Uses Polars expressions to support second-stage aggregations and beyond like game-weighted z-scores with one call to summon
+- Tested on MacOS, Linux, and Windows
 
 ## summon
 
@@ -197,7 +198,7 @@ Spells provides several features out of the box to optimize performance to the d
 
 ### Parquet Transformation
 
-The most significant optimization used by Spells is the simplest: the csv files are scanned and streamed to Parquet files by Polars. This allows 10x faster compute times with 20x less storage space and lower memory usage compared to csv. Yes, the files are twenty times smaller and ten times faster!
+The most significant optimization used by Spells is the simplest: the csv files are scanned and streamed to Parquet files by Polars. This allows 10x faster compute times with 20x less storage space and lower memory usage compared to csv. Yes, it's twenty times smaller and ten times faster!
 
 ### Query Optimization
 
@@ -238,7 +239,7 @@ So that's it, that's what Spells does from a high level. `summon` will hand off 
 
 Spells includes a command-line interface `spells` to manage your external data files and local cache. Spells will download files to an appropriate file location on your system, 
 typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows. 
-To use `spells`, make sure Spells in installed in your environment using pip or a package manager, and type `spells help` into your shell, or dive in with `spells add DSK` or your favorite set.
+To use `spells`, make sure Spells in installed in your environment using pip or a package manager, and type `spells help` into your shell, or dive in with `spells add DSK` or your favorite set. If Spells is installed globally using pipx, any local version of Spells will be able to read the managed files.
 
 ## API
 
@@ -257,7 +258,7 @@ summon(
 
 #### parameters
 
-- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`,  `AGG`. Min/Max/Unique 
+- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. Min/Max/Unique 
 aggregations of non-numeric (or numeric) data types are not supported. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
 
 - group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `GROUP_BY` and `CARD_ATTR`. By default, group by "name" (card name).
@@ -441,6 +442,7 @@ A table of all included columns. Columns can be referenced by enum or by string 
 # Roadmap to 1.0
 
 - [ ] Support Traditional and Premier datasets (currently only Premier is supported)
+- [ ] Group by all
 - [ ] Enable configuration using $XDG_CONFIG_HOME/cfg.toml
 - [ ] Support min and max aggregations over base views
 - [ ] Enhanced profiling
