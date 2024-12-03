@@ -60,7 +60,9 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
             return [View.CARD]
         if spec.views is not None:
             return spec.views
-        assert spec.dependencies is not None, f"Col {spec.name} should have dependencies"
+        assert (
+            spec.dependencies is not None
+        ), f"Col {spec.name} should have dependencies"
 
         views = []
         for dep in spec.dependencies:
@@ -274,10 +276,14 @@ def card_df(
 
     col_def_map = _hydrate_col_defs(set_code, col_spec_map)
 
-    columns = [ColName.NAME] + [c for c, cdef in col_def_map.items() if cdef.col_type == ColType.CARD_ATTR]
+    columns = [ColName.NAME] + [
+        c for c, cdef in col_def_map.items() if cdef.col_type == ColType.CARD_ATTR
+    ]
     fp = data_file_path(set_code, View.CARD)
     card_df = pl.read_parquet(fp)
-    select_df = _view_select(card_df, frozenset(columns), col_def_map, is_agg_view=False)
+    select_df = _view_select(
+        card_df, frozenset(columns), col_def_map, is_agg_view=False
+    )
     return select_df.select(columns)
 
 

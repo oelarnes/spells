@@ -12,7 +12,7 @@ class ColumnSpec:
     col_type: ColType
     expr: pl.Expr | None = None
     exprMap: Callable[[str], pl.Expr] | None = None
-    views: list[View] | None = None 
+    views: list[View] | None = None
     dependencies: list[str] | None = None
     version: str | None = (
         None  # only needed for user-defined functions with python functions in expr

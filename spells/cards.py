@@ -88,7 +88,7 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
 
         card_data.reverse()  # prefer front face for split cards
         for item in card_data:
-            item['json'] = json.dumps(item)
+            item["json"] = json.dumps(item)
 
         face_name_cards = [item for item in card_data if "faceName" in item]
         card_data_map.update({item["faceName"]: item for item in face_name_cards})
