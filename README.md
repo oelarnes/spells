@@ -53,7 +53,7 @@ Wall time: 80.8 ms
 ```
 Coverting to pandas DataFrame is as simple as invoking the chained call `summon(...).to_pandas()`.
 
-Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17lands data before using Spells, and consider supporting their patreon. Spells is free and open-source; please consider contributing and feel free to make use of the source code under the terms of the MIT license.
+Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](https://www.17lands.com/usage_guidelines) for 17lands data before using Spells, and consider supporting their patreon. Spells is free and open-source; please consider contributing and feel free to make use of the source code under the terms of the MIT license.
 
 ## spells
 
@@ -72,6 +72,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
 - Uses Polars expressions to support second-stage aggregations and beyond like game-weighted z-scores with one call to summon
 - Works on MacOS, Linux, and Windows
+- Provides example notebooks to kickstart your exploration
 
 ## summon
 
@@ -182,6 +183,8 @@ Spells is still in development and could benefit from many new features and impr
 
 If you are new to Python, I recommend using a package manager like poetry, pdm or uv to create a virtual environment and manage your project.
 
+Once Spells is installed, check out the notebooks under [examples](https://github.com/oelarnes/spells/tree/main/examples) for ideas on getting started.
+
 ## Why did you make this? Who is it for?
 
 Earlier this year I developed a card quality metric called [DEq](https://docs.google.com/spreadsheets/d/1n1pfrb5q_2ICYk-vfF3Uwo8t61DJU-5T_DFe0dwk8DY/edit), short for "Estimated Draft Equity", which is designed to estimate the average value of selecting a card in draft relative to a comparable baseline, in order to improve on commonly-used metrics like GIH WR, which has a number of major and minor problems when interpreted as a card quality metric. DEq depends on the daily drops from 17Lands.com and won't be replaced by this static kind of analysis.
@@ -238,8 +241,8 @@ So that's it, that's what Spells does from a high level. `summon` will hand off 
 ## CLI
 
 Spells includes a command-line interface `spells` to manage your external data files and local cache. Spells will download files to an appropriate file location on your system, 
-typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows. 
-To use `spells`, make sure Spells in installed in your environment using pip or a package manager, and type `spells help` into your shell, or dive in with `spells add DSK` or your favorite set. If Spells is installed globally using pipx, any local version of Spells will be able to read the managed files.
+typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows, or to a location specified by the environment variable `SPELLS_DATA_HOME`.
+To use `spells`, make sure Spells is installed in your environment using pip or a package manager, and type `spells help` into your shell, or dive in with `spells add DSK` or your favorite set. If Spells is installed globally using pipx, any local version of Spells will be able to read the managed files.
 
 ## API
 
