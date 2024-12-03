@@ -8,16 +8,16 @@ $ spells add DSK
 
 🪄 add ✨ Downloading draft dataset from 17Lands.com
 100% [......................................................................] 250466473 / 250466473
-🪄 add ✨ Unzipping and transforming to parquet...
-🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.parquet written
-🪄 clean ✨ No local cache found for set DSK
-🪄 add ✨ Downloading game dataset from 17Lands.com
-100% [........................................................................] 77145600 / 77145600
-🪄 add ✨ Unzipping and transforming to parquet...
-🪄 add ✨ File /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.parquet written
+🪄 add ✨ Unzipping and transforming to parquet (this might take a few minutes)...
+🪄 add ✨ Wrote file /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.parquet
 🪄 clean ✨ No local cache found for set DSK
 🪄 add ✨ Fetching card data from mtgjson.com and writing card parquet file
-🪄 add ✨ Wrote 287 lines to file /Users/joel/.local/share/spells/external/DSK/DSK_card.parquet
+🪄 add ✨ Wrote file /Users/joel/.local/share/spells/external/DSK/DSK_card.parquet
+🪄 add ✨ Downloading game dataset from 17Lands.com
+100% [........................................................................] 77145600 / 77145600
+🪄 add ✨ Unzipping and transforming to parquet (this might take a few minutes)...
+🪄 add ✨ Wrote file /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.parquet
+🪄 clean ✨ No local cache found for set DSK
 $ ipython
 ```
 
@@ -63,7 +63,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
-- Provides 116 explicitly specified, enumerated, documented column definitions
+- Provides 118 explicitly specified, enumerated, documented column definitions
 - Supports "Deck Color Data" aggregations with built-in column definitions.
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
@@ -71,7 +71,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
 - Provides optional enums for all base columns and built-in extensions, as well as for custom extension parameters
 - Uses Polars expressions to support second-stage aggregations and beyond like game-weighted z-scores with one call to summon
-- Tested on MacOS, Linux, and Windows
+- Works on MacOS, Linux, and Windows
 
 ## summon
 
@@ -194,7 +194,7 @@ If you're interested in the fruits of my DEq research, or in checking my work, k
 
 ## Performance
 
-Spells provides several features out of the box to optimize performance to the degree possible given its generality.
+Spells provides several features to optimize performance.
 
 ### Parquet Transformation
 
@@ -202,11 +202,11 @@ The most significant optimization used by Spells is the simplest: the csv files 
 
 ### Query Optimization
 
-Firstly, it is built on top of Polars, a modern, well-supported DataFrame engine written for performance in Rust that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis using an optimized recursive selection algorithm traversing the dependency tree.
+Spells is built on top of Polars, a modern, well-supported DataFrame engine written for performance in Rust that enables declarative query plans and lazy evaluation, allowing for automatic performance optimization in the execution of the query plan. Spells selects only the necessary columns for your analysis, recursively traversing the dependency tree.
 
 ### Local Caching
 
-Additionally, by default, Spells caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, which can be configured using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
+Spells caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, which can be configured using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
 
 When refreshing a given set's data files from 17Lands using the provided cli, the cache for that set is automatically cleared. The `spells` CLI gives additional tools for managing the local and external caches.
 
@@ -253,6 +253,8 @@ summon(
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
     extensions: list[str] | None = None,
+    read_cache: bool = True,
+    write_cache: bool = True,
 ) -> polars.DataFrame
 ```
 
@@ -271,6 +273,8 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
     - `{'$and': [{'lhs': 'draft_date', 'op': '>', 'rhs': datetime.date(2024, 10, 7)}, {'rank': 'Mythic'}]}` Drafts after October 7 by Mythic-ranked players. Supported values for query construction keys are `$and`, `$or`, and `$not`.
 
 - extensions: a list of `spells.columns.ColumnSpec` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
+
+- read_cache/write_cache: Use the local file system to cache and retrieve aggregations to minimize expensive reads of the large datasets. You shouldn't need to touch these arguments unless you are debugging.
 
 ### Enums
 
