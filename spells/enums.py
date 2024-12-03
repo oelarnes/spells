@@ -120,6 +120,8 @@ class ColName(StrEnum):
     TOUGHNESS = "toughness"
     IS_BONUS_SHEET = "is_bonus_sheet"
     IS_DFC = "is_dfc"
+    ORACLE_TEXT = "oracle_text"
+    CARD_JSON = "card_json"
     # agg extensions
     PICKED_MATCH_WR = "picked_match_wr"
     TROPHY_RATE = "trophy_rate"

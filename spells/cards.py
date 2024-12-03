@@ -21,6 +21,8 @@ class CardAttr(StrEnum):
     TOUGHNESS = ColName.TOUGHNESS
     IS_BONUS_SHEET = ColName.IS_BONUS_SHEET
     IS_DFC = ColName.IS_DFC
+    ORACLE_TEXT = ColName.ORACLE_TEXT
+    CARD_JSON = ColName.CARD_JSON
 
 
 MTG_JSON_TEMPLATE = "https://mtgjson.com/api/v5/{set_code}.json"
@@ -66,6 +68,10 @@ def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
             return card_dict.get("setCode", set_code) != set_code
         case CardAttr.IS_DFC:
             return len(card_dict.get("otherFaceIds", [])) > 0
+        case CardAttr.ORACLE_TEXT:
+            return card_dict.get("text", "")
+        case CardAttr.CARD_JSON:
+            return card_dict.get("json", "")
 
 
 def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
@@ -81,6 +87,9 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
             card_data = draft_set_json["data"]["cards"]
 
         card_data.reverse()  # prefer front face for split cards
+        for item in card_data:
+            item['json'] = json.dumps(item)
+
         face_name_cards = [item for item in card_data if "faceName" in item]
         card_data_map.update({item["faceName"]: item for item in face_name_cards})
         card_data_map.update({item["name"]: item for item in card_data})

@@ -53,6 +53,21 @@ def _get_names(set_code: str) -> tuple[str, ...]:
 
 
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
+    def get_views(spec: ColumnSpec) -> list[View]:
+        if spec.name == ColName.NAME or spec.col_type == ColType.AGG:
+            return []
+        if spec.col_type == ColType.CARD_ATTR:
+            return [View.CARD]
+        if spec.views is not None:
+            return spec.views
+        assert spec.dependencies is not None, f"Col {spec.name} should have dependencies"
+
+        views = []
+        for dep in spec.dependencies:
+            views.extend(get_views(col_spec_map[dep]))
+
+        return list(set(views))
+
     names = _get_names(set_code)
     assert len(names) > 0, "there should be names"
     hydrated = {}
@@ -87,19 +102,21 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
                 expr_sig = str(datetime.datetime.now)
 
         dependencies = tuple(spec.dependencies or ())
+        views = get_views(spec)
         signature = str(
             (
                 spec.name,
                 spec.col_type.value,
                 expr_sig,
-                tuple(view.value for view in spec.views),
+                tuple(view.value for view in views),
                 dependencies,
             )
         )
+
         cdef = ColumnDefinition(
             name=spec.name,
             col_type=spec.col_type,
-            views=spec.views,
+            views=tuple(views),
             expr=expr,
             dependencies=dependencies,
             signature=signature,
@@ -244,6 +261,24 @@ def _base_agg_df(
         lambda prev, curr: prev.join(curr, on=group_by, how="outer", coalesce=True),
         join_dfs,
     )
+
+
+def card_df(
+    set_code: str,
+    extensions: list[ColumnSpec] | None = None,
+):
+    col_spec_map = dict(spells.columns.col_spec_map)
+    if extensions is not None:
+        for spec in extensions:
+            col_spec_map[spec.name] = spec
+
+    col_def_map = _hydrate_col_defs(set_code, col_spec_map)
+
+    columns = [ColName.NAME] + [c for c, cdef in col_def_map.items() if cdef.col_type == ColType.CARD_ATTR]
+    fp = data_file_path(set_code, View.CARD)
+    card_df = pl.read_parquet(fp)
+    select_df = _view_select(card_df, frozenset(columns), col_def_map, is_agg_view=False)
+    return select_df.select(columns)
 
 
 def summon(

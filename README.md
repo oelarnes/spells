@@ -122,7 +122,7 @@ Spells is not affiliated with 17Lands. Please review the Usage Guidelines for 17
   - `filter_spec` specifies a row-level filter for the dataset, using an intuitive custom query formulation
     ```python
     >>> from spells.enums import ColName
-    >>> spells.summon('BLB', columns=["game_wr"], group_by=["player_cohort"], filter_spec={'lhs': 'num_mulligans', 'op': '>', 'rhs': 0})
+    >>> spells.summon('BLB', columns=[ColName.GAME_WR], group_by=[ColName.PLAYER_COHORT], filter_spec={'lhs': ColName.NUM_MULLIGANS, 'op': '>', 'rhs': 0})
     shape: (4, 2)
     ┌───────────────┬──────────┐
     │ player_cohort ┆ game_wr  │
@@ -278,7 +278,7 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
 from spells.enums import ColName, ColType, View
 ```
 
-Recommended to import `ColName` for any usage of `summon`, and to import `ColType` and `View` when defining custom extensions. 
+Recommended to import `ColName` for any usage of `summon`, and to import `ColType` when defining custom extensions. You shouldn't need `VIEW`.
 
 ### ColumnSpec
 
@@ -287,12 +287,12 @@ from spells.columns import ColumnSpec
 
 ColumnSpec(
     name: str,
-    col_type: spells.enums.ColType,
-    views: tuple(spells.enums.View...) = (),
+    col_type: ColType,
     expr: pl.Expr | None = None,
     exprMap: Callable[[str], pl.Expr] | None = None
     dependencies: list[str] | None = None
     version: str | None = None
+    views: list[View] | None = None,
 )
 ```
 
@@ -304,8 +304,6 @@ Used to define extensions in `summon`
 
 - `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
 
-- `views`: For a column defined at the row level on a view (see col_types above), the views on which it is supported. All col_types except `AGG` must specify at least one base view. For `CARD_ATTR` columns, `views` must be exactly `(View.CARD,)`.
-
 - `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. For `NAME_SUM` columns the `exprMap` attribute must be used instead. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
 
 - `exprMap`: A function of card name that returns the expression for a `NAME_SUM` column. 
@@ -314,6 +312,8 @@ Used to define extensions in `summon`
 
 - `version`: When defining a column using a python function, as opposed to Polars expressions, add a unique version number so that the unique hashed signature of the column specification can be derived 
 for caching purposes, since Polars cannot generate a serialization natively. When changing the definition, be sure to increment the version value. Otherwise you do not need to use this parameter.
+
+- `views`: Not needed for custom columns.
 
 ### Columns
 
@@ -407,6 +407,8 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `TOUGHNESS` | `"toughness"` | `CARD` | `CARD_ATTR` | | Float |
 | `IS_BONUS_SHEET` | `"is_bonus_sheet"` | `CARD` | `CARD_ATTR` | `SET_CODE` != `EXPANSION` | Boolean |
 | `IS_DFC` | `"is_dfc"` | `CARD` | `CARD_ATTR` | Includes split cards | Boolean |
+| `ORACLE_TEXT` | `"oracle_text"` | `CARD` | `CARD_ATTR` | | String |
+| `CARD_JSON` | `"card_json"` | `CARD` | `CARD_ATTR` | The full dump of the mtgjson entry for the card as printed in the draft booster | String |
 | `PICKED_MATCH_WR` | `"picked_match_wr"` | | `AGG` | `EVENT_MATCH_WINS` / `EVENT_MATCHES` | Float |
 | `TROPHY_RATE` | `"trophy_rate"` | | `AGG` || Float |
 | `GAME_WR` | `"game_wr"` | | `AGG` | `NUM_WON` / `NUM_GAMES` | Float |
@@ -433,7 +435,7 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `GP_WR_Z` | `"gp_wr_z"` | | `AGG` | `GP_WR_EXCESS` / `GP_WR_STDEV` | Float |
 | `GIH_TOTAL` | `"gih_total"` | | `AGG` | Sum `NUM_GIH` over all rows and broadcast back to row level| Float |
 | `WON_GIH_TOTAL` | `"won_gih_total"` | | `AGG` | | Float |
-| `GIH_WR_MEAN` | `"gih_wr_mean"` | | `AGG` |  `GIH_WR - GIH_WR_MEAN` | Float |
+| `GIH_WR_MEAN` | `"gih_wr_mean"` | | `AGG` | `WON_GIH_TOTAL` / `GIH_TOTAL` | Float |
 | `GIH_WR_EXCESS` | `"gih_wr_excess"` | | `AGG` | `GIH_WR - GIH_WR_MEAN` | Float |
 | `GIH_WR_VAR` | `"gih_wr_var"` | | `AGG` | Game-weighted Variance | Float |
 | `GIH_WR_STDEV` | `"gh_wr_stdev"` | | `AGG` | Sqrt of `GIH_WR_VAR` | Float |
