@@ -24,7 +24,7 @@ class ColumnDefinition:
     name: str
     col_type: ColType
     expr: pl.Expr | tuple[pl.Expr, ...]
-    views: tuple[View, ...]
+    views: set[View]
     dependencies: tuple[str, ...]
     signature: str
 

@@ -99,8 +99,6 @@ def _resolve_view_cols(
     For each view ('game', 'draft', and 'card'), return the columns
     that must be present at the aggregation step. 'name' need not be
     included, and 'pick' will be added if needed.
-
-    Dependencies within base views will be resolved by `col_df`.
     """
     unresolved_cols = col_set
     view_resolution = {}
@@ -169,7 +167,7 @@ def create(
     needed_views = frozenset()
     for view, cols_for_view in view_cols.items():
         for col in cols_for_view:
-            if col_def_map[col].views == (view,):  # only found in this view
+            if col_def_map[col].views == {view}:  # only found in this view
                 needed_views = needed_views.union({view})
 
     view_cols = {v: view_cols[v] for v in needed_views}

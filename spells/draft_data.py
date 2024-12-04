@@ -53,22 +53,23 @@ def _get_names(set_code: str) -> tuple[str, ...]:
 
 
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
-    def get_views(spec: ColumnSpec) -> list[View]:
+    def get_views(spec: ColumnSpec) -> set[View]:
         if spec.name == ColName.NAME or spec.col_type == ColType.AGG:
-            return []
+            return set()
         if spec.col_type == ColType.CARD_ATTR:
-            return [View.CARD]
+            return {View.CARD}
         if spec.views is not None:
-            return spec.views
+            return set(spec.views)
         assert (
             spec.dependencies is not None
         ), f"Col {spec.name} should have dependencies"
 
-        views = []
-        for dep in spec.dependencies:
-            views.extend(get_views(col_spec_map[dep]))
+        views = functools.reduce(
+            lambda prev, curr: prev.intersection(curr),
+            [get_views(col_spec_map[dep]) for dep in spec.dependencies],
+        )
 
-        return list(set(views))
+        return views
 
     names = _get_names(set_code)
     assert len(names) > 0, "there should be names"
@@ -118,7 +119,7 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
         cdef = ColumnDefinition(
             name=spec.name,
             col_type=spec.col_type,
-            views=tuple(views),
+            views=views,
             expr=expr,
             dependencies=dependencies,
             signature=signature,
