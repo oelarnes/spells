@@ -19,6 +19,7 @@ class ColType(StrEnum):
     NAME_SUM = "name_sum"
     AGG = "agg"
     CARD_ATTR = "card_attr"
+    CARD_SUM = "card_sum"
 
 
 class ColName(StrEnum):
@@ -115,6 +116,7 @@ class ColName(StrEnum):
     CARD_TYPE = "card_type"
     SUBTYPE = "subtype"
     MANA_VALUE = "mana_value"
+    DECK_MANA_VALUE = "deck_mana_value"
     MANA_COST = "mana_cost"
     POWER = "power"
     TOUGHNESS = "toughness"
@@ -154,3 +156,4 @@ class ColName(StrEnum):
     GIH_WR_VAR = "gih_wr_var"
     GIH_WR_STDEV = "gh_wr_stdev"
     GIH_WR_Z = "gih_wr_z"
+    DECK_MANA_VALUE_AVG = "deck_mana_value_avg"

@@ -211,6 +211,10 @@ Spells is built on top of Polars, a modern, well-supported DataFrame engine writ
 
 Spells caches the results of expensive aggregations in the local file system as parquet files, which by default are found under the `data/local` path from the execution directory, which can be configured using the environment variable `SPELLS_PROJECT_DIR`. Query plans which request the same set of first-stage aggregations (sums over base rows) will attempt to locate the aggregate data in the cache before calculating. This guarantees that a repeated call to `summon` returns instantaneously.
 
+### Memory Usage
+
+One of my goals in creating Spells was to eliminate issues with memory pressure by exclusively using the map-reduce paradigm and a technology that supports partitioned/streaming aggregation of larget-than-memory datasets. By default, Polars loads the entire dataset in memory, but the API exposes a parameter `streaming` which I have exposed as `use_streaming`. Unfortunately, that feature does not seem to work for my queries and the memory performance can be quite poor, including poor garbage collection. The one feature that may assist in memory management is the local caching, since you can restart the kernel without losing all of your progress. In particular, be careful about opening multiple Jupyter tabs unless you have at least 32 GB. In general I have not run into issues on my 16 GB MacBook Air except with running multiple kernels at once. Supporting larger-than memory computations is on my roadmap, so check back periodically to see if I've made any progress.
+
 When refreshing a given set's data files from 17Lands using the provided cli, the cache for that set is automatically cleared. The `spells` CLI gives additional tools for managing the local and external caches.
 
 # Documentation
@@ -263,13 +267,13 @@ summon(
 
 #### parameters
 
-- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. Min/Max/Unique 
+- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, `CARD_SUM` and `AGG`. Min/Max/Unique 
 aggregations of non-numeric (or numeric) data types are not supported. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
 
 - group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `GROUP_BY` and `CARD_ATTR`. By default, group by "name" (card name).
 
 - filter_spec: a dictionary specifying a filter, using a small number of paradigms. Columns used must be in each base view ("draft" and "game") that the `columns` and `group_by` columns depend on, so 
-`AGG` and `CARD_ATTR` columns are not valid. `NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
+`AGG`, `CARD_SUM` and `CARD_ATTR` columns are not valid. `NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
 
     - `{'player_cohort': 'Top'}` "player_cohort" value equals "Top".
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
@@ -309,7 +313,7 @@ Used to define extensions in `summon`
 
 - `name`: any string, including existing columns, although this is very likely to break dependent columns, so don't do it. For `NAME_SUM` columns, the name is the prefix without the underscore, e.g. "drawn".
 
-- `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
+- `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, `CARD_SUM`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR`, `CARD_SUM` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. `CARD_SUM` columns are expressed similarly to `AGG`, but they are calculated before grouping by card name and are summed before the `AGG` selection stage (for example, to calculate average mana value. See example notebook "Card Attributes"). Arbitrarily long chains of aggregate dependencies are supported.
 
 - `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. For `NAME_SUM` columns the `exprMap` attribute must be used instead. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
 

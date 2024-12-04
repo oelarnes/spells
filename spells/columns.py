@@ -505,6 +505,12 @@ _column_specs = [
         col_type=ColType.CARD_ATTR,
     ),
     ColumnSpec(
+        name=ColName.DECK_MANA_VALUE,
+        col_type=ColType.CARD_SUM,
+        expr=pl.col(ColName.MANA_VALUE) * pl.col(ColName.DECK),
+        dependencies=[ColName.MANA_VALUE, ColName.DECK],
+    ),
+    ColumnSpec(
         name=ColName.MANA_COST,
         col_type=ColType.CARD_ATTR,
     ),
@@ -720,6 +726,12 @@ _column_specs = [
         col_type=ColType.AGG,
         expr=pl.col(ColName.GIH_WR_EXCESS) / pl.col(ColName.GIH_WR_STDEV),
         dependencies=[ColName.GIH_WR_EXCESS, ColName.GIH_WR_STDEV],
+    ),
+    ColumnSpec(
+        name=ColName.DECK_MANA_VALUE_AVG,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.DECK_MANA_VALUE) / pl.col(ColName.DECK),
+        dependencies=[ColName.DECK_MANA_VALUE, ColName.DECK],
     ),
 ]
 

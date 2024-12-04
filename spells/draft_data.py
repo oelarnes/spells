@@ -54,7 +54,10 @@ def _get_names(set_code: str) -> tuple[str, ...]:
 
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
     def get_views(spec: ColumnSpec) -> set[View]:
-        if spec.name == ColName.NAME or spec.col_type == ColType.AGG:
+        if spec.name == ColName.NAME or spec.col_type in (
+            ColType.AGG,
+            ColType.CARD_SUM,
+        ):
             return set()
         if spec.col_type == ColType.CARD_ATTR:
             return {View.CARD}
@@ -133,13 +136,18 @@ def _view_select(
     view_cols: frozenset[str],
     col_def_map: dict[str, ColumnDefinition],
     is_agg_view: bool,
+    is_card_sum: bool = False,
 ) -> DF:
     base_cols = frozenset()
     cdefs = [col_def_map[c] for c in view_cols]
     select = []
     for cdef in cdefs:
         if is_agg_view:
-            if cdef.col_type == ColType.AGG:
+            if (
+                cdef.col_type == ColType.AGG
+                or cdef.col_type == ColType.CARD_SUM
+                and is_card_sum
+            ):
                 base_cols = base_cols.union(cdef.dependencies)
                 select.append(cdef.expr)
             else:
@@ -156,7 +164,7 @@ def _view_select(
                 select.append(cdef.expr)
 
     if base_cols != view_cols:
-        df = _view_select(df, base_cols, col_def_map, is_agg_view)
+        df = _view_select(df, base_cols, col_def_map, is_agg_view, is_card_sum)
 
     return df.select(select)
 
@@ -327,8 +335,14 @@ def summon(
         fp = data_file_path(set_code, View.CARD)
         card_df = pl.read_parquet(fp)
         select_df = _view_select(card_df, card_cols, m.col_def_map, is_agg_view=False)
-
         agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
+
+        if m.card_sum:
+            card_sum_df = _view_select(
+                agg_df, m.card_sum, m.col_def_map, is_agg_view=True, is_card_sum=True
+            )
+            agg_df = pl.concat([agg_df, card_sum_df], how="horizontal")
+
         if ColName.NAME not in m.group_by:
             agg_df = agg_df.group_by(m.group_by).sum()
 
