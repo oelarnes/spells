@@ -76,7 +76,10 @@ def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
 
 def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     draft_set_json = _fetch_mtg_json(draft_set_code)
-    set_codes = draft_set_json["data"]["booster"]["play"]["sourceSetCodes"]
+    booster_info = draft_set_json["data"]["booster"]
+
+    booster_type = "play" if "play" in booster_info else "draft"
+    set_codes = booster_info[booster_type]["sourceSetCodes"]
     set_codes.reverse()
 
     card_data_map = {}

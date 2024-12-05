@@ -511,6 +511,20 @@ _column_specs = [
         dependencies=[ColName.MANA_VALUE, ColName.DECK],
     ),
     ColumnSpec(
+        name=ColName.DECK_LANDS,
+        col_type=ColType.CARD_SUM,
+        expr=pl.when(pl.col(ColName.CARD_TYPE).str.contains("Land"))
+        .then(pl.col(ColName.DECK))
+        .otherwise(0),
+        dependencies=[ColName.CARD_TYPE, ColName.DECK],
+    ),
+    ColumnSpec(
+        name=ColName.DECK_SPELLS,
+        col_type=ColType.CARD_SUM,
+        expr=pl.col(ColName.DECK) - pl.col(ColName.DECK_SPELLS),
+        dependencies=[ColName.DECK, ColName.DECK_SPELLS],
+    ),
+    ColumnSpec(
         name=ColName.MANA_COST,
         col_type=ColType.CARD_ATTR,
     ),
@@ -732,6 +746,18 @@ _column_specs = [
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK_MANA_VALUE) / pl.col(ColName.DECK),
         dependencies=[ColName.DECK_MANA_VALUE, ColName.DECK],
+    ),
+    ColumnSpec(
+        name=ColName.DECK_LANDS_AVG,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.DECK_LANDS) / pl.col(ColName.NUM_GAMES),
+        dependencies=[ColName.DECK_LANDS, ColName.NUM_GAMES],
+    ),
+    ColumnSpec(
+        name=ColName.DECK_SPELLS_AVG,
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.DECK_SPELLS) / pl.col(ColName.NUM_GAMES),
+        dependencies=[ColName.DECK_SPELLS, ColName.NUM_GAMES],
     ),
 ]
 
