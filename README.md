@@ -413,6 +413,7 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `CARD_TYPE` | `"card_type"` | `CARD` | `CARD_ATTR` | | String |
 | `SUBTYPE` | `"subtype"` | `CARD` | `CARD_ATTR` | | String |
 | `MANA_VALUE` | `"mana_value"` | `CARD` | `CARD_ATTR` | | Float |
+| `DECK_MANA_VALUE` | `"deck_mana_value"` | | `CARD_SUM` | `DECK` * `MANA_VALUE` | Float |
 | `MANA_COST` | `"mana_cost"` | `CARD` | `CARD_ATTR` | | String |
 | `POWER` | `"power"` | `CARD` | `CARD_ATTR` | | Float |
 | `TOUGHNESS` | `"toughness"` | `CARD` | `CARD_ATTR` | | Float |
@@ -451,6 +452,7 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `GIH_WR_VAR` | `"gih_wr_var"` | | `AGG` | Game-weighted Variance | Float |
 | `GIH_WR_STDEV` | `"gh_wr_stdev"` | | `AGG` | Sqrt of `GIH_WR_VAR` | Float |
 | `GIH_WR_Z` | `"gih_wr_z"` | | `AGG` |`GIH_WR_EXCESS` / `GIH_WR_STDEV` | Float |
+| `DECK_MANA_VALUE_AVG` | `"deck_mana_value_avg"` | | `AGG` | `DECK_MANA_VALUE ` / `DECK` | Float |
 
 # Roadmap to 1.0
 
