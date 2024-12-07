@@ -63,7 +63,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
-- Provides 118 explicitly specified, enumerated, documented column definitions
+- Provides 121 explicitly specified, enumerated, documented column definitions
 - Supports "Deck Color Data" aggregations with built-in column definitions.
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
@@ -145,7 +145,6 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
     ...     name='deq_base',
     ...     col_type=ColType.AGG,
     ...     expr=(pl.col('gp_wr_excess') + 0.03 * (1 - pl.col('ata')/14).pow(2)) * pl.col('pct_gp'),
-    ...     dependencies=['gp_wr_excess', 'ata', 'pct_gp']
     ...)
     >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
     ...     .filter(pl.col('deq_base').is_finite())
@@ -299,9 +298,7 @@ from spells.columns import ColumnSpec
 ColumnSpec(
     name: str,
     col_type: ColType,
-    expr: pl.Expr | None = None,
-    exprMap: Callable[[str], pl.Expr] | None = None
-    dependencies: list[str] | None = None
+    expr: pl.Expr | Callable[..., pl.Expr] | None = None,
     version: str | None = None
     views: list[View] | None = None,
 )
@@ -315,11 +312,7 @@ Used to define extensions in `summon`
 
 - `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, `CARD_SUM`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR`, `CARD_SUM` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. `CARD_SUM` columns are expressed similarly to `AGG`, but they are calculated before grouping by card name and are summed before the `AGG` selection stage (for example, to calculate average mana value. See example notebook "Card Attributes"). Arbitrarily long chains of aggregate dependencies are supported.
 
-- `expr`: A polars expression giving the derivation of the column value at the first level where it is defined. For `NAME_SUM` columns the `exprMap` attribute must be used instead. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection.
-
-- `exprMap`: A function of card name that returns the expression for a `NAME_SUM` column. 
-
-- `dependencies`: A list of column names. All dependencies must be declared by name.
+- `expr`: A polars expression or function returning a polars expression giving the derivation of the column value at the first level where it is defined. For `NAME_SUM` columns, `expr` must be a function of `name` which will result in a list of expressions mapped over all card names. `PICK_SUM` columns can also be functions on `name`, in which case the value will be a function of the value of the `PICK` field. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection. The possible arguments to `expr`, in addition to `name` when appropriate, include the full `names` array as well as a dictionary called `card_context` which contains card dict objects with all `CARD_ATTR` values, including custom extensions. See example notebooks for more details.
 
 - `version`: When defining a column using a python function, as opposed to Polars expressions, add a unique version number so that the unique hashed signature of the column specification can be derived 
 for caching purposes, since Polars cannot generate a serialization natively. When changing the definition, be sure to increment the version value. Otherwise you do not need to use this parameter.
@@ -414,6 +407,8 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `SUBTYPE` | `"subtype"` | `CARD` | `CARD_ATTR` | | String |
 | `MANA_VALUE` | `"mana_value"` | `CARD` | `CARD_ATTR` | | Float |
 | `DECK_MANA_VALUE` | `"deck_mana_value"` | | `CARD_SUM` | `DECK` * `MANA_VALUE` | Float |
+| `DECK_LANDS` | `"deck_lands"` | | `CARD_SUM` | Number of lands in deck | Float |
+| `DECK_SPELLS` | `"deck_spells"` | | `CARD_SUM` | Number of spells in deck | Float |
 | `MANA_COST` | `"mana_cost"` | `CARD` | `CARD_ATTR` | | String |
 | `POWER` | `"power"` | `CARD` | `CARD_ATTR` | | Float |
 | `TOUGHNESS` | `"toughness"` | `CARD` | `CARD_ATTR` | | Float |
@@ -452,7 +447,9 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `GIH_WR_VAR` | `"gih_wr_var"` | | `AGG` | Game-weighted Variance | Float |
 | `GIH_WR_STDEV` | `"gh_wr_stdev"` | | `AGG` | Sqrt of `GIH_WR_VAR` | Float |
 | `GIH_WR_Z` | `"gih_wr_z"` | | `AGG` |`GIH_WR_EXCESS` / `GIH_WR_STDEV` | Float |
-| `DECK_MANA_VALUE_AVG` | `"deck_mana_value_avg"` | | `AGG` | `DECK_MANA_VALUE ` / `DECK` | Float |
+| `DECK_MANA_VALUE_AVG` | `"deck_mana_value_avg"` | | `AGG` | `DECK_MANA_VALUE ` / `DECK_SPELLS` | Float |
+| `DECK_LANDS_AVG` | `"deck_lands_avg"` | | `AGG` | `DECK_LANDS ` / `NUM_GAMES` | Float |
+| `DECK_SPELLS_AVG` | `"deck_spells_avg"` | | `AGG` | `DECK_SPELLS ` / `NUM_GAMES` | Float |
 
 # Roadmap to 1.0
 

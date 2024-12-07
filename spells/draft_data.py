@@ -10,7 +10,8 @@ import datetime
 import functools
 import hashlib
 import re
-from typing import Callable, TypeVar
+from inspect import signature
+from typing import Callable, TypeVar, Any
 
 import polars as pl
 
@@ -33,7 +34,7 @@ def _cache_key(args) -> str:
 
 
 @functools.lru_cache(maxsize=None)
-def _get_names(set_code: str) -> tuple[str, ...]:
+def _get_names(set_code: str) -> list[str]:
     card_fp = data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
@@ -43,7 +44,7 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     cols = draft_view.collect_schema().names()
 
     prefix = "pack_card_"
-    names = tuple(col[len(prefix) :] for col in cols if col.startswith(prefix))
+    names = [col[len(prefix) :] for col in cols if col.startswith(prefix)]
     draft_names_set = frozenset(names)
 
     assert (
@@ -52,34 +53,39 @@ def _get_names(set_code: str) -> tuple[str, ...]:
     return names
 
 
-def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
-    def get_views(spec: ColumnSpec) -> set[View]:
-        if spec.name == ColName.NAME or spec.col_type in (
-            ColType.AGG,
-            ColType.CARD_SUM,
-        ):
-            return set()
-        if spec.col_type == ColType.CARD_ATTR:
-            return {View.CARD}
-        if spec.views is not None:
-            return set(spec.views)
-        assert (
-            spec.dependencies is not None
-        ), f"Col {spec.name} should have dependencies"
+def _get_card_context(set_code: str, col_spec_map: dict[str, ColumnSpec]) -> dict[str, dict[str, Any]]:
+    card_attr_specs = {col:spec for col, spec in col_spec_map.items() if spec.col_type == ColType.CARD_ATTR}
+    col_def_map = _hydrate_col_defs(set_code, card_attr_specs, card_only=True)
 
-        views = functools.reduce(
-            lambda prev, curr: prev.intersection(curr),
-            [get_views(col_spec_map[dep]) for dep in spec.dependencies],
-        )
+    columns = [ColName.NAME] + list(col_def_map.keys())
 
-        return views
+    fp = data_file_path(set_code, View.CARD)
+    card_df = pl.read_parquet(fp)
+    select_rows = _view_select(
+        card_df, frozenset(columns), col_def_map, is_agg_view=False
+    ).to_dicts()
 
-    names = _get_names(set_code)
-    assert len(names) > 0, "there should be names"
-    hydrated = {}
-    for key, spec in col_spec_map.items():
-        if spec.col_type == ColType.NAME_SUM and spec.exprMap is not None:
-            unnamed_exprs = map(spec.exprMap, names)
+    card_context = {row[ColName.NAME]: row for row in select_rows}
+
+    return card_context
+    
+
+def _determine_expression(spec: ColumnSpec, names: list[str], card_context: dict[str, dict]) -> pl.Expr | tuple[pl.Expr, ...]:
+    def seed_params(expr):
+        params = {}
+
+        sig_params = signature(expr).parameters
+        if 'names' in sig_params:
+            params['names'] = names
+        if 'card_context' in sig_params:
+            params['card_context'] = card_context
+        return params
+
+    if spec.col_type == ColType.NAME_SUM:
+        if spec.expr is not None:
+            assert isinstance(spec.expr, Callable), f"NAME_SUM column {spec.name} must have a callable `expr` accepting a `name` argument"
+            unnamed_exprs = [spec.expr(**{'name': name, **seed_params(spec.expr)}) for name in names]
+
             expr = tuple(
                 map(
                     lambda ex, name: ex.alias(f"{spec.name}_{name}"),
@@ -87,17 +93,49 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
                     names,
                 )
             )
-        elif spec.expr is not None:
-            expr = spec.expr.alias(spec.name)
-
         else:
-            if spec.col_type == ColType.NAME_SUM:
-                expr = tuple(map(lambda name: pl.col(f"{spec.name}_{name}"), names))
-            else:
-                expr = pl.col(spec.name)
+            expr = tuple(map(lambda name: pl.col(f"{spec.name}_{name}"), names))
 
+    elif spec.expr is not None:
+        if isinstance(spec.expr, Callable):
+            params = seed_params(spec.expr)
+            if spec.col_type == ColType.PICK_SUM and 'name' in signature(spec.expr).parameters:
+                expr = pl.lit(None)
+                for name in names:
+                    name_params = {'name': name, **params}
+                    expr = pl.when(pl.col(ColName.PICK) == name).then(spec.expr(**name_params)).otherwise(expr)
+            else:
+                expr = spec.expr(**params)
+        else:
+            expr = spec.expr
+        expr = expr.alias(spec.name)
+    else:
+        expr = pl.col(spec.name)
+
+    return expr
+
+
+def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec], card_only=False):
+    names = _get_names(set_code)
+
+    if card_only:
+        card_context = {}
+    else:
+        card_context = _get_card_context(set_code, col_spec_map)
+
+    assert len(names) > 0, "there should be names"
+    hydrated = {}
+    for key, spec in col_spec_map.items():
+        expr = _determine_expression(spec, names, card_context)
+
+        sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
+        
+        dep_cols = sig_expr.meta.root_names()
+
+        pattern = f"_{names[0]}$"
+
+        dependencies = tuple(c if not re.match(pattern, c) else re.split(pattern, c)[0] for c in dep_cols)
         try:
-            sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
             expr_sig = sig_expr.meta.serialize(
                 format="json"
             )  # not compatible with renaming
@@ -107,14 +145,11 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
             else:
                 expr_sig = str(datetime.datetime.now)
 
-        dependencies = tuple(spec.dependencies or ())
-        views = get_views(spec)
         signature = str(
             (
                 spec.name,
                 spec.col_type.value,
                 expr_sig,
-                tuple(view.value for view in views),
                 dependencies,
             )
         )
@@ -122,7 +157,7 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec]):
         cdef = ColumnDefinition(
             name=spec.name,
             col_type=spec.col_type,
-            views=views,
+            views=set(spec.views or set()),
             expr=expr,
             dependencies=dependencies,
             signature=signature,
@@ -136,18 +171,13 @@ def _view_select(
     view_cols: frozenset[str],
     col_def_map: dict[str, ColumnDefinition],
     is_agg_view: bool,
-    is_card_sum: bool = False,
 ) -> DF:
     base_cols = frozenset()
     cdefs = [col_def_map[c] for c in view_cols]
     select = []
     for cdef in cdefs:
         if is_agg_view:
-            if (
-                cdef.col_type == ColType.AGG
-                or cdef.col_type == ColType.CARD_SUM
-                and is_card_sum
-            ):
+            if cdef.col_type == ColType.AGG:
                 base_cols = base_cols.union(cdef.dependencies)
                 select.append(cdef.expr)
             else:
@@ -164,7 +194,7 @@ def _view_select(
                 select.append(cdef.expr)
 
     if base_cols != view_cols:
-        df = _view_select(df, base_cols, col_def_map, is_agg_view, is_card_sum)
+        df = _view_select(df, base_cols, col_def_map, is_agg_view)
 
     return df.select(select)
 
@@ -274,28 +304,6 @@ def _base_agg_df(
     )
 
 
-def card_df(
-    set_code: str,
-    extensions: list[ColumnSpec] | None = None,
-):
-    col_spec_map = dict(spells.columns.col_spec_map)
-    if extensions is not None:
-        for spec in extensions:
-            col_spec_map[spec.name] = spec
-
-    col_def_map = _hydrate_col_defs(set_code, col_spec_map)
-
-    columns = [ColName.NAME] + [
-        c for c, cdef in col_def_map.items() if cdef.col_type == ColType.CARD_ATTR
-    ]
-    fp = data_file_path(set_code, View.CARD)
-    card_df = pl.read_parquet(fp)
-    select_df = _view_select(
-        card_df, frozenset(columns), col_def_map, is_agg_view=False
-    )
-    return select_df.select(columns)
-
-
 def summon(
     set_code: str,
     columns: list[str] | None = None,
@@ -336,12 +344,6 @@ def summon(
         card_df = pl.read_parquet(fp)
         select_df = _view_select(card_df, card_cols, m.col_def_map, is_agg_view=False)
         agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
-
-        if m.card_sum:
-            card_sum_df = _view_select(
-                agg_df, m.card_sum, m.col_def_map, is_agg_view=True, is_card_sum=True
-            )
-            agg_df = pl.concat([agg_df, card_sum_df], how="horizontal")
 
         if ColName.NAME not in m.group_by:
             agg_df = agg_df.group_by(m.group_by).sum()

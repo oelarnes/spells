@@ -14,7 +14,6 @@ class Manifest:
     view_cols: dict[View, frozenset[str]]
     group_by: tuple[str, ...]
     filter: spells.filter.Filter | None
-    card_sum: frozenset[str]
 
     def __post_init__(self):
         # No name filter check
@@ -95,7 +94,7 @@ class Manifest:
 def _resolve_view_cols(
     col_set: frozenset[str],
     col_def_map: dict[str, ColumnDefinition],
-) -> tuple[dict[View, frozenset[str]], frozenset[str]]:
+) -> dict[View, frozenset[str]]:
     """
     For each view ('game', 'draft', and 'card'), return the columns
     that must be present at the aggregation step. 'name' need not be
@@ -104,7 +103,6 @@ def _resolve_view_cols(
     MAX_DEPTH = 1000
     unresolved_cols = col_set
     view_resolution = {}
-    card_sum = frozenset()
 
     iter_num = 0
     while unresolved_cols and iter_num < MAX_DEPTH:
@@ -116,8 +114,6 @@ def _resolve_view_cols(
                 view_resolution[View.DRAFT] = view_resolution.get(
                     View.DRAFT, frozenset()
                 ).union({ColName.PICK})
-            if cdef.col_type == ColType.CARD_SUM:
-                card_sum = card_sum.union({col})
             if cdef.views:
                 for view in cdef.views:
                     view_resolution[view] = view_resolution.get(
@@ -128,14 +124,34 @@ def _resolve_view_cols(
                     raise ValueError(
                         f"Invalid column def: {col} has neither views nor dependencies!"
                     )
-                for dep in cdef.dependencies:
-                    next_cols = next_cols.union({dep})
+                if cdef.col_type != ColType.AGG:
+                    fully_resolved = True
+                    col_views = frozenset({View.GAME, View.DRAFT, View.CARD})
+                    for dep in cdef.dependencies:
+                        dep_views = frozenset()
+                        for view, view_cols in view_resolution.items():
+                            if dep in view_cols:
+                                dep_views = dep_views.union({dep})
+                        if not dep_views:
+                            fully_resolved = False
+                            next_cols = next_cols.union({dep})
+                        else:
+                            col_views = col_views.intersection(dep_views)
+                    if fully_resolved:
+                        assert len(col_views), f"Column {col} can't be defined in any views!"
+                        for view in col_views:
+                            view_resolution[view] = view_resolution[view].union({col})
+                    else:
+                        next_cols = next_cols.union({col})
+                else:
+                    for dep in cdef.dependencies:
+                        next_cols = next_cols.union({dep})
         unresolved_cols = next_cols
 
     if iter_num >= MAX_DEPTH:
         raise ValueError("broken dependency chain in column spec, loop probable")
 
-    return view_resolution, card_sum
+    return view_resolution
 
 
 def create(
@@ -148,7 +164,7 @@ def create(
     if columns is None:
         cols = tuple(spells.columns.default_columns)
         if ColName.NAME not in gbs:
-            cols = tuple(c for c in cols if c not in [ColName.COLOR, ColName.RARITY])
+            cols = tuple(c for c in cols if col_def_map[c].col_type != ColType.CARD_ATTR)
     else:
         cols = tuple(columns)
 
@@ -159,11 +175,7 @@ def create(
     if m_filter is not None:
         col_set = col_set.union(m_filter.lhs)
 
-    view_cols, card_sum = _resolve_view_cols(col_set, col_def_map)
     base_view_group_by = frozenset()
-
-    if card_sum:
-        base_view_group_by = base_view_group_by.union({ColName.NAME})
 
     for col in gbs:
         cdef = col_def_map[col]
@@ -172,14 +184,23 @@ def create(
         elif cdef.col_type == ColType.CARD_ATTR:
             base_view_group_by = base_view_group_by.union({ColName.NAME})
 
-    needed_views = frozenset()
-    for view, cols_for_view in view_cols.items():
-        for col in cols_for_view:
-            if col_def_map[col].views == {view}:  # only found in this view
-                needed_views = needed_views.union({view})
+    view_cols = _resolve_view_cols(col_set, col_def_map)
 
-    if not needed_views:
-        needed_views = {View.DRAFT}
+    needed_views = frozenset()
+    if View.CARD in view_cols:
+        needed_views = needed_views.union({View.CARD})
+
+    draft_view_cols = view_cols.get(View.DRAFT, frozenset())
+    game_view_cols = view_cols.get(View.GAME, frozenset())
+
+    base_cols = draft_view_cols.union(game_view_cols)
+
+    if base_cols == draft_view_cols:
+        needed_views = needed_views.union({View.DRAFT})
+    elif base_cols == game_view_cols:
+        needed_views = needed_views.union({View.GAME})
+    else:
+        needed_views = needed_views.union({View.GAME, View.DRAFT})
 
     view_cols = {v: view_cols[v] for v in needed_views}
 
@@ -190,5 +211,4 @@ def create(
         view_cols=view_cols,
         group_by=gbs,
         filter=m_filter,
-        card_sum=card_sum,
     )

@@ -19,7 +19,6 @@ class ColType(StrEnum):
     NAME_SUM = "name_sum"
     AGG = "agg"
     CARD_ATTR = "card_attr"
-    CARD_SUM = "card_sum"
 
 
 class ColName(StrEnum):
