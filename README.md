@@ -101,24 +101,24 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
     ```
   - `group_by` specifies the grouping by one or more columns. By default, group by card names, but optionally group by any of a large set of fundamental and derived columns, including card attributes and your own custom extension.
     ```python
-    >>> spells.summon('BLB', columns=["num_won", "num_games", "game_wr"], group_by=["main_colors"], filter_spec={"num_colors": 2})
-    shape: (10, 4)
-    ┌─────────────┬─────────┬───────────┬──────────┐
-    │ main_colors ┆ num_won ┆ num_games ┆ game_wr  │
-    │ ---         ┆ ---     ┆ ---       ┆ ---      │
-    │ str         ┆ u32     ┆ u32       ┆ f64      │
-    ╞═════════════╪═════════╪═══════════╪══════════╡
-    │ BG          ┆ 85022   ┆ 152863    ┆ 0.556197 │
-    │ BR          ┆ 45900   ┆ 81966     ┆ 0.559988 │
-    │ RG          ┆ 34641   ┆ 64428     ┆ 0.53767  │
-    │ UB          ┆ 30922   ┆ 57698     ┆ 0.535928 │
-    │ UG          ┆ 59879   ┆ 109145    ┆ 0.548619 │
-    │ UR          ┆ 19638   ┆ 38679     ┆ 0.507717 │
-    │ WB          ┆ 59480   ┆ 107443    ┆ 0.553596 │
-    │ WG          ┆ 76134   ┆ 136832    ┆ 0.556405 │
-    │ WR          ┆ 49712   ┆ 91224     ┆ 0.544944 │
-    │ WU          ┆ 16483   ┆ 31450     ┆ 0.524102 │
-    └─────────────┴─────────┴───────────┴──────────┘
+    >>> summon('BLB', columns=["num_won", "num_games", "game_wr", "deck_mana_value_avg"], group_by=["main_colors"], filter_spec={"num_colors": 2})
+    shape: (10, 5)
+    ┌─────────────┬─────────┬───────────┬──────────┬─────────────────────┐
+    │ main_colors ┆ num_won ┆ num_games ┆ game_wr  ┆ deck_mana_value_avg │
+    │ ---         ┆ ---     ┆ ---       ┆ ---      ┆ ---                 │
+    │ str         ┆ u32     ┆ u32       ┆ f64      ┆ f64                 │
+    ╞═════════════╪═════════╪═══════════╪══════════╪═════════════════════╡
+    │ BG          ┆ 85022   ┆ 152863    ┆ 0.556197 ┆ 2.862305            │
+    │ BR          ┆ 45900   ┆ 81966     ┆ 0.559988 ┆ 2.76198             │
+    │ RG          ┆ 34641   ┆ 64428     ┆ 0.53767  ┆ 2.852182            │
+    │ UB          ┆ 30922   ┆ 57698     ┆ 0.535928 ┆ 3.10409             │
+    │ UG          ┆ 59879   ┆ 109145    ┆ 0.548619 ┆ 2.861026            │
+    │ UR          ┆ 19638   ┆ 38679     ┆ 0.507717 ┆ 2.908215            │
+    │ WB          ┆ 59480   ┆ 107443    ┆ 0.553596 ┆ 2.9217              │
+    │ WG          ┆ 76134   ┆ 136832    ┆ 0.556405 ┆ 2.721064            │
+    │ WR          ┆ 49712   ┆ 91224     ┆ 0.544944 ┆ 2.5222              │
+    │ WU          ┆ 16483   ┆ 31450     ┆ 0.524102 ┆ 2.930967            │
+    └─────────────┴─────────┴───────────┴──────────┴─────────────────────┘ 
     ```
   - `filter_spec` specifies a row-level filter for the dataset, using an intuitive custom query formulation
     ```python
@@ -145,7 +145,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
     ...     name='deq_base',
     ...     col_type=ColType.AGG,
     ...     expr=(pl.col('gp_wr_excess') + 0.03 * (1 - pl.col('ata')/14).pow(2)) * pl.col('pct_gp'),
-    ...)
+    ... )
     >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
     ...     .filter(pl.col('deq_base').is_finite())
     ...     .filter(pl.col('rarity').is_in(['common', 'uncommon'])
@@ -266,13 +266,13 @@ summon(
 
 #### parameters
 
-- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, `CARD_SUM` and `AGG`. Min/Max/Unique 
+- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. Min/Max/Unique 
 aggregations of non-numeric (or numeric) data types are not supported. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
 
 - group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `GROUP_BY` and `CARD_ATTR`. By default, group by "name" (card name).
 
 - filter_spec: a dictionary specifying a filter, using a small number of paradigms. Columns used must be in each base view ("draft" and "game") that the `columns` and `group_by` columns depend on, so 
-`AGG`, `CARD_SUM` and `CARD_ATTR` columns are not valid. `NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
+`AGG` and `CARD_ATTR` columns are not valid. Functions of card attributes in the base views can be filtered on, see the documentation for `expr` for details. `NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
 
     - `{'player_cohort': 'Top'}` "player_cohort" value equals "Top".
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
@@ -285,10 +285,10 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
 ### Enums
 
 ```python
-from spells.enums import ColName, ColType, View
+from spells.enums import ColName, ColType
 ```
 
-Recommended to import `ColName` for any usage of `summon`, and to import `ColType` when defining custom extensions. You shouldn't need `VIEW`.
+Recommended to import `ColName` for any usage of `summon`, and to import `ColType` when defining custom extensions.
 
 ### ColumnSpec
 
@@ -300,7 +300,6 @@ ColumnSpec(
     col_type: ColType,
     expr: pl.Expr | Callable[..., pl.Expr] | None = None,
     version: str | None = None
-    views: list[View] | None = None,
 )
 ```
 
@@ -310,14 +309,18 @@ Used to define extensions in `summon`
 
 - `name`: any string, including existing columns, although this is very likely to break dependent columns, so don't do it. For `NAME_SUM` columns, the name is the prefix without the underscore, e.g. "drawn".
 
-- `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, `CARD_SUM`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR`, `CARD_SUM` and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after summing over groups, and can include polars Expression aggregations. `CARD_SUM` columns are expressed similarly to `AGG`, but they are calculated before grouping by card name and are summed before the `AGG` selection stage (for example, to calculate average mana value. See example notebook "Card Attributes"). Arbitrarily long chains of aggregate dependencies are supported.
+- `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR`
+and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after 
+summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
 
-- `expr`: A polars expression or function returning a polars expression giving the derivation of the column value at the first level where it is defined. For `NAME_SUM` columns, `expr` must be a function of `name` which will result in a list of expressions mapped over all card names. `PICK_SUM` columns can also be functions on `name`, in which case the value will be a function of the value of the `PICK` field. `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection. The possible arguments to `expr`, in addition to `name` when appropriate, include the full `names` array as well as a dictionary called `card_context` which contains card dict objects with all `CARD_ATTR` values, including custom extensions. See example notebooks for more details.
+- `expr`: A polars expression or function returning a polars expression giving the derivation of the column value at the first level where it is defined. 
+    - For `NAME_SUM` columns, `expr` must be a function of `name` which will result in a list of expressions mapped over all card names.
+    - `PICK_SUM` columns can also be functions on `name`, in which case the value will be a function of the value of the `PICK` field. 
+    - `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection. 
+    - The possible arguments to `expr`, in addition to `name` when appropriate, include the full `names` array as well as a dictionary called `card_context` which contains card dict objects with all `CARD_ATTR` values, including custom extensions. See example notebooks for more details.
 
 - `version`: When defining a column using a python function, as opposed to Polars expressions, add a unique version number so that the unique hashed signature of the column specification can be derived 
 for caching purposes, since Polars cannot generate a serialization natively. When changing the definition, be sure to increment the version value. Otherwise you do not need to use this parameter.
-
-- `views`: Not needed for custom columns.
 
 ### Columns
 
@@ -406,9 +409,9 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `CARD_TYPE` | `"card_type"` | `CARD` | `CARD_ATTR` | | String |
 | `SUBTYPE` | `"subtype"` | `CARD` | `CARD_ATTR` | | String |
 | `MANA_VALUE` | `"mana_value"` | `CARD` | `CARD_ATTR` | | Float |
-| `DECK_MANA_VALUE` | `"deck_mana_value"` | | `CARD_SUM` | `DECK` * `MANA_VALUE` | Float |
-| `DECK_LANDS` | `"deck_lands"` | | `CARD_SUM` | Number of lands in deck | Float |
-| `DECK_SPELLS` | `"deck_spells"` | | `CARD_SUM` | Number of spells in deck | Float |
+| `DECK_MANA_VALUE` | `"deck_mana_value"` | | `NAME_SUM` | `DECK` * `MANA_VALUE` | Float |
+| `DECK_LANDS` | `"deck_lands"` | | `NAME_SUM` | Number of lands in deck | Float |
+| `DECK_SPELLS` | `"deck_spells"` | | `NAME_SUM` | Number of spells in deck | Float |
 | `MANA_COST` | `"mana_cost"` | `CARD` | `CARD_ATTR` | | String |
 | `POWER` | `"power"` | `CARD` | `CARD_ATTR` | | Float |
 | `TOUGHNESS` | `"toughness"` | `CARD` | `CARD_ATTR` | | Float |

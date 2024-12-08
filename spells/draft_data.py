@@ -54,10 +54,10 @@ def _get_names(set_code: str) -> list[str]:
 
 
 def _get_card_context(set_code: str, col_spec_map: dict[str, ColumnSpec]) -> dict[str, dict[str, Any]]:
-    card_attr_specs = {col:spec for col, spec in col_spec_map.items() if spec.col_type == ColType.CARD_ATTR}
+    card_attr_specs = {col:spec for col, spec in col_spec_map.items() if spec.col_type == ColType.CARD_ATTR or spec.name == ColName.NAME}
     col_def_map = _hydrate_col_defs(set_code, card_attr_specs, card_only=True)
 
-    columns = [ColName.NAME] + list(col_def_map.keys())
+    columns = list(col_def_map.keys())
 
     fp = data_file_path(set_code, View.CARD)
     card_df = pl.read_parquet(fp)
@@ -115,6 +115,41 @@ def _determine_expression(spec: ColumnSpec, names: list[str], card_context: dict
     return expr
 
 
+def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_map: dict[str, ColumnSpec], names: list[str]) -> set[str]:
+    dependencies = set()
+    tricky_ones = set()
+
+    if isinstance(expr, pl.Expr):
+        dep_cols = [c for c in expr.meta.root_names() if c != name]
+        for dep_col in dep_cols:
+            if dep_col in col_spec_map.keys():
+                dependencies.add(dep_col)
+            else: 
+                tricky_ones.add(dep_col)
+    else:
+        for idx, exp in enumerate(expr):
+            pattern = f"_{names[idx]}$"
+            dep_cols = [c for c in exp.meta.root_names() if c != name]
+            for dep_col in dep_cols:
+                if dep_col in col_spec_map.keys():
+                    dependencies.add(dep_col)
+                elif len(split := re.split(pattern, dep_col)) == 2 and split[0] in col_spec_map:
+                    dependencies.add(split[0])
+                else:
+                    tricky_ones.add(dep_col)
+
+    for item in tricky_ones:
+        found = False
+        for n in names:
+            pattern = f"_{n}$"
+            if not found and len(split := re.split(pattern, item)) == 2 and split[0] in col_spec_map:
+                dependencies.add(split[0])
+                found = True
+        assert found, f"Could not locate column spec for root col {item}" 
+
+    return dependencies
+
+
 def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec], card_only=False):
     names = _get_names(set_code)
 
@@ -127,15 +162,10 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec], card_o
     hydrated = {}
     for key, spec in col_spec_map.items():
         expr = _determine_expression(spec, names, card_context)
+        dependencies = _infer_dependencies(key, expr, col_spec_map, names)
 
-        sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
-        
-        dep_cols = sig_expr.meta.root_names()
-
-        pattern = f"_{names[0]}$"
-
-        dependencies = tuple(c if not re.match(pattern, c) else re.split(pattern, c)[0] for c in dep_cols)
         try:
+            sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
             expr_sig = sig_expr.meta.serialize(
                 format="json"
             )  # not compatible with renaming

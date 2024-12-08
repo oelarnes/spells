@@ -39,21 +39,13 @@ class Manifest:
             ), f"Invalid groupby {col}!"
 
         for view, cols_for_view in self.view_cols.items():
-            # cols_for_view are actually in view check
             for col in cols_for_view:
-                assert (
-                    view in self.col_def_map[col].views
-                ), f"View cols generated incorrectly, {col} not in view {view}"
                 # game sum cols on in game, and no NAME groupby
                 assert self.col_def_map[col].col_type != ColType.GAME_SUM or (
                     view == View.GAME and ColName.NAME not in self.base_view_group_by
                 ), f"Invalid manifest for GAME_SUM column {col}"
             if view != View.CARD:
                 for col in self.base_view_group_by:
-                    # base_view_groupbys in view check
-                    assert (
-                        col == ColName.NAME or view in self.col_def_map[col].views
-                    ), f"Groupby {col} not in view {view}!"
                     # base_view_groupbys in view_cols for view
                     assert (
                         col == ColName.NAME or col in cols_for_view
@@ -114,7 +106,9 @@ def _resolve_view_cols(
                 view_resolution[View.DRAFT] = view_resolution.get(
                     View.DRAFT, frozenset()
                 ).union({ColName.PICK})
-            if cdef.views:
+            if cdef.col_type == ColType.CARD_ATTR:
+                view_resolution[View.CARD] = view_resolution.get(View.CARD, frozenset()).union({col})
+            elif cdef.views:
                 for view in cdef.views:
                     view_resolution[view] = view_resolution.get(
                         view, frozenset()
@@ -131,7 +125,7 @@ def _resolve_view_cols(
                         dep_views = frozenset()
                         for view, view_cols in view_resolution.items():
                             if dep in view_cols:
-                                dep_views = dep_views.union({dep})
+                                dep_views = dep_views.union({view})
                         if not dep_views:
                             fully_resolved = False
                             next_cols = next_cols.union({dep})
@@ -140,6 +134,10 @@ def _resolve_view_cols(
                     if fully_resolved:
                         assert len(col_views), f"Column {col} can't be defined in any views!"
                         for view in col_views:
+                            if view not in view_resolution:
+                                print(cdef)
+                                assert False, f"Something went wrong with col {col}"
+
                             view_resolution[view] = view_resolution[view].union({col})
                     else:
                         next_cols = next_cols.union({col})

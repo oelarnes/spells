@@ -21,7 +21,7 @@ class ColumnDefinition:
     col_type: ColType
     expr: pl.Expr | tuple[pl.Expr, ...]
     views: set[View]
-    dependencies: tuple[str, ...]
+    dependencies: set[str]
     signature: str
 
 
@@ -45,6 +45,7 @@ _column_specs = [
     ColumnSpec(
         name=ColName.NAME,
         col_type=ColType.GROUP_BY,
+        views=[View.CARD],
     ),
     ColumnSpec(
         name=ColName.EXPANSION,
@@ -464,12 +465,12 @@ _column_specs = [
     ColumnSpec(
         name=ColName.DECK_LANDS,
         col_type=ColType.NAME_SUM,
-        expr=lambda name, card_context: pl.col(f"deck_{name}") if card_context[name][ColName.CARD_TYPE].contains("Land") else pl.lit(0),
+        expr=lambda name, card_context: pl.col(f"deck_{name}") * ( 1 if 'Land' in card_context[name][ColName.CARD_TYPE] else 0 )
     ),
     ColumnSpec(
         name=ColName.DECK_SPELLS,
         col_type=ColType.NAME_SUM,
-        expr=lambda name, card_context: pl.col(f"deck_{name}") - card_context[name][ColName.DECK_LANDS],
+        expr=lambda name: pl.col(f"deck_{name}") - pl.col(f"deck_lands_{name}"),
     ),
     ColumnSpec(
         name=ColName.MANA_COST,
