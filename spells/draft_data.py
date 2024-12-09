@@ -14,12 +14,13 @@ from inspect import signature
 from typing import Callable, TypeVar, Any
 
 import polars as pl
+from polars.exceptions import ColumnNotFoundError
 
 from spells.external import data_file_path
 import spells.cache
 import spells.filter
 import spells.manifest
-from spells.columns import ColumnDefinition, ColumnSpec
+from spells.columns import ColDef, ColSpec
 from spells.enums import View, ColName, ColType
 
 
@@ -53,7 +54,7 @@ def _get_names(set_code: str) -> list[str]:
     return names
 
 
-def _get_card_context(set_code: str, col_spec_map: dict[str, ColumnSpec]) -> dict[str, dict[str, Any]]:
+def _get_card_context(set_code: str, col_spec_map: dict[str, ColSpec], card_context: pl.DataFrame | dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
     card_attr_specs = {col:spec for col, spec in col_spec_map.items() if spec.col_type == ColType.CARD_ATTR or spec.name == ColName.NAME}
     col_def_map = _hydrate_col_defs(set_code, card_attr_specs, card_only=True)
 
@@ -65,12 +66,25 @@ def _get_card_context(set_code: str, col_spec_map: dict[str, ColumnSpec]) -> dic
         card_df, frozenset(columns), col_def_map, is_agg_view=False
     ).to_dicts()
 
-    card_context = {row[ColName.NAME]: row for row in select_rows}
+    loaded_context = {row[ColName.NAME]: row for row in select_rows}
 
-    return card_context
+    if card_context is not None:
+        if isinstance(card_context, pl.DataFrame):
+            try:
+                card_context = {row[ColName.NAME]: row for row in card_context.to_dicts()}
+            except ColumnNotFoundError:
+                raise ValueError("card_context DataFrame must have column 'name'")
+
+        names = list(loaded_context.keys())
+        for name in names:
+            assert name in card_context, f"card_context must include a row for each card name. {name} missing."
+            for col, value in card_context[name].items():
+                loaded_context[name][col] = value
+
+    return loaded_context
     
 
-def _determine_expression(spec: ColumnSpec, names: list[str], card_context: dict[str, dict]) -> pl.Expr | tuple[pl.Expr, ...]:
+def _determine_expression(spec: ColSpec, names: list[str], card_context: dict[str, dict]) -> pl.Expr | tuple[pl.Expr, ...]:
     def seed_params(expr):
         params = {}
 
@@ -115,7 +129,7 @@ def _determine_expression(spec: ColumnSpec, names: list[str], card_context: dict
     return expr
 
 
-def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_map: dict[str, ColumnSpec], names: list[str]) -> set[str]:
+def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_map: dict[str, ColSpec], names: list[str]) -> set[str]:
     dependencies = set()
     tricky_ones = set()
 
@@ -150,13 +164,13 @@ def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_
     return dependencies
 
 
-def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec], card_only=False):
+def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColSpec], card_context: pl.DataFrame | dict[str, dict] | None = None, card_only: bool =False):
     names = _get_names(set_code)
 
     if card_only:
         card_context = {}
     else:
-        card_context = _get_card_context(set_code, col_spec_map)
+        card_context = _get_card_context(set_code, col_spec_map, card_context)
 
     assert len(names) > 0, "there should be names"
     hydrated = {}
@@ -184,7 +198,7 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec], card_o
             )
         )
 
-        cdef = ColumnDefinition(
+        cdef = ColDef(
             name=spec.name,
             col_type=spec.col_type,
             views=set(spec.views or set()),
@@ -199,7 +213,7 @@ def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColumnSpec], card_o
 def _view_select(
     df: DF,
     view_cols: frozenset[str],
-    col_def_map: dict[str, ColumnDefinition],
+    col_def_map: dict[str, ColDef],
     is_agg_view: bool,
 ) -> DF:
     base_cols = frozenset()
@@ -339,17 +353,18 @@ def summon(
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
-    extensions: list[ColumnSpec] | None = None,
+    extensions: list[ColSpec] | None = None,
     use_streaming: bool = False,
     read_cache: bool = True,
     write_cache: bool = True,
+    card_context: pl.DataFrame | dict[str, dict] | None = None
 ) -> pl.DataFrame:
     col_spec_map = dict(spells.columns.col_spec_map)
     if extensions is not None:
         for spec in extensions:
             col_spec_map[spec.name] = spec
 
-    col_def_map = _hydrate_col_defs(set_code, col_spec_map)
+    col_def_map = _hydrate_col_defs(set_code, col_spec_map, card_context)
     m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)
 
     calc_fn = functools.partial(_base_agg_df, set_code, m, use_streaming=use_streaming)

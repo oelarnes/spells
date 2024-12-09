@@ -3,13 +3,13 @@ from dataclasses import dataclass
 import spells.columns
 import spells.filter
 from spells.enums import View, ColName, ColType
-from spells.columns import ColumnDefinition
+from spells.columns import ColDef
 
 
 @dataclass(frozen=True)
 class Manifest:
     columns: tuple[str, ...]
-    col_def_map: dict[str, ColumnDefinition]
+    col_def_map: dict[str, ColDef]
     base_view_group_by: frozenset[str]
     view_cols: dict[View, frozenset[str]]
     group_by: tuple[str, ...]
@@ -85,7 +85,7 @@ class Manifest:
 
 def _resolve_view_cols(
     col_set: frozenset[str],
-    col_def_map: dict[str, ColumnDefinition],
+    col_def_map: dict[str, ColDef],
 ) -> dict[View, frozenset[str]]:
     """
     For each view ('game', 'draft', and 'card'), return the columns
@@ -153,7 +153,7 @@ def _resolve_view_cols(
 
 
 def create(
-    col_def_map: dict[str, ColumnDefinition],
+    col_def_map: dict[str, ColDef],
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,

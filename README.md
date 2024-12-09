@@ -63,8 +63,9 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
-- Provides 121 explicitly specified, enumerated, documented column definitions
+- Provides 122 explicitly specified, enumerated, documented column definitions
 - Supports "Deck Color Data" aggregations with built-in column definitions.
+- Lets you feed card metrics back in to column definitions to support scientific workflows like MLE
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
 - Retrieves and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
@@ -76,7 +77,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
 
 ## summon
 
-`summon` takes four optional arguments, allowing a fully declarative specification of your desired analysis. Basic functionality not provided by this api can often be managed by simple chained calls using the polars API, e.g. sorting and post-agg filtering.
+`summon` takes five optional arguments, allowing a fully declarative specification of your desired analysis. Basic functionality not provided by this api can often be managed by simple chained calls using the polars API, e.g. sorting and post-agg filtering.
   - `columns` specifies the desired output columns
     ```python
     >>> spells.summon('DSK', columns=["num_gp", "pct_gp", "gp_wr", "gp_wr_z"])
@@ -139,9 +140,9 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns.
     ```python
     >>> import polars as pl
-    >>> from spells.columns import ColumnSpec
+    >>> from spells.columns import ColSpec
     >>> from spells.enums import ColType, View, ColName
-    >>> ext = ColumnSpec(
+    >>> ext = ColSpec(
     ...     name='deq_base',
     ...     col_type=ColType.AGG,
     ...     expr=(pl.col('gp_wr_excess') + 0.03 * (1 - pl.col('ata')/14).pow(2)) * pl.col('pct_gp'),
@@ -169,8 +170,34 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
     │ Oblivious Bookworm       ┆ 0.028605 ┆ uncommon ┆ GU    │
     └──────────────────────────┴──────────┴──────────┴───────┘
     ```
-    
-    Note the use of chained calls to the Polars DataFrame api to perform manipulations on the result of `summon`.
+  - `card_context` takes a name-indexed DataFrame or name-keyed dict and allows the construction of column definitions based on the results.
+    ```python
+    >>> deq = spells.summon('DSK', columns=['deq_base'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
+    >>> ext = [ 
+    ...     ColSpec(
+    ...         name='picked_deq_base',
+    ...         col_type=ColType.PICK_SUM,
+    ...         expr=lambda name, card_context: card_context[name]['deq_base']
+    ...     ),
+    ...     ColSpec(
+    ...         name='picked_deq_base_avg',
+    ...         col_type=ColType.AGG,
+    ...         expr=pl.col('picked_deq_base') / pl.col('num_taken')
+    ...     ),
+    ... ]
+    >>> spells.summon('DSK', columns=['picked_deq_base_avg'], group_by=['player_cohort'], extensions=ext, card_context=deq)
+    shape: (4, 2)
+    ┌───────────────┬─────────────────────┐
+    │ player_cohort ┆ picked_deq_base_avg │
+    │ ---           ┆ ---                 │
+    │ str           ┆ f64                 │
+    ╞═══════════════╪═════════════════════╡
+    │ Bottom        ┆ 0.004826            │
+    │ Middle        ┆ 0.00532             │
+    │ Other         ┆ 0.004895            │
+    │ Top           ┆ 0.005659            │
+    └───────────────┴─────────────────────┘
+    ```
     
 ## Installation
 
@@ -278,7 +305,7 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
     - `{'$and': [{'lhs': 'draft_date', 'op': '>', 'rhs': datetime.date(2024, 10, 7)}, {'rank': 'Mythic'}]}` Drafts after October 7 by Mythic-ranked players. Supported values for query construction keys are `$and`, `$or`, and `$not`.
 
-- extensions: a list of `spells.columns.ColumnSpec` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
+- extensions: a list of `spells.columns.ColSpec` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
 
 - read_cache/write_cache: Use the local file system to cache and retrieve aggregations to minimize expensive reads of the large datasets. You shouldn't need to touch these arguments unless you are debugging.
 
@@ -290,12 +317,12 @@ from spells.enums import ColName, ColType
 
 Recommended to import `ColName` for any usage of `summon`, and to import `ColType` when defining custom extensions.
 
-### ColumnSpec
+### ColSpec
 
 ```python
-from spells.columns import ColumnSpec
+from spells.columns import ColSpec
 
-ColumnSpec(
+ColSpec(
     name: str,
     col_type: ColType,
     expr: pl.Expr | Callable[..., pl.Expr] | None = None,
@@ -355,6 +382,7 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `PICK_NUMBER`            | `"pick_number"`            | `DRAFT` | `FILTER_ONLY` | Dataset Column                               | Int      |
 | `PICK_NUM`               | `"pick_num"`               | `DRAFT` | `GROUP_BY`    | 1-indexed                                    | Int      |
 | `TAKEN_AT`               | `"taken_at`                | `DRAFT` | `PICK_SUM`    | Summable alias of `PICK_NUM`                 | Int      |
+| `NUM_DRAFTS`           | `"num_drafts"` | `DRAFT` | `PICK_SUM` | | Int |
 | `NUM_TAKEN`              | `"num_taken"`              | `DRAFT` | `PICK_SUM`    | Sum 1 over rows                              | Int      |
 | `PICK`                   | `"pick"`                   | `DRAFT` | `FILTER_ONLY` | Dataset Column, joined as "name"             | String   |
 | `PICK_MAINDECK_RATE`     | `"pick_maindeck_rate"`     | `DRAFT` | `PICK_SUM`    | Dataset Column                               | Float    |

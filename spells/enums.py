@@ -60,6 +60,7 @@ class ColName(StrEnum):
     PICK_NUM = "pick_num"  # pick_number plus 1
     TAKEN_AT = "taken_at"
     NUM_TAKEN = "num_taken"
+    NUM_DRAFTS = "num_drafts"
     PICK = "pick"
     PICK_MAINDECK_RATE = "pick_maindeck_rate"
     PICK_SIDEBOARD_IN_RATE = "pick_sideboard_in_rate"
