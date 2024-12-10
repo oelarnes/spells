@@ -8,7 +8,6 @@ from spells.enums import View, ColName, ColType
 
 @dataclass(frozen=True)
 class ColSpec:
-    name: str
     col_type: ColType
     expr: pl.Expr | Callable[..., pl.Expr] | None = None
     views: list[View] | None = None
@@ -41,69 +40,56 @@ default_columns = [
     ColName.GIH_WR,
 ]
 
-_column_specs = [
-    ColSpec(
-        name=ColName.NAME,
+specs: dict[str, ColSpec] = {
+    ColName.NAME: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.CARD],
     ),
-    ColSpec(
-        name=ColName.EXPANSION,
+    ColName.EXPANSION: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME, View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.EVENT_TYPE,
+    ColName.EVENT_TYPE: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME, View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.DRAFT_ID,
+    ColName.DRAFT_ID: ColSpec(
         views=[View.GAME, View.DRAFT],
         col_type=ColType.FILTER_ONLY,
     ),
-    ColSpec(
-        name=ColName.DRAFT_TIME,
+    ColName.DRAFT_TIME: ColSpec(
         col_type=ColType.FILTER_ONLY,
         views=[View.GAME, View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.DRAFT_DATE,
+    ColName.DRAFT_DATE: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.DRAFT_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.date(),
     ),
-    ColSpec(
-        name=ColName.DRAFT_DAY_OF_WEEK,
+    ColName.DRAFT_DAY_OF_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.DRAFT_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.weekday(),
     ),
-    ColSpec(
-        name=ColName.DRAFT_HOUR,
+    ColName.DRAFT_HOUR: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.DRAFT_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.hour(),
     ),
-    ColSpec(
-        name=ColName.DRAFT_WEEK,
+    ColName.DRAFT_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.DRAFT_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.week(),
     ),
-    ColSpec(
-        name=ColName.RANK,
+    ColName.RANK: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME, View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.USER_N_GAMES_BUCKET,
+    ColName.USER_N_GAMES_BUCKET: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.DRAFT, View.GAME],
     ),
-    ColSpec(
-        name=ColName.USER_GAME_WIN_RATE_BUCKET,
+    ColName.USER_GAME_WIN_RATE_BUCKET: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.DRAFT, View.GAME],
     ),
-    ColSpec(
-        name=ColName.PLAYER_COHORT,
+    ColName.PLAYER_COHORT: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.when(pl.col(ColName.USER_N_GAMES_BUCKET) < 100)
         .then(pl.lit("Other"))
@@ -117,309 +103,249 @@ _column_specs = [
             )
         ),
     ),
-    ColSpec(
-        name=ColName.EVENT_MATCH_WINS,
+    ColName.EVENT_MATCH_WINS: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.EVENT_MATCH_WINS_SUM,
+    ColName.EVENT_MATCH_WINS_SUM: ColSpec(
         col_type=ColType.PICK_SUM,
         views=[View.DRAFT],
         expr=pl.col(ColName.EVENT_MATCH_WINS),
     ),
-    ColSpec(
-        name=ColName.EVENT_MATCH_LOSSES,
+    ColName.EVENT_MATCH_LOSSES: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.EVENT_MATCH_LOSSES_SUM,
+    ColName.EVENT_MATCH_LOSSES_SUM: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.col(ColName.EVENT_MATCH_LOSSES),
     ),
-    ColSpec(
-        name=ColName.EVENT_MATCHES,
+    ColName.EVENT_MATCHES: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.EVENT_MATCH_WINS) + pl.col(ColName.EVENT_MATCH_LOSSES),
     ),
-    ColSpec(
-        name=ColName.EVENT_MATCHES_SUM,
+    ColName.EVENT_MATCHES_SUM: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.col(ColName.EVENT_MATCHES),
     ),
-    ColSpec(
-        name=ColName.IS_TROPHY,
+    ColName.IS_TROPHY: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.when(pl.col(ColName.EVENT_TYPE) == "Traditional")
         .then(pl.col(ColName.EVENT_MATCH_WINS) == 3)
         .otherwise(pl.col(ColName.EVENT_MATCH_WINS) == 7),
     ),
-    ColSpec(
-        name=ColName.IS_TROPHY_SUM,
+    ColName.IS_TROPHY_SUM: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.col(ColName.IS_TROPHY),
     ),
-    ColSpec(
-        name=ColName.PACK_NUMBER,
+    ColName.PACK_NUMBER: ColSpec(
         col_type=ColType.FILTER_ONLY,  # use pack_num
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.PACK_NUM,
+    ColName.PACK_NUM: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.PACK_NUMBER) + 1,
     ),
-    ColSpec(
-        name=ColName.PICK_NUMBER,
+    ColName.PICK_NUMBER: ColSpec(
         col_type=ColType.FILTER_ONLY,  # use pick_num
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.PICK_NUM,
+    ColName.PICK_NUM: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.PICK_NUMBER) + 1,
     ),
-    ColSpec(
-        name=ColName.TAKEN_AT,
+    ColName.TAKEN_AT: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.col(ColName.PICK_NUM),
     ),
-    ColSpec(
-        name=ColName.NUM_TAKEN,
+    ColName.NUM_TAKEN: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.when(pl.col(ColName.PICK).is_not_null())
         .then(1)
         .otherwise(0),
     ),
-    ColSpec(
-        name=ColName.NUM_DRAFTS,
+    ColName.NUM_DRAFTS: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.when((pl.col(ColName.PACK_NUMBER) == 0) & (pl.col(ColName.PICK_NUMBER) == 0)).then(1).otherwise(0),
     ),
-    ColSpec(
-        name=ColName.PICK,
+    ColName.PICK: ColSpec(
         col_type=ColType.FILTER_ONLY,
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.PICK_MAINDECK_RATE,
+    ColName.PICK_MAINDECK_RATE: ColSpec(
         col_type=ColType.PICK_SUM,
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.PICK_SIDEBOARD_IN_RATE,
+    ColName.PICK_SIDEBOARD_IN_RATE: ColSpec(
         col_type=ColType.PICK_SUM,
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.PACK_CARD,
+    ColName.PACK_CARD: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.LAST_SEEN,
+    ColName.LAST_SEEN: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"pack_card_{name}")
         * pl.min_horizontal(ColName.PICK_NUM, 8),
     ),
-    ColSpec(
-        name=ColName.NUM_SEEN,
+    ColName.NUM_SEEN: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"pack_card_{name}") * (pl.col(ColName.PICK_NUM) <= 8),
     ),
-    ColSpec(
-        name=ColName.POOL,
+    ColName.POOL: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.DRAFT],
     ),
-    ColSpec(
-        name=ColName.GAME_TIME,
+    ColName.GAME_TIME: ColSpec(
         col_type=ColType.FILTER_ONLY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.GAME_DATE,
+    ColName.GAME_DATE: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.date(),
     ),
-    ColSpec(
-        name=ColName.GAME_DAY_OF_WEEK,
+    ColName.GAME_DAY_OF_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.weekday(),
     ),
-    ColSpec(
-        name=ColName.GAME_HOUR,
+    ColName.GAME_HOUR: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.hour(),
     ),
-    ColSpec(
-        name=ColName.GAME_WEEK,
+    ColName.GAME_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.week(),
     ),
-    ColSpec(
-        name=ColName.BUILD_INDEX,
+    ColName.BUILD_INDEX: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.MATCH_NUMBER,
+    ColName.MATCH_NUMBER: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.GAME_NUMBER,
+    ColName.GAME_NUMBER: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.NUM_GAMES,
+    ColName.NUM_GAMES: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.GAME_NUMBER).is_not_null(),
     ),
-    ColSpec(
-        name=ColName.NUM_MATCHES,
+    ColName.NUM_MATCHES: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.GAME_NUMBER) == 1,
     ),
-    ColSpec(
-        name=ColName.NUM_EVENTS,
+    ColName.NUM_EVENTS: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=(pl.col(ColName.GAME_NUMBER) == 1) & (pl.col(ColName.MATCH_NUMBER) == 1),
     ),
-    ColSpec(
-        name=ColName.OPP_RANK,
+    ColName.OPP_RANK: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.MAIN_COLORS,
+    ColName.MAIN_COLORS: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.NUM_COLORS,
+    ColName.NUM_COLORS: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.MAIN_COLORS).str.len_chars(),
     ),
-    ColSpec(
-        name=ColName.SPLASH_COLORS,
+    ColName.SPLASH_COLORS: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.HAS_SPLASH,
+    ColName.HAS_SPLASH: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.SPLASH_COLORS).str.len_chars() > 0,
     ),
-    ColSpec(
-        name=ColName.ON_PLAY,
+    ColName.ON_PLAY: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.NUM_ON_PLAY,
+    ColName.NUM_ON_PLAY: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.ON_PLAY),
     ),
-    ColSpec(
-        name=ColName.NUM_MULLIGANS,
+    ColName.NUM_MULLIGANS: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.NUM_MULLIGANS_SUM,
+    ColName.NUM_MULLIGANS_SUM: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.NUM_MULLIGANS),
     ),
-    ColSpec(
-        name=ColName.OPP_NUM_MULLIGANS,
+    ColName.OPP_NUM_MULLIGANS: ColSpec(
         col_type=ColType.GAME_SUM,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.OPP_NUM_MULLIGANS_SUM,
+    ColName.OPP_NUM_MULLIGANS_SUM: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.OPP_NUM_MULLIGANS),
     ),
-    ColSpec(
-        name=ColName.OPP_COLORS,
+    ColName.OPP_COLORS: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.NUM_TURNS,
+    ColName.NUM_TURNS: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.NUM_TURNS_SUM,
+    ColName.NUM_TURNS_SUM: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.NUM_TURNS),
     ),
-    ColSpec(
-        name=ColName.WON,
+    ColName.WON: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.NUM_WON,
+    ColName.NUM_WON: ColSpec(
         col_type=ColType.GAME_SUM,
         expr=pl.col(ColName.WON),
     ),
-    ColSpec(
-        name=ColName.OPENING_HAND,
+    ColName.OPENING_HAND: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.WON_OPENING_HAND,
+    ColName.WON_OPENING_HAND: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"opening_hand_{name}") * pl.col(ColName.WON),
     ),
-    ColSpec(
-        name=ColName.DRAWN,
+    ColName.DRAWN: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.WON_DRAWN,
+    ColName.WON_DRAWN: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"drawn_{name}") * pl.col(ColName.WON),
     ),
-    ColSpec(
-        name=ColName.TUTORED,
+    ColName.TUTORED: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.WON_TUTORED,
+    ColName.WON_TUTORED: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"tutored_{name}") * pl.col(ColName.WON),
     ),
-    ColSpec(
-        name=ColName.DECK,
+    ColName.DECK: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.WON_DECK,
+    ColName.WON_DECK: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"deck_{name}") * pl.col(ColName.WON),
     ),
-    ColSpec(
-        name=ColName.SIDEBOARD,
+    ColName.SIDEBOARD: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.GAME],
     ),
-    ColSpec(
-        name=ColName.WON_SIDEBOARD,
+    ColName.WON_SIDEBOARD: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"sideboard_{name}") * pl.col(ColName.WON),
     ),
-    ColSpec(
-        name=ColName.NUM_GNS,
+    ColName.NUM_GNS: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.max_horizontal(
             0,
@@ -429,258 +355,204 @@ _column_specs = [
             - pl.col(f"opening_hand_{name}"),
         ),
     ),
-    ColSpec(
-        name=ColName.WON_NUM_GNS,
+    ColName.WON_NUM_GNS: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(ColName.WON) * pl.col(f"num_gns_{name}"),
     ),
-    ColSpec(
-        name=ColName.SET_CODE,
+    ColName.SET_CODE: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.COLOR,
+    ColName.COLOR: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.RARITY,
+    ColName.RARITY: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.COLOR_IDENTITY,
+    ColName.COLOR_IDENTITY: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.CARD_TYPE,
+    ColName.CARD_TYPE: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.SUBTYPE,
+    ColName.SUBTYPE: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.MANA_VALUE,
+    ColName.MANA_VALUE: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.DECK_MANA_VALUE,
+    ColName.DECK_MANA_VALUE: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name, card_context: card_context[name][ColName.MANA_VALUE] * pl.col(f"deck_{name}"),
     ),
-    ColSpec(
-        name=ColName.DECK_LANDS,
+    ColName.DECK_LANDS: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name, card_context: pl.col(f"deck_{name}") * ( 1 if 'Land' in card_context[name][ColName.CARD_TYPE] else 0 )
     ),
-    ColSpec(
-        name=ColName.DECK_SPELLS,
+    ColName.DECK_SPELLS: ColSpec(
         col_type=ColType.NAME_SUM,
         expr=lambda name: pl.col(f"deck_{name}") - pl.col(f"deck_lands_{name}"),
     ),
-    ColSpec(
-        name=ColName.MANA_COST,
+    ColName.MANA_COST: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.POWER,
+    ColName.POWER: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.TOUGHNESS,
+    ColName.TOUGHNESS: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.IS_BONUS_SHEET,
+    ColName.IS_BONUS_SHEET: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.IS_DFC,
+    ColName.IS_DFC: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.ORACLE_TEXT,
+    ColName.ORACLE_TEXT: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.CARD_JSON,
+    ColName.CARD_JSON: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
-    ColSpec(
-        name=ColName.PICKED_MATCH_WR,
+    ColName.PICKED_MATCH_WR: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.EVENT_MATCH_WINS_SUM) / pl.col(ColName.EVENT_MATCHES_SUM),
     ),
-    ColSpec(
-        name=ColName.TROPHY_RATE,
+    ColName.TROPHY_RATE: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.IS_TROPHY_SUM) / pl.col(ColName.NUM_TAKEN),
     ),
-    ColSpec(
-        name=ColName.GAME_WR,
+    ColName.GAME_WR: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.NUM_WON) / pl.col(ColName.NUM_GAMES),
     ),
-    ColSpec(
-        name=ColName.ALSA,
+    ColName.ALSA: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.LAST_SEEN) / pl.col(ColName.NUM_SEEN),
     ),
-    ColSpec(
-        name=ColName.ATA,
+    ColName.ATA: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.TAKEN_AT) / pl.col(ColName.NUM_TAKEN),
     ),
-    ColSpec(
-        name=ColName.NUM_GP,
+    ColName.NUM_GP: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK),
     ),
-    ColSpec(
-        name=ColName.PCT_GP,
+    ColName.PCT_GP: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK) / (pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD)),
     ),
-    ColSpec(
-        name=ColName.GP_WR,
+    ColName.GP_WR: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_DECK) / pl.col(ColName.DECK),
     ),
-    ColSpec(
-        name=ColName.NUM_OH,
+    ColName.NUM_OH: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.OPENING_HAND),
     ),
-    ColSpec(
-        name=ColName.OH_WR,
+    ColName.OH_WR: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_OPENING_HAND) / pl.col(ColName.OPENING_HAND),
     ),
-    ColSpec(
-        name=ColName.NUM_GIH,
+    ColName.NUM_GIH: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.OPENING_HAND) + pl.col(ColName.DRAWN),
     ),
-    ColSpec(
-        name=ColName.NUM_GIH_WON,
+    ColName.NUM_GIH_WON: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_OPENING_HAND) + pl.col(ColName.WON_DRAWN),
     ),
-    ColSpec(
-        name=ColName.GIH_WR,
+    ColName.GIH_WR: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.NUM_GIH_WON) / pl.col(ColName.NUM_GIH),
     ),
-    ColSpec(
-        name=ColName.GNS_WR,
+    ColName.GNS_WR: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_NUM_GNS) / pl.col(ColName.NUM_GNS),
     ),
-    ColSpec(
-        name=ColName.IWD,
+    ColName.IWD: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.GIH_WR) - pl.col(ColName.GNS_WR),
     ),
-    ColSpec(
-        name=ColName.NUM_IN_POOL,
+    ColName.NUM_IN_POOL: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD),
     ),
-    ColSpec(
-        name=ColName.IN_POOL_WR,
+    ColName.IN_POOL_WR: ColSpec(
         col_type=ColType.AGG,
         expr=(pl.col(ColName.WON_DECK) + pl.col(ColName.WON_SIDEBOARD))
         / pl.col(ColName.NUM_IN_POOL),
     ),
-    ColSpec(
-        name=ColName.DECK_TOTAL,
+    ColName.DECK_TOTAL: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK).sum(),
     ),
-    ColSpec(
-        name=ColName.WON_DECK_TOTAL,
+    ColName.WON_DECK_TOTAL: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_DECK).sum(),
     ),
-    ColSpec(
-        name=ColName.GP_WR_MEAN,
+    ColName.GP_WR_MEAN: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_DECK_TOTAL) / pl.col(ColName.DECK_TOTAL),
     ),
-    ColSpec(
-        name=ColName.GP_WR_EXCESS,
+    ColName.GP_WR_EXCESS: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.GP_WR) - pl.col(ColName.GP_WR_MEAN),
     ),
-    ColSpec(
-        name=ColName.GP_WR_VAR,
+    ColName.GP_WR_VAR: ColSpec(
         col_type=ColType.AGG,
         expr=(pl.col(ColName.GP_WR_EXCESS).pow(2) * pl.col(ColName.NUM_GP)).sum()
         / pl.col(ColName.DECK_TOTAL),
     ),
-    ColSpec(
-        name=ColName.GP_WR_STDEV,
+    ColName.GP_WR_STDEV: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.GP_WR_VAR).sqrt(),
     ),
-    ColSpec(
-        name=ColName.GP_WR_Z,
+    ColName.GP_WR_Z: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.GP_WR_EXCESS) / pl.col(ColName.GP_WR_STDEV),
     ),
-    ColSpec(
-        name=ColName.GIH_TOTAL,
+    ColName.GIH_TOTAL: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.NUM_GIH).sum(),
     ),
-    ColSpec(
-        name=ColName.WON_GIH_TOTAL,
+    ColName.WON_GIH_TOTAL: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.NUM_GIH_WON).sum(),
     ),
-    ColSpec(
-        name=ColName.GIH_WR_MEAN,
+    ColName.GIH_WR_MEAN: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.WON_GIH_TOTAL) / pl.col(ColName.GIH_TOTAL),
     ),
-    ColSpec(
-        name=ColName.GIH_WR_EXCESS,
+    ColName.GIH_WR_EXCESS: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.GIH_WR) - pl.col(ColName.GIH_WR_MEAN),
     ),
-    ColSpec(
-        name=ColName.GIH_WR_VAR,
+    ColName.GIH_WR_VAR: ColSpec(
         col_type=ColType.AGG,
         expr=(pl.col(ColName.GIH_WR_EXCESS).pow(2) * pl.col(ColName.NUM_GIH)).sum()
         / pl.col(ColName.GIH_TOTAL),
     ),
-    ColSpec(
-        name=ColName.GIH_WR_STDEV,
+    ColName.GIH_WR_STDEV: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.GIH_WR_VAR).sqrt(),
     ),
-    ColSpec(
-        name=ColName.GIH_WR_Z,
+    ColName.GIH_WR_Z: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.GIH_WR_EXCESS) / pl.col(ColName.GIH_WR_STDEV),
     ),
-    ColSpec(
-        name=ColName.DECK_MANA_VALUE_AVG,
+    ColName.DECK_MANA_VALUE_AVG: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK_MANA_VALUE) / pl.col(ColName.DECK_SPELLS),
     ),
-    ColSpec(
-        name=ColName.DECK_LANDS_AVG,
+    ColName.DECK_LANDS_AVG: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK_LANDS) / pl.col(ColName.NUM_GAMES),
     ),
-    ColSpec(
-        name=ColName.DECK_SPELLS_AVG,
+    ColName.DECK_SPELLS_AVG: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK_SPELLS) / pl.col(ColName.NUM_GAMES),
     ),
-]
-
-col_spec_map = {col.name: col for col in _column_specs}
+}
 
 for item in ColName:
-    assert item in col_spec_map, f"column {item} enumerated but not specified"
+    assert item in specs, f"column {item} enumerated but not specified"

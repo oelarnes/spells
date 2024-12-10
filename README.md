@@ -123,7 +123,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
     ```
   - `filter_spec` specifies a row-level filter for the dataset, using an intuitive custom query formulation
     ```python
-    >>> from spells.enums import ColName
+    >>> from spells import ColName
     >>> spells.summon('BLB', columns=[ColName.GAME_WR], group_by=[ColName.PLAYER_COHORT], filter_spec={'lhs': ColName.NUM_MULLIGANS, 'op': '>', 'rhs': 0})
     shape: (4, 2)
     ┌───────────────┬──────────┐
@@ -140,14 +140,14 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
   - `extensions` allows for the specification of arbitrarily complex derived columns and aggregations, including custom columns built on top of custom columns.
     ```python
     >>> import polars as pl
-    >>> from spells.columns import ColSpec
-    >>> from spells.enums import ColType, View, ColName
-    >>> ext = ColSpec(
-    ...     name='deq_base',
-    ...     col_type=ColType.AGG,
-    ...     expr=(pl.col('gp_wr_excess') + 0.03 * (1 - pl.col('ata')/14).pow(2)) * pl.col('pct_gp'),
-    ... )
-    >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
+    >>> from spells import ColSpec, ColType 
+    >>> ext = {
+    ...     'deq_base': ColSpec(
+    ...         col_type=ColType.AGG,
+    ...         expr=(pl.col('gp_wr_excess') + 0.03 * (1 - pl.col('ata')/14).pow(2)) * pl.col('pct_gp'),
+    ...     }
+    ... }
+    >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=ext)
     ...     .filter(pl.col('deq_base').is_finite())
     ...     .filter(pl.col('rarity').is_in(['common', 'uncommon'])
     ...     .sort('deq_base', descending=True)
@@ -173,18 +173,16 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
   - `card_context` takes a name-indexed DataFrame or name-keyed dict and allows the construction of column definitions based on the results.
     ```python
     >>> deq = spells.summon('DSK', columns=['deq_base'], filter_spec={'player_cohort': 'Top'}, extensions=[ext])
-    >>> ext = [ 
-    ...     ColSpec(
-    ...         name='picked_deq_base',
+    >>> ext = { 
+    ...     'picked_deq_base': ColSpec(
     ...         col_type=ColType.PICK_SUM,
     ...         expr=lambda name, card_context: card_context[name]['deq_base']
     ...     ),
-    ...     ColSpec(
-    ...         name='picked_deq_base_avg',
+    ...     'picked_deq_base_avg', ColSpec(
     ...         col_type=ColType.AGG,
     ...         expr=pl.col('picked_deq_base') / pl.col('num_taken')
     ...     ),
-    ... ]
+    ... }
     >>> spells.summon('DSK', columns=['picked_deq_base_avg'], group_by=['player_cohort'], extensions=ext, card_context=deq)
     shape: (4, 2)
     ┌───────────────┬─────────────────────┐
@@ -305,14 +303,16 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
     - `{'$and': [{'lhs': 'draft_date', 'op': '>', 'rhs': datetime.date(2024, 10, 7)}, {'rank': 'Mythic'}]}` Drafts after October 7 by Mythic-ranked players. Supported values for query construction keys are `$and`, `$or`, and `$not`.
 
-- extensions: a list of `spells.columns.ColSpec` objects, which are appended to the definitions built-in columns described below. A name not in the enum `ColName` can be used in this way if it is the name of a provided extension. Existing names can also be redefined using extensions.
+- extensions: a dict of `spells.columns.ColSpec` objects, keyed by name, which are appended to the definitions built-in columns described below. 
+
+- card_context: Typically a Polars DataFrame containing a `"name"` column with one row for each card name in the set, such that any usages of `card_context[name][key]` in column specs reference the column `key`. Typically this will be the output of a call to `summon` requesting cards metrics like `GP_WR`. Can also be a dictionary having the necessary form for the same access pattern.
 
 - read_cache/write_cache: Use the local file system to cache and retrieve aggregations to minimize expensive reads of the large datasets. You shouldn't need to touch these arguments unless you are debugging.
 
 ### Enums
 
 ```python
-from spells.enums import ColName, ColType
+from spells import ColName, ColType
 ```
 
 Recommended to import `ColName` for any usage of `summon`, and to import `ColType` when defining custom extensions.
@@ -320,10 +320,9 @@ Recommended to import `ColName` for any usage of `summon`, and to import `ColTyp
 ### ColSpec
 
 ```python
-from spells.columns import ColSpec
+from spells import ColSpec
 
 ColSpec(
-    name: str,
     col_type: ColType,
     expr: pl.Expr | Callable[..., pl.Expr] | None = None,
     version: str | None = None
@@ -334,8 +333,6 @@ Used to define extensions in `summon`
 
 #### parameters
 
-- `name`: any string, including existing columns, although this is very likely to break dependent columns, so don't do it. For `NAME_SUM` columns, the name is the prefix without the underscore, e.g. "drawn".
-
 - `col_type`: one of the `ColType` enum values, `FILTER_ONLY`, `GROUP_BY`, `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. See documentation for `summon` for usage. All columns except `CARD_ATTR`
 and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after 
 summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
@@ -344,7 +341,7 @@ summing over groups, and can include polars Expression aggregations. Arbitrarily
     - For `NAME_SUM` columns, `expr` must be a function of `name` which will result in a list of expressions mapped over all card names.
     - `PICK_SUM` columns can also be functions on `name`, in which case the value will be a function of the value of the `PICK` field. 
     - `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection. 
-    - The possible arguments to `expr`, in addition to `name` when appropriate, include the full `names` array as well as a dictionary called `card_context` which contains card dict objects with all `CARD_ATTR` values, including custom extensions. See example notebooks for more details.
+    - The possible arguments to `expr`, in addition to `name` when appropriate, include the full `names` array as well as a dictionary called `card_context` which contains card dict objects with all `CARD_ATTR` values, including custom extensions and metric columns passed by the `card_context` argument to `summon`. See example notebooks for more details.
 
 - `version`: When defining a column using a python function, as opposed to Polars expressions, add a unique version number so that the unique hashed signature of the column specification can be derived 
 for caching purposes, since Polars cannot generate a serialization natively. When changing the definition, be sure to increment the version value. Otherwise you do not need to use this parameter.

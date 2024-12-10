@@ -54,8 +54,8 @@ def _get_names(set_code: str) -> list[str]:
     return names
 
 
-def _get_card_context(set_code: str, col_spec_map: dict[str, ColSpec], card_context: pl.DataFrame | dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
-    card_attr_specs = {col:spec for col, spec in col_spec_map.items() if spec.col_type == ColType.CARD_ATTR or spec.name == ColName.NAME}
+def _get_card_context(set_code: str, specs: dict[str, ColSpec], card_context: pl.DataFrame | dict[str, dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    card_attr_specs = {col:spec for col, spec in specs.items() if spec.col_type == ColType.CARD_ATTR or col == ColName.NAME}
     col_def_map = _hydrate_col_defs(set_code, card_attr_specs, card_only=True)
 
     columns = list(col_def_map.keys())
@@ -84,7 +84,7 @@ def _get_card_context(set_code: str, col_spec_map: dict[str, ColSpec], card_cont
     return loaded_context
     
 
-def _determine_expression(spec: ColSpec, names: list[str], card_context: dict[str, dict]) -> pl.Expr | tuple[pl.Expr, ...]:
+def _determine_expression(col: str, spec: ColSpec, names: list[str], card_context: dict[str, dict]) -> pl.Expr | tuple[pl.Expr, ...]:
     def seed_params(expr):
         params = {}
 
@@ -97,18 +97,18 @@ def _determine_expression(spec: ColSpec, names: list[str], card_context: dict[st
 
     if spec.col_type == ColType.NAME_SUM:
         if spec.expr is not None:
-            assert isinstance(spec.expr, Callable), f"NAME_SUM column {spec.name} must have a callable `expr` accepting a `name` argument"
+            assert isinstance(spec.expr, Callable), f"NAME_SUM column {col} must have a callable `expr` accepting a `name` argument"
             unnamed_exprs = [spec.expr(**{'name': name, **seed_params(spec.expr)}) for name in names]
 
             expr = tuple(
                 map(
-                    lambda ex, name: ex.alias(f"{spec.name}_{name}"),
+                    lambda ex, name: ex.alias(f"{col}_{name}"),
                     unnamed_exprs,
                     names,
                 )
             )
         else:
-            expr = tuple(map(lambda name: pl.col(f"{spec.name}_{name}"), names))
+            expr = tuple(map(lambda name: pl.col(f"{col}_{name}"), names))
 
     elif spec.expr is not None:
         if isinstance(spec.expr, Callable):
@@ -118,25 +118,27 @@ def _determine_expression(spec: ColSpec, names: list[str], card_context: dict[st
                 for name in names:
                     name_params = {'name': name, **params}
                     expr = pl.when(pl.col(ColName.PICK) == name).then(spec.expr(**name_params)).otherwise(expr)
+            elif spec.col_type == ColType.CARD_ATTR and 'name' in signature(spec.expr).parameters:
+                expr = spec.expr(**{'name': pl.col('name'), **params})
             else:
                 expr = spec.expr(**params)
         else:
             expr = spec.expr
-        expr = expr.alias(spec.name)
+        expr = expr.alias(col)
     else:
-        expr = pl.col(spec.name)
+        expr = pl.col(col)
 
     return expr
 
 
-def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_map: dict[str, ColSpec], names: list[str]) -> set[str]:
+def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], specs: dict[str, ColSpec], names: list[str]) -> set[str]:
     dependencies = set()
     tricky_ones = set()
 
     if isinstance(expr, pl.Expr):
         dep_cols = [c for c in expr.meta.root_names() if c != name]
         for dep_col in dep_cols:
-            if dep_col in col_spec_map.keys():
+            if dep_col in specs.keys():
                 dependencies.add(dep_col)
             else: 
                 tricky_ones.add(dep_col)
@@ -145,9 +147,9 @@ def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_
             pattern = f"_{names[idx]}$"
             dep_cols = [c for c in exp.meta.root_names() if c != name]
             for dep_col in dep_cols:
-                if dep_col in col_spec_map.keys():
+                if dep_col in specs.keys():
                     dependencies.add(dep_col)
-                elif len(split := re.split(pattern, dep_col)) == 2 and split[0] in col_spec_map:
+                elif len(split := re.split(pattern, dep_col)) == 2 and split[0] in specs:
                     dependencies.add(split[0])
                 else:
                     tricky_ones.add(dep_col)
@@ -156,7 +158,7 @@ def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_
         found = False
         for n in names:
             pattern = f"_{n}$"
-            if not found and len(split := re.split(pattern, item)) == 2 and split[0] in col_spec_map:
+            if not found and len(split := re.split(pattern, item)) == 2 and split[0] in specs:
                 dependencies.add(split[0])
                 found = True
         assert found, f"Could not locate column spec for root col {item}" 
@@ -164,49 +166,50 @@ def _infer_dependencies(name: str, expr: pl.Expr | tuple[pl.Expr,...], col_spec_
     return dependencies
 
 
-def _hydrate_col_defs(set_code: str, col_spec_map: dict[str, ColSpec], card_context: pl.DataFrame | dict[str, dict] | None = None, card_only: bool =False):
+def _hydrate_col_defs(set_code: str, specs: dict[str, ColSpec], card_context: pl.DataFrame | dict[str, dict] | None = None, card_only: bool =False):
     names = _get_names(set_code)
 
     if card_only:
         card_context = {}
     else:
-        card_context = _get_card_context(set_code, col_spec_map, card_context)
+        card_context = _get_card_context(set_code, specs, card_context)
 
     assert len(names) > 0, "there should be names"
     hydrated = {}
-    for key, spec in col_spec_map.items():
-        expr = _determine_expression(spec, names, card_context)
-        dependencies = _infer_dependencies(key, expr, col_spec_map, names)
+    for col, spec in specs.items():
+        expr = _determine_expression(col, spec, names, card_context)
+        dependencies = _infer_dependencies(col, expr, specs, names)
 
+        sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
         try:
-            sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
             expr_sig = sig_expr.meta.serialize(
                 format="json"
-            )  # not compatible with renaming
+            )
         except pl.exceptions.ComputeError:
             if spec.version is not None:
-                expr_sig = spec.name + spec.version
+                expr_sig = col + spec.version
             else:
-                expr_sig = str(datetime.datetime.now)
+                print(f"Using session-only signature for non-serializable column {col}, please provide a version value")
+                expr_sig = str(sig_expr)
 
         signature = str(
             (
-                spec.name,
+                col,
                 spec.col_type.value,
                 expr_sig,
-                dependencies,
+                sorted(dependencies),
             )
         )
 
         cdef = ColDef(
-            name=spec.name,
+            name=col,
             col_type=spec.col_type,
             views=set(spec.views or set()),
             expr=expr,
             dependencies=dependencies,
             signature=signature,
         )
-        hydrated[key] = cdef
+        hydrated[col] = cdef
     return hydrated
 
 
@@ -353,18 +356,18 @@ def summon(
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
-    extensions: list[ColSpec] | None = None,
+    extensions: dict[str, ColSpec] | None = None,
     use_streaming: bool = False,
     read_cache: bool = True,
     write_cache: bool = True,
     card_context: pl.DataFrame | dict[str, dict] | None = None
 ) -> pl.DataFrame:
-    col_spec_map = dict(spells.columns.col_spec_map)
-    if extensions is not None:
-        for spec in extensions:
-            col_spec_map[spec.name] = spec
+    specs = dict(spells.columns.specs)
 
-    col_def_map = _hydrate_col_defs(set_code, col_spec_map, card_context)
+    if extensions is not None:
+        specs.update(extensions)
+
+    col_def_map = _hydrate_col_defs(set_code, specs, card_context)
     m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)
 
     calc_fn = functools.partial(_base_agg_df, set_code, m, use_streaming=use_streaming)
