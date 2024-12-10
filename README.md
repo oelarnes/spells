@@ -283,7 +283,8 @@ summon(
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
-    extensions: list[str] | None = None,
+    extensions: dict[str, ColSpec] | None = None,
+    card_context: pl.DataFrame | dict[str, dict[str, Any] | None = None,
     read_cache: bool = True,
     write_cache: bool = True,
 ) -> polars.DataFrame
