@@ -107,7 +107,9 @@ def _resolve_view_cols(
                     View.DRAFT, frozenset()
                 ).union({ColName.PICK})
             if cdef.col_type == ColType.CARD_ATTR:
-                view_resolution[View.CARD] = view_resolution.get(View.CARD, frozenset()).union({col})
+                view_resolution[View.CARD] = view_resolution.get(
+                    View.CARD, frozenset()
+                ).union({col})
             elif cdef.views:
                 for view in cdef.views:
                     view_resolution[view] = view_resolution.get(
@@ -132,7 +134,9 @@ def _resolve_view_cols(
                         else:
                             col_views = col_views.intersection(dep_views)
                     if fully_resolved:
-                        assert len(col_views), f"Column {col} can't be defined in any views!"
+                        assert len(
+                            col_views
+                        ), f"Column {col} can't be defined in any views!"
                         for view in col_views:
                             if view not in view_resolution:
                                 print(cdef)
@@ -162,7 +166,9 @@ def create(
     if columns is None:
         cols = tuple(spells.columns.default_columns)
         if ColName.NAME not in gbs:
-            cols = tuple(c for c in cols if col_def_map[c].col_type != ColType.CARD_ATTR)
+            cols = tuple(
+                c for c in cols if col_def_map[c].col_type != ColType.CARD_ATTR
+            )
     else:
         cols = tuple(columns)
 

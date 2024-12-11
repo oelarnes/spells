@@ -5,6 +5,7 @@ import polars as pl
 
 from spells.enums import View, ColName, ColType
 
+
 @dataclass(frozen=True)
 class ColSpec:
     col_type: ColType
@@ -66,7 +67,9 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.DRAFT_DAY_OF_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
-        expr=pl.col(ColName.DRAFT_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.weekday(),
+        expr=pl.col(ColName.DRAFT_TIME)
+        .str.to_datetime("%Y-%m-%d %H:%M:%S")
+        .dt.weekday(),
     ),
     ColName.DRAFT_HOUR: ColSpec(
         col_type=ColType.GROUP_BY,
@@ -159,13 +162,15 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.NUM_TAKEN: ColSpec(
         col_type=ColType.PICK_SUM,
-        expr=pl.when(pl.col(ColName.PICK).is_not_null())
-        .then(1)
-        .otherwise(0),
+        expr=pl.when(pl.col(ColName.PICK).is_not_null()).then(1).otherwise(0),
     ),
     ColName.NUM_DRAFTS: ColSpec(
         col_type=ColType.PICK_SUM,
-        expr=pl.when((pl.col(ColName.PACK_NUMBER) == 0) & (pl.col(ColName.PICK_NUMBER) == 0)).then(1).otherwise(0),
+        expr=pl.when(
+            (pl.col(ColName.PACK_NUMBER) == 0) & (pl.col(ColName.PICK_NUMBER) == 0)
+        )
+        .then(1)
+        .otherwise(0),
     ),
     ColName.PICK: ColSpec(
         col_type=ColType.FILTER_ONLY,
@@ -206,7 +211,9 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.GAME_DAY_OF_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
-        expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.weekday(),
+        expr=pl.col(ColName.GAME_TIME)
+        .str.to_datetime("%Y-%m-%d %H-%M-%S")
+        .dt.weekday(),
     ),
     ColName.GAME_HOUR: ColSpec(
         col_type=ColType.GROUP_BY,
@@ -381,11 +388,13 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.DECK_MANA_VALUE: ColSpec(
         col_type=ColType.NAME_SUM,
-        expr=lambda name, card_context: card_context[name][ColName.MANA_VALUE] * pl.col(f"deck_{name}"),
+        expr=lambda name, card_context: card_context[name][ColName.MANA_VALUE]
+        * pl.col(f"deck_{name}"),
     ),
     ColName.DECK_LANDS: ColSpec(
         col_type=ColType.NAME_SUM,
-        expr=lambda name, card_context: pl.col(f"deck_{name}") * ( 1 if 'Land' in card_context[name][ColName.CARD_TYPE] else 0 )
+        expr=lambda name, card_context: pl.col(f"deck_{name}")
+        * (1 if "Land" in card_context[name][ColName.CARD_TYPE] else 0),
     ),
     ColName.DECK_SPELLS: ColSpec(
         col_type=ColType.NAME_SUM,
@@ -560,11 +569,13 @@ _specs: dict[str, ColSpec] = {
 for item in ColName:
     assert item in _specs, f"column {item} enumerated but not specified"
 
+
 class GetSpecs:
     def __init__(self, spec_dict: dict[str, ColSpec]):
         self._specs = spec_dict
+
     def __call__(self):
         return dict(self._specs)
 
-get_specs = GetSpecs(_specs)
 
+get_specs = GetSpecs(_specs)
