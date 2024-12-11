@@ -143,6 +143,7 @@ class ColName(StrEnum):
     GNS_WR = "gns_wr"
     IWD = "iwd"
     NUM_IN_POOL = "num_in_pool"
+    NUM_IN_POOL_TOTAL = "num_in_pool_total"
     IN_POOL_WR = "in_pool_wr"
     DECK_TOTAL = "deck_total"
     WON_DECK_TOTAL = "won_deck_total"

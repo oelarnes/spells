@@ -6,7 +6,6 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
-import datetime
 import functools
 import hashlib
 import re
@@ -20,7 +19,7 @@ from spells.external import data_file_path
 import spells.cache
 import spells.filter
 import spells.manifest
-from spells.columns import ColDef, ColSpec
+from spells.columns import ColDef, ColSpec, get_specs
 from spells.enums import View, ColName, ColType
 
 
@@ -356,16 +355,19 @@ def summon(
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
-    extensions: dict[str, ColSpec] | None = None,
+    extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
     use_streaming: bool = False,
     read_cache: bool = True,
     write_cache: bool = True,
     card_context: pl.DataFrame | dict[str, dict] | None = None
 ) -> pl.DataFrame:
-    specs = dict(spells.columns.specs)
+    specs = get_specs()
 
     if extensions is not None:
-        specs.update(extensions)
+        if not isinstance(extensions, list):
+            extensions = [extensions]
+        for ext in extensions:
+            specs.update(ext)
 
     col_def_map = _hydrate_col_defs(set_code, specs, card_context)
     m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)

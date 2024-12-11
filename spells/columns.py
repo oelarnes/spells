@@ -5,7 +5,6 @@ import polars as pl
 
 from spells.enums import View, ColName, ColType
 
-
 @dataclass(frozen=True)
 class ColSpec:
     col_type: ColType
@@ -40,7 +39,7 @@ default_columns = [
     ColName.GIH_WR,
 ]
 
-specs: dict[str, ColSpec] = {
+_specs: dict[str, ColSpec] = {
     ColName.NAME: ColSpec(
         col_type=ColType.GROUP_BY,
         views=[View.CARD],
@@ -477,6 +476,10 @@ specs: dict[str, ColSpec] = {
         col_type=ColType.AGG,
         expr=pl.col(ColName.DECK) + pl.col(ColName.SIDEBOARD),
     ),
+    ColName.NUM_IN_POOL_TOTAL: ColSpec(
+        col_type=ColType.AGG,
+        expr=pl.col(ColName.NUM_IN_POOL).sum(),
+    ),
     ColName.IN_POOL_WR: ColSpec(
         col_type=ColType.AGG,
         expr=(pl.col(ColName.WON_DECK) + pl.col(ColName.WON_SIDEBOARD))
@@ -555,4 +558,13 @@ specs: dict[str, ColSpec] = {
 }
 
 for item in ColName:
-    assert item in specs, f"column {item} enumerated but not specified"
+    assert item in _specs, f"column {item} enumerated but not specified"
+
+class GetSpecs:
+    def __init__(self, spec_dict: dict[str, ColSpec]):
+        self._specs = spec_dict
+    def __call__(self):
+        return dict(self._specs)
+
+get_specs = GetSpecs(_specs)
+
