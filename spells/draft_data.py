@@ -10,6 +10,7 @@ import functools
 import hashlib
 import re
 from inspect import signature
+import os
 from typing import Callable, TypeVar, Any
 
 import polars as pl
@@ -57,13 +58,16 @@ def _get_card_context(
     set_code: str,
     specs: dict[str, ColSpec],
     card_context: pl.DataFrame | dict[str, dict[str, Any]] | None,
+    set_context: pl.DataFrame | dict[str, Any] | None,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
         for col, spec in specs.items()
         if spec.col_type == ColType.CARD_ATTR or col == ColName.NAME
     }
-    col_def_map = _hydrate_col_defs(set_code, card_attr_specs, card_only=True)
+    col_def_map = _hydrate_col_defs(
+        set_code, card_attr_specs, set_context=set_context, card_only=True
+    )
 
     columns = list(col_def_map.keys())
 
@@ -96,7 +100,11 @@ def _get_card_context(
 
 
 def _determine_expression(
-    col: str, spec: ColSpec, names: list[str], card_context: dict[str, dict]
+    col: str,
+    spec: ColSpec,
+    names: list[str],
+    card_context: dict[str, dict],
+    set_context: dict[str, Any],
 ) -> pl.Expr | tuple[pl.Expr, ...]:
     def seed_params(expr):
         params = {}
@@ -106,6 +114,8 @@ def _determine_expression(
             params["names"] = names
         if "card_context" in sig_params:
             params["card_context"] = card_context
+        if "set_context" in sig_params:
+            params["set_context"] = set_context
         return params
 
     if spec.col_type == ColType.NAME_SUM:
@@ -204,23 +214,56 @@ def _infer_dependencies(
     return dependencies
 
 
+def _get_set_context(
+    set_code: str, set_context: pl.DataFrame | dict[str, Any] | None
+) -> dict[str, Any]:
+    context_fp = data_file_path(set_code, "context")
+
+    report = functools.partial(
+        spells.cache.spells_print,
+        "report",
+        f"Set context for {set_code} invalid, please investigate!",
+    )
+
+    context = {}
+    if not os.path.isfile(context_fp):
+        report()
+    else:
+        context_df = pl.read_parquet(context_fp)
+        if len(context_df) == 1:
+            context.update(context_df.to_dicts()[0])
+        else:
+            report()
+
+    if isinstance(set_context, pl.DataFrame):
+        assert len(set_context != 1), "Invalid set context provided"
+        context.update(set_context.to_dicts()[0])
+    elif isinstance(set_context, dict):
+        context.update(set_context)
+
+    return context
+
+
 def _hydrate_col_defs(
     set_code: str,
     specs: dict[str, ColSpec],
     card_context: pl.DataFrame | dict[str, dict] | None = None,
+    set_context: pl.DataFrame | dict[str, Any] | None = None,
     card_only: bool = False,
 ):
     names = _get_names(set_code)
 
+    set_context = _get_set_context(set_code, set_context)
+
     if card_only:
         card_context = {}
     else:
-        card_context = _get_card_context(set_code, specs, card_context)
+        card_context = _get_card_context(set_code, specs, card_context, set_context)
 
     assert len(names) > 0, "there should be names"
     hydrated = {}
     for col, spec in specs.items():
-        expr = _determine_expression(col, spec, names, card_context)
+        expr = _determine_expression(col, spec, names, card_context, set_context)
         dependencies = _infer_dependencies(col, expr, specs, names)
 
         sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
@@ -404,6 +447,7 @@ def summon(
     read_cache: bool = True,
     write_cache: bool = True,
     card_context: pl.DataFrame | dict[str, dict] | None = None,
+    set_context: pl.DataFrame | dict[str, Any] | None = None,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -413,7 +457,7 @@ def summon(
         for ext in extensions:
             specs.update(ext)
 
-    col_def_map = _hydrate_col_defs(set_code, specs, card_context)
+    col_def_map = _hydrate_col_defs(set_code, specs, card_context, set_context)
     m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)
 
     calc_fn = functools.partial(_base_agg_df, set_code, m, use_streaming=use_streaming)

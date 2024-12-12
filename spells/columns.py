@@ -65,6 +65,16 @@ _specs: dict[str, ColSpec] = {
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.DRAFT_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.date(),
     ),
+    ColName.FORMAT_DAY: ColSpec(
+        col_type=ColType.GROUP_BY,
+        expr=lambda set_context: (
+            pl.col(ColName.DRAFT_DATE)
+            - pl.lit(set_context["release_time"])
+            .str.to_datetime("%Y-%m-%d %H:%M:%S")
+            .dt.date()
+        ).dt.total_days()
+        + 1,
+    ),
     ColName.DRAFT_DAY_OF_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.DRAFT_TIME)
@@ -78,6 +88,9 @@ _specs: dict[str, ColSpec] = {
     ColName.DRAFT_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.DRAFT_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.week(),
+    ),
+    ColName.FORMAT_WEEK: ColSpec(
+        col_type=ColType.GROUP_BY, expr=(pl.col(ColName.FORMAT_DAY) - 1) // 7 + 1
     ),
     ColName.RANK: ColSpec(
         col_type=ColType.GROUP_BY,

@@ -63,7 +63,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
-- Provides 122 explicitly specified, enumerated, documented column definitions
+- Provides 124 explicitly specified, enumerated, documented column definitions
 - Supports "Deck Color Data" aggregations with built-in column definitions.
 - Lets you feed card metrics back in to column definitions to support scientific workflows like MLE
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
@@ -285,6 +285,7 @@ summon(
     filter_spec: dict | None = None,
     extensions: dict[str, ColSpec] | None = None,
     card_context: pl.DataFrame | dict[str, dict[str, Any] | None = None,
+    set_context: pl.DataFrame | dict[str, Any] | None = None,
     read_cache: bool = True,
     write_cache: bool = True,
 ) -> polars.DataFrame
@@ -307,6 +308,8 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
 - extensions: a dict of `spells.columns.ColSpec` objects, keyed by name, which are appended to the definitions built-in columns described below. 
 
 - card_context: Typically a Polars DataFrame containing a `"name"` column with one row for each card name in the set, such that any usages of `card_context[name][key]` in column specs reference the column `key`. Typically this will be the output of a call to `summon` requesting cards metrics like `GP_WR`. Can also be a dictionary having the necessary form for the same access pattern.
+
+- set_context: Typically, a dict of abitrary values to use in column definitions, for example, you could provide the quick draft release date and have a column that depended on that.
 
 - read_cache/write_cache: Use the local file system to cache and retrieve aggregations to minimize expensive reads of the large datasets. You shouldn't need to touch these arguments unless you are debugging.
 
@@ -342,7 +345,10 @@ summing over groups, and can include polars Expression aggregations. Arbitrarily
     - For `NAME_SUM` columns, `expr` must be a function of `name` which will result in a list of expressions mapped over all card names.
     - `PICK_SUM` columns can also be functions on `name`, in which case the value will be a function of the value of the `PICK` field. 
     - `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection. 
-    - The possible arguments to `expr`, in addition to `name` when appropriate, include the full `names` array as well as a dictionary called `card_context` which contains card dict objects with all `CARD_ATTR` values, including custom extensions and metric columns passed by the `card_context` argument to `summon`. See example notebooks for more details.
+    - The possible arguments to `expr`, in addition to `name` when appropriate, are as follows:
+        - `names`: An array of all card names in the canonical order.
+        - `card_context`: A dictionary keyed by card name which contains card dict objects with all `CARD_ATTR` values, including custom extensions and metric columns passed by the `card_context` argument to `summon`. See example notebooks for more details.
+        - `set_context`: A dictionary with arbitrary fields provided via the `set_context` argument. Has two built-in attributes, `picks_per_pack` (e.g. 13 or 14), and `release_time`, which is the minimum value of the `draft_time` field.
 
 - `version`: When defining a column using a python function, as opposed to Polars expressions, add a unique version number so that the unique hashed signature of the column specification can be derived 
 for caching purposes, since Polars cannot generate a serialization natively. When changing the definition, be sure to increment the version value. Otherwise you do not need to use this parameter.
@@ -360,9 +366,11 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `DRAFT_ID`                  | `"draft_id"`                 | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |   
 | `DRAFT_TIME`                | `"draft_time"`               | `DRAFT, GAME` | `FILTER_ONLY` | Dataset column  | String          |    
 | `DRAFT_DATE`                | `"draft_date"`               | `DRAFT, GAME` | `GROUP_BY`    |                 | `datetime.date` |
+| `FORMAT_DAY`          | `"format_day"` | `DRAFT, GAME` | `GROUP_BY` | 1 for release day, 2, 3, etc. | Int |
 | `DRAFT_DAY_OF_WEEK`         | `"draft_day_of_week`         | `DRAFT, GAME` | `GROUP_BY`    | 1-7 (Mon-Sun)  | Int          |    
 | `DRAFT_HOUR`                | `"draft_hour"`               | `DRAFT, GAME` | `GROUP_BY`    | 0-23            | Int             |   
 | `DRAFT_WEEK`                | `"draft_week"`               | `DRAFT, GAME` | `GROUP_BY`    | 1-53            | Int             |   
+| `FORMAT_WEEK`             | `"format_week"`     | `DRAFT, GAME` | `GROUP_BY` | 1 for `FORMAT_DAY` 1 - 7, etc. | Int | 
 | `RANK`                      | `"rank"`                     | `DRAFT, GAME` | `GROUP_BY`    | Dataset column  | String          |    
 | `USER_N_GAMES_BUCKET`       | `"user_n_games_bucket"`      | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Int             |    
 | `USER_GAME_WIN_RATE_BUCKET` | `"user_game_win_rate_bucket` | `DRAFT, GAME` | `GROUP_BY`    | Dataset Column  | Float           |    
@@ -493,5 +501,3 @@ A table of all included columns. Columns can be referenced by enum or by string 
 - [ ] Helper functions for common plotting paradigms
 - [ ] Example notebooks
 - [ ] Scientific workflows: regression, MLE, etc
-
-

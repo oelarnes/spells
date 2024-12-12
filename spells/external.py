@@ -102,6 +102,7 @@ def cli() -> int:
 def _add(set_code: str, force_download=False):
     download_data_set(set_code, View.DRAFT, force_download=force_download)
     write_card_file(set_code, force_download=force_download)
+    get_set_context(set_code)
     download_data_set(set_code, View.GAME, force_download=force_download)
     return 0
 
@@ -157,9 +158,9 @@ def _info():
                             )
                         print(f"    {item.name} {sizeof_fmt(os.stat(item).st_size)}")
                         file_count += 1
-                    if file_count < 3:
+                    if file_count < 4:
                         suggest_add.add(entry.name)
-                    if file_count > 3:
+                    if file_count > 4:
                         suggest_remove.add(entry.name)
                 else:
                     cache.spells_print(
@@ -209,6 +210,9 @@ def _external_set_path(set_code):
 
 
 def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
+    if dataset_type == "set_context":
+        return os.path.join(_external_set_path(set_code), f"{set_code}_context.parquet")
+
     if dataset_type == "card":
         return os.path.join(_external_set_path(set_code), f"{set_code}_card.parquet")
 
@@ -313,4 +317,32 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
     card_df.write_parquet(card_filepath)
 
     cache.spells_print(mode, f"Wrote file {card_filepath}")
+    return 0
+
+
+def get_set_context(set_code: str, force_download=False) -> int:
+    mode = "refresh" if force_download else "add"
+
+    context_fp = data_file_path(set_code, "context")
+    cache.spells_print(mode, "Calculating set context")
+    if os.path.isfile(context_fp) and not force_download:
+        cache.spells_print(
+            mode,
+            f"File {context_fp} already exists, use `spells refresh {set_code}` to overwrite",
+        )
+        return 1
+
+    draft_fp = data_file_path(set_code, View.DRAFT)
+    draft_view = pl.scan_parquet(draft_fp)
+
+    context_df = draft_view.select(
+        [
+            pl.max("pick_number").alias("picks_per_pack") + 1,
+            pl.min("draft_time").alias("release_time"),
+        ]
+    ).collect()
+
+    context_df.write_parquet(context_fp)
+
+    cache.spells_print(mode, f"Wrote file {context_fp}")
     return 0

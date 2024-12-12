@@ -38,9 +38,11 @@ class ColName(StrEnum):
     DRAFT_ID = "draft_id"
     DRAFT_TIME = "draft_time"  # modified, cast to time
     DRAFT_DATE = "draft_date"
+    FORMAT_DAY = "format_day"
     DRAFT_DAY_OF_WEEK = "draft_day_of_week"
     DRAFT_HOUR = "draft_hour"
     DRAFT_WEEK = "draft_week"
+    FORMAT_WEEK = "format_week"
     RANK = "rank"
     USER_N_GAMES_BUCKET = "user_n_games_bucket"
     USER_GAME_WIN_RATE_BUCKET = "user_game_win_rate_bucket"
