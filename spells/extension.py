@@ -13,7 +13,7 @@ def print_ext(ext: dict[str, ColSpec]) -> None:
         print("\t" + key)
 
 
-def attr_cols(attr, silent=False) -> dict[str, ColSpec]:
+def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
     ext = {
         f"seen_{attr}": ColSpec(
             col_type=ColType.NAME_SUM,
@@ -108,6 +108,16 @@ def attr_cols(attr, silent=False) -> dict[str, ColSpec]:
             col_type=ColType.AGG,
             expr=pl.col(f"pick_{attr}") / pl.col(ColName.NUM_TAKEN),
         ),
+    }
+
+    if not silent:
+        print_ext(ext)
+
+    return ext
+
+
+def stat_cols(attr: str, silent: bool = False) -> dict[str, ColSpec]:
+    ext = {
         f"{attr}_deck_weight_group": ColSpec(
             col_type=ColType.AGG, expr=pl.col(f"{attr}") * pl.col(ColName.DECK)
         ),
@@ -162,48 +172,6 @@ def attr_cols(attr, silent=False) -> dict[str, ColSpec]:
         f"{attr}_pwz": ColSpec(
             col_type=ColType.AGG,
             expr=pl.col(f"{attr}_pw_excess") / pl.col(f"{attr}_pw_stdev"),
-        ),
-    }
-
-    if not silent:
-        print_ext(ext)
-
-    return ext
-
-
-def more(silent=True):
-    wr_bucket = pl.col(ColName.USER_GAME_WIN_RATE_BUCKET)
-    gp_bucket = pl.col(ColName.USER_N_GAMES_BUCKET)
-    ext = {
-        "deq_base": ColSpec(
-            col_type=ColType.AGG,
-            expr=(pl.col("gp_wr_excess") + 0.03 * (1 - pl.col("ata") / 14).pow(2))
-            * pl.col("pct_gp"),
-        ),
-        "cohorts_plus": ColSpec(
-            col_type=ColType.GROUP_BY,
-            expr=pl.when((wr_bucket > 0.65) & (gp_bucket >= 500))
-            .then(pl.lit("1 Best"))
-            .otherwise(
-                pl.when(
-                    (wr_bucket > 0.61) & (gp_bucket >= 500)
-                    | (wr_bucket > 0.65) & (gp_bucket >= 100)
-                )
-                .then(pl.lit("2 Elite"))
-                .otherwise(
-                    pl.when(
-                        (wr_bucket > 0.57) & (gp_bucket >= 100) | (wr_bucket > 0.61)
-                    )
-                    .then(pl.lit("3 Competitive"))
-                    .otherwise(
-                        pl.when(
-                            (wr_bucket > 0.53) & (gp_bucket >= 100) | (wr_bucket > 0.57)
-                        )
-                        .then(pl.lit("4 Solid"))
-                        .otherwise(pl.lit("5 None"))
-                    )
-                )
-            ),
         ),
     }
 
