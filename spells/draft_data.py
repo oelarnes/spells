@@ -139,6 +139,7 @@ def _determine_expression(
 
     elif spec.expr is not None:
         if isinstance(spec.expr, Callable):
+            assert not spec.col_type == ColType.AGG, f"AGG column {col} must be a pure spells expression"
             params = seed_params(spec.expr)
             if (
                 spec.col_type == ColType.PICK_SUM
@@ -306,7 +307,7 @@ def _view_select(
     is_agg_view: bool,
 ) -> DF:
     base_cols = frozenset()
-    cdefs = [col_def_map[c] for c in view_cols]
+    cdefs = [col_def_map[c] for c in sorted(view_cols)]
     select = []
     for cdef in cdefs:
         if is_agg_view:
@@ -390,8 +391,10 @@ def _base_agg_df(
             )
 
             sum_col_df = base_df.select(nonname_gb + name_col_tuple + sum_cols)
+
+            grouped = sum_col_df.group_by(group_by) if group_by else sum_col_df
             join_dfs.append(
-                sum_col_df.group_by(group_by).sum().collect(streaming=use_streaming)
+                grouped.sum().collect(streaming=use_streaming)
             )
 
         name_sum_cols = tuple(
@@ -420,25 +423,26 @@ def _base_agg_df(
             )
 
             if not is_name_gb:
-                df = (
-                    unpivoted.drop("name")
-                    .group_by(nonname_gb)
-                    .sum()
-                    .collect(streaming=use_streaming)
-                )
+                grouped = unpivoted.drop("name").group_by(nonname_gb) if nonname_gb else unpivoted.drop("name")
+                df = grouped.sum() .collect(streaming=use_streaming)
             else:
                 df = unpivoted.collect(streaming=use_streaming)
 
             join_dfs.append(df)
 
-    return functools.reduce(
-        lambda prev, curr: prev.join(curr, on=group_by, how="outer", coalesce=True),
-        join_dfs,
-    )
+    if group_by:
+        joined_df = functools.reduce(
+            lambda prev, curr: prev.join(curr, on=group_by, how="outer", coalesce=True),
+            join_dfs,
+        )
+    else:
+        joined_df = pl.concat(join_dfs, how='horizontal')
+
+    return joined_df
 
 
 def summon(
-    set_code: str,
+    set_code: str | list[str],
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
@@ -446,7 +450,7 @@ def summon(
     use_streaming: bool = False,
     read_cache: bool = True,
     write_cache: bool = True,
-    card_context: pl.DataFrame | dict[str, dict] | None = None,
+    card_context: pl.DataFrame | dict[str, Any] | None = None,
     set_context: pl.DataFrame | dict[str, Any] | None = None,
 ) -> pl.DataFrame:
     specs = get_specs()
@@ -457,38 +461,72 @@ def summon(
         for ext in extensions:
             specs.update(ext)
 
-    col_def_map = _hydrate_col_defs(set_code, specs, card_context, set_context)
-    m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)
+    if isinstance(set_code, str):
+        card_context = {set_code: card_context}
+        set_context = {set_code: set_context}
+        codes = [set_code]
+    else:
+        codes = set_code
 
-    calc_fn = functools.partial(_base_agg_df, set_code, m, use_streaming=use_streaming)
-    agg_df = _fetch_or_cache(
-        calc_fn,
-        set_code,
-        (
-            set_code,
-            sorted(m.view_cols.get(View.DRAFT, set())),
-            sorted(m.view_cols.get(View.GAME, set())),
-            sorted(c.signature or "" for c in m.col_def_map.values()),
-            sorted(m.base_view_group_by),
-            filter_spec,
-        ),
-        read_cache=read_cache,
-        write_cache=write_cache,
-    )
+    assert codes, "Please ask for at least one set"
 
-    if View.CARD in m.view_cols:
-        card_cols = m.view_cols[View.CARD].union({ColName.NAME})
-        fp = data_file_path(set_code, View.CARD)
-        card_df = pl.read_parquet(fp)
-        select_df = _view_select(card_df, card_cols, m.col_def_map, is_agg_view=False)
-        agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
+    m = None
 
-        if ColName.NAME not in m.group_by:
-            agg_df = agg_df.group_by(m.group_by).sum()
+    concat_dfs = []
+    for code in codes:
+        if isinstance(card_context, pl.DataFrame):
+            set_card_context = card_context.filter(pl.col('expansion') == code)
+        elif isinstance(card_context, dict):
+            set_card_context = card_context[code]
+        else:
+            set_card_context = None
+
+        if isinstance(set_context, pl.DataFrame):
+            this_set_context = set_context.filter(pl.col('expansion') == code)
+        elif isinstance(set_context, dict):
+            this_set_context = set_context[code]
+        else:
+            this_set_context = None
+
+        col_def_map = _hydrate_col_defs(code, specs, set_card_context, this_set_context)
+        m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)
+
+        calc_fn = functools.partial(_base_agg_df, code, m, use_streaming=use_streaming)
+        agg_df = _fetch_or_cache(
+            calc_fn,
+            code,
+            (
+                code,
+                sorted(m.view_cols.get(View.DRAFT, set())),
+                sorted(m.view_cols.get(View.GAME, set())),
+                sorted(c.signature or "" for c in m.col_def_map.values()),
+                sorted(m.base_view_group_by),
+                filter_spec,
+            ),
+            read_cache=read_cache,
+            write_cache=write_cache,
+        )
+
+        if View.CARD in m.view_cols:
+            card_cols = m.view_cols[View.CARD].union({ColName.NAME})
+            fp = data_file_path(code, View.CARD)
+            card_df = pl.read_parquet(fp)
+            select_df = _view_select(card_df, card_cols, m.col_def_map, is_agg_view=False)
+            agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
+        concat_dfs.append(agg_df)
+
+    full_agg_df = pl.concat(concat_dfs, how='vertical')
+
+    assert m is not None, "What happened? We mean to use one of the sets manifest, it shouldn't matter which."
+
+    if m.group_by:
+        full_agg_df = full_agg_df.group_by(m.group_by).sum()
+    else:
+        full_agg_df = full_agg_df.sum()
 
     ret_cols = m.group_by + m.columns
     ret_df = (
-        _view_select(agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True)
+        _view_select(full_agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True)
         .select(ret_cols)
         .sort(m.group_by)
     )

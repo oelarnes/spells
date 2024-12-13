@@ -25,8 +25,6 @@ class ColDef:
 
 
 default_columns = [
-    ColName.COLOR,
-    ColName.RARITY,
     ColName.NUM_SEEN,
     ColName.ALSA,
     ColName.NUM_TAKEN,

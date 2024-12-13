@@ -145,9 +145,9 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
     ...     'deq_base': ColSpec(
     ...         col_type=ColType.AGG,
     ...         expr=(pl.col('gp_wr_excess') + 0.03 * (1 - pl.col('ata')/14).pow(2)) * pl.col('pct_gp'),
-    ...     }
+    ...     )
     ... }
-    >>> spells.summon('DSK', columns=['deq_base', 'color', 'rarity'], filter_spec={'player_cohort': 'Top'}, extensions=ext)
+    >>> spells.summon('DSK', columns=['deq_base'], group_by=["name", "color", "rarity"], filter_spec={'player_cohort': 'Top'}, extensions=ext)
     ...     .filter(pl.col('deq_base').is_finite())
     ...     .filter(pl.col('rarity').is_in(['common', 'uncommon'])
     ...     .sort('deq_base', descending=True)
@@ -293,25 +293,26 @@ summon(
 
 #### parameters
 
-- columns: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, `CARD_ATTR`, and `AGG`. Min/Max/Unique 
+- `columns`: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, and `AGG`. Min/Max/Unique 
 aggregations of non-numeric (or numeric) data types are not supported. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
 
-- group_by: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `GROUP_BY` and `CARD_ATTR`. By default, group by "name" (card name).
+- `group_by`: a list of string or `ColName` values to display as grouped columns. Valid `ColTypes` are `GROUP_BY` and `CARD_ATTR`. By default, group by "name" (card name). For contextual card attrs, include
+ in `group_by`, even when grouping by name.
 
-- filter_spec: a dictionary specifying a filter, using a small number of paradigms. Columns used must be in each base view ("draft" and "game") that the `columns` and `group_by` columns depend on, so 
-`AGG` and `CARD_ATTR` columns are not valid. Functions of card attributes in the base views can be filtered on, see the documentation for `expr` for details. `NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
+- `filter_spec`: a dictionary specifying a filter, using a small number of paradigms. Columns used must be in each base view ("draft" and "game") that the `columns` and `group_by` columns depend on, so 
+`AGG` and `CARD_ATTR` columns are not valid. Functions of card attributes in the base views can be filtered on using `card_context`, see the documentation for `expr` for details. `NAME_SUM` columns are also not supported. Derived columns are supported. No filter is applied by default. Yes, I should rewrite it to use the mongo query language. The specification is best understood with examples:
 
     - `{'player_cohort': 'Top'}` "player_cohort" value equals "Top".
     - `{'lhs': 'player_cohort', 'op': 'in', 'rhs': ['Top', 'Middle']}` "player_cohort" value is either "Top" or "Middle". Supported values for `op` are `<`, `<=`, `>`, `>=`, `!=`, `=`, `in` and `nin`.
     - `{'$and': [{'lhs': 'draft_date', 'op': '>', 'rhs': datetime.date(2024, 10, 7)}, {'rank': 'Mythic'}]}` Drafts after October 7 by Mythic-ranked players. Supported values for query construction keys are `$and`, `$or`, and `$not`.
 
-- extensions: a dict of `spells.columns.ColSpec` objects, keyed by name, which are appended to the definitions built-in columns described below. 
+- `extensions`: a dict of `spells.columns.ColSpec` objects, keyed by name, which are appended to the definitions built-in columns described below. 
 
-- card_context: Typically a Polars DataFrame containing a `"name"` column with one row for each card name in the set, such that any usages of `card_context[name][key]` in column specs reference the column `key`. Typically this will be the output of a call to `summon` requesting cards metrics like `GP_WR`. Can also be a dictionary having the necessary form for the same access pattern.
+- `card_context`: Typically a Polars DataFrame containing a `"name"` column with one row for each card name in the set, such that any usages of `card_context[name][key]` in column specs reference the column `key`. Typically this will be the output of a call to `summon` requesting cards metrics like `GP_WR`. Can also be a dictionary having the necessary form for the same access pattern.
 
-- set_context: Typically, a dict of abitrary values to use in column definitions, for example, you could provide the quick draft release date and have a column that depended on that.
+- `set_context`: Typically, a dict of abitrary values to use in column definitions, for example, you could provide the quick draft release date and have a column that depended on that. You can also provide a one-row dataframe and access the column values.
 
-- read_cache/write_cache: Use the local file system to cache and retrieve aggregations to minimize expensive reads of the large datasets. You shouldn't need to touch these arguments unless you are debugging.
+- `read_cache`/`write_cache`: Use the local file system to cache and retrieve aggregations to minimize expensive reads of the large datasets. You shouldn't need to touch these arguments unless you are debugging.
 
 ### Enums
 
@@ -345,6 +346,7 @@ summing over groups, and can include polars Expression aggregations. Arbitrarily
     - For `NAME_SUM` columns, `expr` must be a function of `name` which will result in a list of expressions mapped over all card names.
     - `PICK_SUM` columns can also be functions on `name`, in which case the value will be a function of the value of the `PICK` field. 
     - `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection. 
+    - `AGG` columns must not be functions, since they may be applied to the aggregation of several sets' data. (And they shouldn't need this anyway)
     - The possible arguments to `expr`, in addition to `name` when appropriate, are as follows:
         - `names`: An array of all card names in the canonical order.
         - `card_context`: A dictionary keyed by card name which contains card dict objects with all `CARD_ATTR` values, including custom extensions and metric columns passed by the `card_context` argument to `summon`. See example notebooks for more details.

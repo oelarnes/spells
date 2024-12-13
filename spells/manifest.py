@@ -162,13 +162,10 @@ def create(
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
 ):
-    gbs = (ColName.NAME,) if group_by is None else tuple(group_by)
+    gbs = (ColName.NAME, ColName.COLOR, ColName.RARITY) if group_by is None else tuple(group_by)
+
     if columns is None:
         cols = tuple(spells.columns.default_columns)
-        if ColName.NAME not in gbs:
-            cols = tuple(
-                c for c in cols if col_def_map[c].col_type != ColType.CARD_ATTR
-            )
     else:
         cols = tuple(columns)
 
