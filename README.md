@@ -64,6 +64,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
 - Manages grouping and filtering by built-in and custom columns at the row level
 - Provides 124 explicitly specified, enumerated, documented column definitions
+- Can aggregate over multiple sets at once, even all of them, if you want.
 - Supports "Deck Color Data" aggregations with built-in column definitions.
 - Lets you feed card metrics back in to column definitions to support scientific workflows like MLE
 - Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
