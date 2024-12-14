@@ -15,6 +15,7 @@ from enum import StrEnum
 
 import wget
 import polars as pl
+from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
@@ -231,7 +232,15 @@ def _process_zipped_file(gzip_path, target_path):
 
     os.remove(gzip_path)
     df = pl.scan_csv(csv_path, schema=schema(csv_path))
-    df.sink_parquet(target_path)
+    try:
+        df.sink_parquet(target_path)
+    except ComputeError:
+        df = pl.scan_csv(csv_path)
+        cache.spells_print('error', 'Bad schema found, loading dataset into memory'\
+        + ' and attempting to cast to correct schema')
+        select = [pl.col(name).cast(dtype) for name, dtype in schema(csv_path).items()]
+        cast_df = df.select(select).collect()
+        cast_df.write_parquet(target_path)
 
     os.remove(csv_path)
 

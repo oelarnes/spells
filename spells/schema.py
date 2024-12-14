@@ -136,16 +136,14 @@ COLUMN_TYPES = (
     (re.compile(r"^oppo_total_cards_drawn_or_tutored$"), pl.Int8),
 )
 
-
 def schema(
     filename: str, print_missing: bool = False
-) -> Dict[str, pl.datatypes.DataType] | None:
+) -> Dict[str, pl.datatypes.DataType]:
     dtypes: Dict[str, pl.datatypes.DataType] = {}
     with open(filename, encoding="utf-8") as f:
         columns = csv.DictReader(f).fieldnames
     if columns is None:
-        print(f"Could not read fieldnames from {filename}")
-        return None
+        raise ValueError(f"Could not read fieldnames from {filename}")
     for column in columns:
         for regex, column_type in COLUMN_TYPES:
             if regex.match(column):
