@@ -136,6 +136,7 @@ COLUMN_TYPES = (
     (re.compile(r"^oppo_total_cards_drawn_or_tutored$"), pl.Int8),
 )
 
+
 def schema(
     filename: str, print_missing: bool = False
 ) -> Dict[str, pl.datatypes.DataType]:

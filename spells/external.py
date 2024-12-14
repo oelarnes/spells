@@ -236,8 +236,11 @@ def _process_zipped_file(gzip_path, target_path):
         df.sink_parquet(target_path)
     except ComputeError:
         df = pl.scan_csv(csv_path)
-        cache.spells_print('error', 'Bad schema found, loading dataset into memory'\
-        + ' and attempting to cast to correct schema')
+        cache.spells_print(
+            "error",
+            "Bad schema found, loading dataset into memory"
+            + " and attempting to cast to correct schema",
+        )
         select = [pl.col(name).cast(dtype) for name, dtype in schema(csv_path).items()]
         cast_df = df.select(select).collect()
         cast_df.write_parquet(target_path)

@@ -139,7 +139,9 @@ def _determine_expression(
 
     elif spec.expr is not None:
         if isinstance(spec.expr, Callable):
-            assert not spec.col_type == ColType.AGG, f"AGG column {col} must be a pure spells expression"
+            assert (
+                not spec.col_type == ColType.AGG
+            ), f"AGG column {col} must be a pure spells expression"
             params = seed_params(spec.expr)
             if (
                 spec.col_type == ColType.PICK_SUM
@@ -393,9 +395,7 @@ def _base_agg_df(
             sum_col_df = base_df.select(nonname_gb + name_col_tuple + sum_cols)
 
             grouped = sum_col_df.group_by(group_by) if group_by else sum_col_df
-            join_dfs.append(
-                grouped.sum().collect(streaming=use_streaming)
-            )
+            join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         name_sum_cols = tuple(
             c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM
@@ -423,8 +423,12 @@ def _base_agg_df(
             )
 
             if not is_name_gb:
-                grouped = unpivoted.drop("name").group_by(nonname_gb) if nonname_gb else unpivoted.drop("name")
-                df = grouped.sum() .collect(streaming=use_streaming)
+                grouped = (
+                    unpivoted.drop("name").group_by(nonname_gb)
+                    if nonname_gb
+                    else unpivoted.drop("name")
+                )
+                df = grouped.sum().collect(streaming=use_streaming)
             else:
                 df = unpivoted.collect(streaming=use_streaming)
 
@@ -436,7 +440,7 @@ def _base_agg_df(
             join_dfs,
         )
     else:
-        joined_df = pl.concat(join_dfs, how='horizontal')
+        joined_df = pl.concat(join_dfs, how="horizontal")
 
     return joined_df
 
@@ -475,14 +479,14 @@ def summon(
     concat_dfs = []
     for code in codes:
         if isinstance(card_context, pl.DataFrame):
-            set_card_context = card_context.filter(pl.col('expansion') == code)
+            set_card_context = card_context.filter(pl.col("expansion") == code)
         elif isinstance(card_context, dict):
             set_card_context = card_context[code]
         else:
             set_card_context = None
 
         if isinstance(set_context, pl.DataFrame):
-            this_set_context = set_context.filter(pl.col('expansion') == code)
+            this_set_context = set_context.filter(pl.col("expansion") == code)
         elif isinstance(set_context, dict):
             this_set_context = set_context[code]
         else:
@@ -511,13 +515,17 @@ def summon(
             card_cols = m.view_cols[View.CARD].union({ColName.NAME})
             fp = data_file_path(code, View.CARD)
             card_df = pl.read_parquet(fp)
-            select_df = _view_select(card_df, card_cols, m.col_def_map, is_agg_view=False)
+            select_df = _view_select(
+                card_df, card_cols, m.col_def_map, is_agg_view=False
+            )
             agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
         concat_dfs.append(agg_df)
 
-    full_agg_df = pl.concat(concat_dfs, how='vertical')
+    full_agg_df = pl.concat(concat_dfs, how="vertical")
 
-    assert m is not None, "What happened? We mean to use one of the sets manifest, it shouldn't matter which."
+    assert (
+        m is not None
+    ), "What happened? We mean to use one of the sets manifest, it shouldn't matter which."
 
     if m.group_by:
         full_agg_df = full_agg_df.group_by(m.group_by).sum()

@@ -1,3 +1,5 @@
+# ruff: noqa
+
 import os
 
 import polars as pl
@@ -11,8 +13,10 @@ from spells.enums import View
 from spells.schema import schema
 from spells.extension import stat_cols, context_cols
 
-code = 'LCI'
-csv_path = os.path.expanduser("~/.local/share/spells/external/LCI/game_data_public.LCI.PremierDraft.csv")
+code = "LCI"
+csv_path = os.path.expanduser(
+    "~/.local/share/spells/external/LCI/game_data_public.LCI.PremierDraft.csv"
+)
 
 game_df = pl.scan_csv(csv_path)
 
