@@ -53,6 +53,7 @@ def cli() -> int:
     cache.spells_print("spells", f"[data home]={data_dir}")
     print()
     usage = """spells [add|refresh|remove|clean] [set_code]
+            spells clean all
             spells info
 
     add: Download draft and game files from 17Lands.com and card file from MTGJSON.com and save to path 
@@ -67,7 +68,7 @@ def cli() -> int:
 
     remove: Delete the [data home]/external/[set code] and [data home]/local/[set code] directories and their contents
 
-    clean: Delete [data home]/local/[set code] data directory (your cache of aggregate parquet files).
+    clean: Delete [data home]/local/[set code] data directory (your cache of aggregate parquet files), or all of them.
 
     info: No set code argument. Print info on all external and local files.
     """
@@ -94,7 +95,7 @@ def cli() -> int:
         case "remove":
             return _remove(sys.argv[2])
         case "clean":
-            return cache.clear(sys.argv[2])
+            return cache.clean(sys.argv[2])
         case _:
             print_usage()
             return 1

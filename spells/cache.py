@@ -78,8 +78,16 @@ def write_cache(set_code: str, cache_key: str, df: pl.DataFrame) -> None:
     df.write_parquet(cache_path_for_key(set_code, cache_key))
 
 
-def clear(set_code: str) -> int:
+def clean(set_code: str) -> int:
     mode = "clean"
+
+    if set_code == "all":
+        cache_dir = data_dir_path(DataDir.CACHE)
+        with os.scandir(cache_dir) as set_dir:
+            for entry in set_dir:
+                clean(entry.name)
+        return 0
+
     cache_dir = cache_dir_for_set(set_code)
     if os.path.isdir(cache_dir):
         with os.scandir(cache_dir) as set_dir:

@@ -59,25 +59,35 @@ def _get_card_context(
     specs: dict[str, ColSpec],
     card_context: pl.DataFrame | dict[str, dict[str, Any]] | None,
     set_context: pl.DataFrame | dict[str, Any] | None,
+    card_only: bool = False,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
         for col, spec in specs.items()
         if spec.col_type == ColType.CARD_ATTR or col == ColName.NAME
     }
-    col_def_map = _hydrate_col_defs(
-        set_code, card_attr_specs, set_context=set_context, card_only=True
-    )
 
-    columns = list(col_def_map.keys())
+    if not card_only:
+        col_def_map = _hydrate_col_defs(
+            set_code,
+            card_attr_specs,
+            set_context=set_context,
+            card_context=card_context,
+            card_only=True,
+        )
 
-    fp = data_file_path(set_code, View.CARD)
-    card_df = pl.read_parquet(fp)
-    select_rows = _view_select(
-        card_df, frozenset(columns), col_def_map, is_agg_view=False
-    ).to_dicts()
+        columns = list(col_def_map.keys())
 
-    loaded_context = {row[ColName.NAME]: row for row in select_rows}
+        fp = data_file_path(set_code, View.CARD)
+        card_df = pl.read_parquet(fp)
+        select_rows = _view_select(
+            card_df, frozenset(columns), col_def_map, is_agg_view=False
+        ).to_dicts()
+
+        loaded_context = {row[ColName.NAME]: row for row in select_rows}
+    else:
+        names = _get_names(set_code)
+        loaded_context = {name: {} for name in names}
 
     if card_context is not None:
         if isinstance(card_context, pl.DataFrame):
@@ -144,22 +154,20 @@ def _determine_expression(
             ), f"AGG column {col} must be a pure spells expression"
             params = seed_params(spec.expr)
             if (
-                spec.col_type == ColType.PICK_SUM
+                spec.col_type in (ColType.PICK_SUM, ColType.CARD_ATTR)
                 and "name" in signature(spec.expr).parameters
             ):
+                condition_col = (
+                    ColName.PICK if spec.col_type == ColType.PICK_SUM else ColName.NAME
+                )
                 expr = pl.lit(None)
                 for name in names:
                     name_params = {"name": name, **params}
                     expr = (
-                        pl.when(pl.col(ColName.PICK) == name)
+                        pl.when(pl.col(condition_col) == name)
                         .then(spec.expr(**name_params))
                         .otherwise(expr)
                     )
-            elif (
-                spec.col_type == ColType.CARD_ATTR
-                and "name" in signature(spec.expr).parameters
-            ):
-                expr = spec.expr(**{"name": pl.col("name"), **params})
             else:
                 expr = spec.expr(**params)
         else:
@@ -258,10 +266,9 @@ def _hydrate_col_defs(
 
     set_context = _get_set_context(set_code, set_context)
 
-    if card_only:
-        card_context = {}
-    else:
-        card_context = _get_card_context(set_code, specs, card_context, set_context)
+    card_context = _get_card_context(
+        set_code, specs, card_context, set_context, card_only=card_only
+    )
 
     assert len(names) > 0, "there should be names"
     hydrated = {}
