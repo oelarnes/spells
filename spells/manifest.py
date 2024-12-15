@@ -106,6 +106,7 @@ def _resolve_view_cols(
                 view_resolution[View.DRAFT] = view_resolution.get(
                     View.DRAFT, frozenset()
                 ).union({ColName.PICK})
+            # now determine views and deps
             if cdef.col_type == ColType.CARD_ATTR:
                 view_resolution[View.CARD] = view_resolution.get(
                     View.CARD, frozenset()

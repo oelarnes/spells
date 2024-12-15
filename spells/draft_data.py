@@ -173,6 +173,9 @@ def _determine_expression(
         else:
             expr = spec.expr
         expr = expr.alias(col)
+
+        if spec.col_type == ColType.AGG:
+            expr = expr.fill_nan(None)
     else:
         expr = pl.col(col)
 
