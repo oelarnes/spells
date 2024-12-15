@@ -130,11 +130,11 @@ def stat_cols(attr: str, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"{attr}_dw_excess": ColSpec(
             col_type=ColType.AGG,
-            expr=pl.col(f"{attr}_dw_mean") - pl.col(f"{attr}"),
+            expr=pl.col(f"{attr}") - pl.col(f"{attr}_dw_mean"),
         ),
         f"{attr}_dw_var": ColSpec(
             col_type=ColType.AGG,
-            expr=(pl.col(f"{attr}_dw_excess").pow(2) * pl.col(ColName.DECK))
+            expr=(pl.col(f"{attr}_dw_excess").pow(2) * pl.col(ColName.DECK)).sum()
             / pl.col(ColName.DECK_TOTAL),
         ),
         f"{attr}_dw_stdev": ColSpec(
@@ -158,11 +158,13 @@ def stat_cols(attr: str, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"{attr}_pw_excess": ColSpec(
             col_type=ColType.AGG,
-            expr=pl.col(f"{attr}_pw_mean") - pl.col(f"{attr}"),
+            expr=pl.col(f"{attr}") - pl.col(f"{attr}_pw_mean"),
         ),
         f"{attr}_pw_var": ColSpec(
             col_type=ColType.AGG,
-            expr=(pl.col(f"{attr}_pw_excess").pow(2) * pl.col(ColName.NUM_IN_POOL))
+            expr=(
+                pl.col(f"{attr}_pw_excess").pow(2) * pl.col(ColName.NUM_IN_POOL)
+            ).sum()
             / pl.col(ColName.NUM_IN_POOL_TOTAL),
         ),
         f"{attr}_pw_stdev": ColSpec(
