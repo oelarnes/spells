@@ -538,7 +538,14 @@ def summon(
     ), "What happened? We mean to use one of the sets manifest, it shouldn't matter which."
 
     if m.group_by:
-        full_agg_df = full_agg_df.group_by(m.group_by).sum()
+        gb = m.group_by
+        # an agg may depend on some card column that hasn't been explicitly requested, but can be safely
+        # depended on if we are grouping by name
+        if ColName.NAME in m.group_by and View.CARD in m.view_cols:
+            for col in m.view_cols[View.CARD]:
+                if col not in m.group_by:
+                    gb = tuple([*gb, col])
+        full_agg_df = full_agg_df.group_by(gb).sum()
     else:
         full_agg_df = full_agg_df.sum()
 

@@ -164,13 +164,15 @@ def create(
     filter_spec: dict | None = None,
 ):
     gbs = (
-        (ColName.NAME, ColName.COLOR, ColName.RARITY)
+        (ColName.NAME,)
         if group_by is None
         else tuple(group_by)
     )
 
     if columns is None:
         cols = tuple(spells.columns.default_columns)
+        if ColName.NAME not in gbs:
+            cols = tuple(col for col in cols if col not in (ColName.COLOR, ColName.RARITY))
     else:
         cols = tuple(columns)
 
