@@ -35,7 +35,7 @@ def _cache_key(args) -> str:
 
 
 @functools.lru_cache(maxsize=None)
-def _get_names(set_code: str) -> list[str]:
+def get_names(set_code: str) -> list[str]:
     card_fp = data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
@@ -86,7 +86,7 @@ def _get_card_context(
 
         loaded_context = {row[ColName.NAME]: row for row in select_rows}
     else:
-        names = _get_names(set_code)
+        names = get_names(set_code)
         loaded_context = {name: {} for name in names}
 
     if card_context is not None:
@@ -265,7 +265,7 @@ def _hydrate_col_defs(
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     card_only: bool = False,
 ):
-    names = _get_names(set_code)
+    names = get_names(set_code)
 
     set_context = _get_set_context(set_code, set_context)
 
@@ -557,3 +557,46 @@ def summon(
     )
 
     return ret_df
+
+
+def view_select(
+    set_code: str,
+    view: View,
+    columns: list[str],
+    filter_spec: dict | None = None,
+    extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
+    card_context: dict | pl.DataFrame | None = None,
+    set_context: dict | pl.DataFrame | None = None,
+) -> pl.LazyFrame:
+    specs = get_specs()
+
+    if extensions is not None:
+        if not isinstance(extensions, list):
+            extensions = [extensions]
+        for ext in extensions:
+            specs.update(ext)
+
+    col_def_map = _hydrate_col_defs(set_code, specs, card_context, set_context)
+
+    df_path = data_file_path(set_code, view)
+    base_view_df = pl.scan_parquet(df_path)
+
+    select_cols = frozenset(columns)
+
+    filter_ = spells.filter.from_spec(filter_spec)
+    if filter_ is not None:
+        select_cols = select_cols.union(filter_.lhs)
+
+    base_df_prefilter = _view_select(
+        base_view_df,
+        select_cols,
+        col_def_map,
+        is_agg_view=False,
+    )
+
+    if filter_ is not None:
+        base_df = base_df_prefilter.filter(filter_.expr)
+    else:
+        base_df = base_df_prefilter
+
+    return base_df.select(columns)
