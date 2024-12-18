@@ -32,6 +32,10 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
             if card_context[name][attr] is None or math.isnan(card_context[name][attr])
             else card_context[name][attr],
         ),
+        f"seen_{attr}_is_greatest": ColSpec(
+            col_type=ColType.NAME_SUM,
+            expr=lambda name: pl.col(f"seen_{attr}_{name}") == pl.col(f"greatest_{attr}_seen_{name}")
+        ),
         f"seen_{attr}_greater": ColSpec(
             col_type=ColType.NAME_SUM,
             expr=lambda name: pl.col(f"seen_{attr}_{name}") > pl.col(f"pick_{attr}"),
