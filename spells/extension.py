@@ -34,7 +34,8 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"seen_{attr}_is_greatest": ColSpec(
             col_type=ColType.NAME_SUM,
-            expr=lambda name: pl.col(f"seen_{attr}_{name}") == pl.col(f"greatest_{attr}_seen_{name}")
+            expr=lambda name: pl.col(f"seen_{attr}_{name}")
+            == pl.col(f"greatest_{attr}_seen_{name}"),
         ),
         f"seen_{attr}_greater": ColSpec(
             col_type=ColType.NAME_SUM,
