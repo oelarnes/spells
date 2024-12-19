@@ -33,8 +33,7 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
             else card_context[name][attr],
         ),
         f"pick_{attr}": ColSpec(
-            col_type=ColType.AGG,
-            expr=pl.col(f"pick_{attr}_sum") / pl.col("num_taken")
+            col_type=ColType.AGG, expr=pl.col(f"pick_{attr}_sum") / pl.col("num_taken")
         ),
         f"seen_{attr}_is_greatest": ColSpec(
             col_type=ColType.NAME_SUM,
@@ -43,11 +42,13 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"seen_{attr}_greater": ColSpec(
             col_type=ColType.NAME_SUM,
-            expr=lambda name: pl.col(f"seen_{attr}_{name}") > pl.col(f"pick_{attr}_sum"),
+            expr=lambda name: pl.col(f"seen_{attr}_{name}")
+            > pl.col(f"pick_{attr}_sum"),
         ),
         f"seen_{attr}_less": ColSpec(
             col_type=ColType.NAME_SUM,
-            expr=lambda name: pl.col(f"seen_{attr}_{name}") < pl.col(f"pick_{attr}_sum"),
+            expr=lambda name: pl.col(f"seen_{attr}_{name}")
+            < pl.col(f"pick_{attr}_sum"),
         ),
         f"greatest_{attr}_seen": ColSpec(
             col_type=ColType.PICK_SUM,
