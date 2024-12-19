@@ -417,8 +417,9 @@ def _base_agg_df(
                 lambda patt, name: re.split(patt, name)[1], pattern
             )
 
-            expr = pl.col(f"^{cdef.name}_.*$").name.map(name_map)
-            pre_agg_df = base_df.select((expr,) + nonname_gb)
+            names = get_names(set_code)
+            expr = tuple(pl.col(f"{cdef.name}_{name}").alias(name) for name in names)
+            pre_agg_df = base_df.select(expr + nonname_gb)
 
             if nonname_gb:
                 agg_df = pre_agg_df.group_by(nonname_gb).sum()

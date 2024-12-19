@@ -26,11 +26,15 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
                 .otherwise(None)
             ),
         ),
-        f"pick_{attr}": ColSpec(
+        f"pick_{attr}_sum": ColSpec(
             col_type=ColType.PICK_SUM,
             expr=lambda name, card_context: pl.lit(None)
             if card_context[name][attr] is None or math.isnan(card_context[name][attr])
             else card_context[name][attr],
+        ),
+        f"pick_{attr}": ColSpec(
+            col_type=ColType.AGG,
+            expr=pl.col(f"pick_{attr}_sum") / pl.col("num_taken")
         ),
         f"seen_{attr}_is_greatest": ColSpec(
             col_type=ColType.NAME_SUM,
@@ -39,11 +43,11 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"seen_{attr}_greater": ColSpec(
             col_type=ColType.NAME_SUM,
-            expr=lambda name: pl.col(f"seen_{attr}_{name}") > pl.col(f"pick_{attr}"),
+            expr=lambda name: pl.col(f"seen_{attr}_{name}") > pl.col(f"pick_{attr}_sum"),
         ),
         f"seen_{attr}_less": ColSpec(
             col_type=ColType.NAME_SUM,
-            expr=lambda name: pl.col(f"seen_{attr}_{name}") < pl.col(f"pick_{attr}"),
+            expr=lambda name: pl.col(f"seen_{attr}_{name}") < pl.col(f"pick_{attr}_sum"),
         ),
         f"greatest_{attr}_seen": ColSpec(
             col_type=ColType.PICK_SUM,
@@ -79,11 +83,11 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"pick_{attr}_vs_least": ColSpec(
             col_type=ColType.PICK_SUM,
-            expr=pl.col(f"pick_{attr}") - pl.col(f"least_{attr}_seen"),
+            expr=pl.col(f"pick_{attr}_sum") - pl.col(f"least_{attr}_seen"),
         ),
         f"pick_{attr}_vs_greatest": ColSpec(
             col_type=ColType.PICK_SUM,
-            expr=pl.col(f"pick_{attr}") - pl.col(f"greatest_{attr}_seen"),
+            expr=pl.col(f"pick_{attr}_sum") - pl.col(f"greatest_{attr}_seen"),
         ),
         f"pick_{attr}_vs_least_mean": ColSpec(
             col_type=ColType.AGG,
@@ -95,7 +99,7 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"least_{attr}_taken": ColSpec(
             col_type=ColType.PICK_SUM,
-            expr=pl.col(f"pick_{attr}") <= pl.col(f"least_{attr}_seen"),
+            expr=pl.col(f"pick_{attr}_sum") <= pl.col(f"least_{attr}_seen"),
         ),
         f"least_{attr}_taken_rate": ColSpec(
             col_type=ColType.AGG,
@@ -103,7 +107,7 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"greatest_{attr}_taken": ColSpec(
             col_type=ColType.PICK_SUM,
-            expr=pl.col(f"pick_{attr}") >= pl.col(f"greatest_{attr}_seen"),
+            expr=pl.col(f"pick_{attr}_sum") >= pl.col(f"greatest_{attr}_seen"),
         ),
         f"greatest_{attr}_taken_rate": ColSpec(
             col_type=ColType.AGG,
@@ -111,7 +115,7 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         ),
         f"pick_{attr}_mean": ColSpec(
             col_type=ColType.AGG,
-            expr=pl.col(f"pick_{attr}") / pl.col(ColName.NUM_TAKEN),
+            expr=pl.col(f"pick_{attr}_sum") / pl.col(ColName.NUM_TAKEN),
         ),
     }
 
