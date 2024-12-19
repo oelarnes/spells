@@ -223,7 +223,7 @@ def _infer_dependencies(
             ):
                 dependencies.add(split[0])
                 found = True
-        assert found, f"Could not locate column spec for root col {item}"
+        # fail silently here, so that columns can be passed in harmlessly
 
     return dependencies
 
@@ -411,14 +411,9 @@ def _base_agg_df(
             c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM
         )
         for col in name_sum_cols:
-            cdef = m.col_def_map[col]
-            pattern = f"^{cdef.name}_"
-            name_map = functools.partial(
-                lambda patt, name: re.split(patt, name)[1], pattern
-            )
-
             names = get_names(set_code)
-            expr = tuple(pl.col(f"{cdef.name}_{name}").alias(name) for name in names)
+            expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
+
             pre_agg_df = base_df.select(expr + nonname_gb)
 
             if nonname_gb:
@@ -429,7 +424,7 @@ def _base_agg_df(
             index = nonname_gb if nonname_gb else None
             unpivoted = agg_df.unpivot(
                 index=index,
-                value_name=m.col_def_map[col].name,
+                value_name=col,
                 variable_name=ColName.NAME,
             )
 
