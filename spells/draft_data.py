@@ -440,6 +440,7 @@ def _base_agg_df(
     else:
         joined_df = pl.concat(join_dfs, how="horizontal")
 
+    joined_df = joined_df.select(sorted(joined_df.schema.names()))
     return joined_df
 
 
@@ -464,8 +465,10 @@ def summon(
             specs.update(ext)
 
     if isinstance(set_code, str):
-        card_context = {set_code: card_context}
-        set_context = {set_code: set_context}
+        if not (isinstance(card_context, dict) and set_code in card_context):
+            card_context = {set_code: card_context}
+        if not (isinstance(set_context, dict) and set_code in set_context):
+            set_context = {set_code: set_context}
         codes = [set_code]
     else:
         codes = set_code
