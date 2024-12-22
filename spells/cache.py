@@ -14,6 +14,11 @@ import sys
 import polars as pl
 
 
+class EventType(StrEnum):
+    PREMIER = "PremierDraft"
+    TRADITIONAL = "TradDraft"
+
+
 class DataDir(StrEnum):
     CACHE = "cache"
     EXTERNAL = "external"
@@ -50,6 +55,22 @@ def data_dir_path(cache_dir: DataDir) -> str:
 
     data_dir = os.path.join(data_home(), ext)
     return data_dir
+
+
+def external_set_path(set_code):
+    return os.path.join(data_dir_path(DataDir.EXTERNAL), set_code)
+
+
+def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
+    if dataset_type == "set_context":
+        return os.path.join(external_set_path(set_code), f"{set_code}_context.parquet")
+
+    if dataset_type == "card":
+        return os.path.join(external_set_path(set_code), f"{set_code}_card.parquet")
+
+    return os.path.join(
+        external_set_path(set_code), f"{set_code}_{event_type}_{dataset_type}.parquet"
+    )
 
 
 def cache_dir_for_set(set_code: str) -> str:

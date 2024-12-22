@@ -19,8 +19,9 @@ from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
-from spells.enums import View
+from spells.enums import View, ColName
 from spells.schema import schema
+from spells.draft_data import summon
 
 
 DATASET_TEMPLATE = "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
@@ -28,16 +29,9 @@ RESOURCE_TEMPLATE = (
     "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
 )
 
-
 class FileFormat(StrEnum):
     CSV = "csv"
     PARQUET = "parquet"
-
-
-class EventType(StrEnum):
-    PREMIER = "PremierDraft"
-    TRADITIONAL = "TradDraft"
-
 
 # Fred Cirera via https://stackoverflow.com/questions/1094841/get-a-human-readable-version-of-a-file-size
 def sizeof_fmt(num, suffix="B"):
@@ -64,7 +58,7 @@ def cli() -> int:
         e.g. $ spells add OTJ
 
     refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear 
-        local cache.
+        local 
 
     remove: Delete the [data home]/external/[set code] and [data home]/local/[set code] directories and their contents
 
@@ -115,7 +109,7 @@ def _refresh(set_code: str):
 
 def _remove(set_code: str):
     mode = "remove"
-    dir_path = _external_set_path(set_code)
+    dir_path = cache.external_set_path(set_code)
     if os.path.isdir(dir_path):
         with os.scandir(dir_path) as set_dir:
             count = 0
@@ -135,7 +129,7 @@ def _remove(set_code: str):
     else:
         cache.spells_print(mode, f"No external cache found for set {set_code}")
 
-    return cache.clear(set_code)
+    return cache.clean(set_code)
 
 
 def _info():
@@ -207,22 +201,6 @@ def _info():
     return 0
 
 
-def _external_set_path(set_code):
-    return os.path.join(cache.data_dir_path(cache.DataDir.EXTERNAL), set_code)
-
-
-def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
-    if dataset_type == "set_context":
-        return os.path.join(_external_set_path(set_code), f"{set_code}_context.parquet")
-
-    if dataset_type == "card":
-        return os.path.join(_external_set_path(set_code), f"{set_code}_card.parquet")
-
-    return os.path.join(
-        _external_set_path(set_code), f"{set_code}_{event_type}_{dataset_type}.parquet"
-    )
-
-
 def _process_zipped_file(gzip_path, target_path):
     csv_path = gzip_path[:-3]
     # if polars supports streaming from file obj, we can just stream straight
@@ -252,17 +230,17 @@ def _process_zipped_file(gzip_path, target_path):
 def download_data_set(
     set_code,
     dataset_type: View,
-    event_type=EventType.PREMIER,
+    event_type=cache.EventType.PREMIER,
     force_download=False,
     clear_set_cache=True,
 ):
     mode = "refresh" if force_download else "add"
     cache.spells_print(mode, f"Downloading {dataset_type} dataset from 17Lands.com")
 
-    if not os.path.isdir(set_dir := _external_set_path(set_code)):
+    if not os.path.isdir(set_dir := cache.external_set_path(set_code)):
         os.makedirs(set_dir)
 
-    target_path = data_file_path(set_code, dataset_type)
+    target_path = cache.data_file_path(set_code, dataset_type)
 
     if os.path.isfile(target_path) and not force_download:
         cache.spells_print(
@@ -274,7 +252,7 @@ def download_data_set(
     dataset_file = DATASET_TEMPLATE.format(
         set_code=set_code, dataset_type=dataset_type, event_type=event_type
     )
-    dataset_path = os.path.join(_external_set_path(set_code), dataset_file)
+    dataset_path = os.path.join(cache.external_set_path(set_code), dataset_file)
     wget.download(
         RESOURCE_TEMPLATE.format(dataset_type=dataset_type) + dataset_file,
         out=dataset_path,
@@ -287,7 +265,7 @@ def download_data_set(
     _process_zipped_file(dataset_path, target_path)
     cache.spells_print(mode, f"Wrote file {target_path}")
     if clear_set_cache:
-        cache.clear(set_code)
+        cache.clean(set_code)
 
     return 0
 
@@ -302,7 +280,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
     cache.spells_print(
         mode, "Fetching card data from mtgjson.com and writing card file"
     )
-    card_filepath = data_file_path(draft_set_code, View.CARD)
+    card_filepath = cache.data_file_path(draft_set_code, View.CARD)
     if os.path.isfile(card_filepath) and not force_download:
         cache.spells_print(
             mode,
@@ -310,7 +288,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
         )
         return 1
 
-    draft_filepath = data_file_path(draft_set_code, View.DRAFT)
+    draft_filepath = cache.data_file_path(draft_set_code, View.DRAFT)
 
     if not os.path.isfile(draft_filepath):
         cache.spells_print(mode, f"Error: No draft file for set {draft_set_code}")
@@ -336,7 +314,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
 def get_set_context(set_code: str, force_download=False) -> int:
     mode = "refresh" if force_download else "add"
 
-    context_fp = data_file_path(set_code, "context")
+    context_fp = cache.data_file_path(set_code, "context")
     cache.spells_print(mode, "Calculating set context")
     if os.path.isfile(context_fp) and not force_download:
         cache.spells_print(
@@ -345,15 +323,14 @@ def get_set_context(set_code: str, force_download=False) -> int:
         )
         return 1
 
-    draft_fp = data_file_path(set_code, View.DRAFT)
-    draft_view = pl.scan_parquet(draft_fp)
+    df = summon(set_code, columns=[ColName.NUM_DRAFTS], group_by=[ColName.DRAFT_DATE, ColName.PICK_NUM])
 
-    context_df = draft_view.select(
+    context_df = df.filter(pl.col(ColName.NUM_DRAFTS) > 1000).select(
         [
-            pl.max("pick_number").alias("picks_per_pack") + 1,
-            pl.min("draft_time").alias("release_time"),
+            pl.col(ColName.DRAFT_DATE).min().alias("release_date"),
+            pl.col(ColName.PICK_NUM).max().alias("picks_per_pack"),
         ]
-    ).collect()
+    )
 
     context_df.write_parquet(context_fp)
 

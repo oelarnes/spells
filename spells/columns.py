@@ -68,10 +68,7 @@ _specs: dict[str, ColSpec] = {
     ColName.FORMAT_DAY: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=lambda set_context: (
-            pl.col(ColName.DRAFT_DATE)
-            - pl.lit(set_context["release_time"])
-            .str.to_datetime("%Y-%m-%d %H:%M:%S")
-            .dt.date()
+            pl.col(ColName.DRAFT_DATE) - pl.lit(set_context["release_date"])
         ).dt.total_days()
         + 1,
     ),

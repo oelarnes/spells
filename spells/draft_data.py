@@ -16,8 +16,7 @@ from typing import Callable, TypeVar, Any
 import polars as pl
 from polars.exceptions import ColumnNotFoundError
 
-from spells.external import data_file_path
-import spells.cache
+from spells import cache
 import spells.filter
 import spells.manifest
 from spells.columns import ColDef, ColSpec, get_specs
@@ -36,11 +35,11 @@ def _cache_key(args) -> str:
 
 @functools.lru_cache(maxsize=None)
 def get_names(set_code: str) -> list[str]:
-    card_fp = data_file_path(set_code, View.CARD)
+    card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
 
-    draft_fp = data_file_path(set_code, View.DRAFT)
+    draft_fp = cache.data_file_path(set_code, View.DRAFT)
     draft_view = pl.scan_parquet(draft_fp)
     cols = draft_view.collect_schema().names()
 
@@ -78,7 +77,7 @@ def _get_card_context(
 
         columns = list(col_def_map.keys())
 
-        fp = data_file_path(set_code, View.CARD)
+        fp = cache.data_file_path(set_code, View.CARD)
         card_df = pl.read_parquet(fp)
         select_rows = _view_select(
             card_df, frozenset(columns), col_def_map, is_agg_view=False
@@ -231,23 +230,13 @@ def _infer_dependencies(
 def _get_set_context(
     set_code: str, set_context: pl.DataFrame | dict[str, Any] | None
 ) -> dict[str, Any]:
-    context_fp = data_file_path(set_code, "context")
-
-    report = functools.partial(
-        spells.cache.spells_print,
-        "report",
-        f"Set context for {set_code} invalid, please investigate!",
-    )
+    context_fp = cache.data_file_path(set_code, "context")
 
     context = {}
-    if not os.path.isfile(context_fp):
-        report()
-    else:
+    if os.path.isfile(context_fp):
         context_df = pl.read_parquet(context_fp)
         if len(context_df) == 1:
             context.update(context_df.to_dicts()[0])
-        else:
-            report()
 
     if isinstance(set_context, pl.DataFrame):
         assert len(set_context != 1), "Invalid set context provided"
@@ -276,7 +265,10 @@ def _hydrate_col_defs(
     assert len(names) > 0, "there should be names"
     hydrated = {}
     for col, spec in specs.items():
-        expr = _determine_expression(col, spec, names, card_context, set_context)
+        try:
+            expr = _determine_expression(col, spec, names, card_context, set_context)
+        except KeyError:
+            continue
         dependencies = _infer_dependencies(col, expr, specs, names)
 
         sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]
@@ -355,13 +347,13 @@ def _fetch_or_cache(
     key = _cache_key(cache_args)
 
     if read_cache:
-        if spells.cache.cache_exists(set_code, key):
-            return spells.cache.read_cache(set_code, key)
+        if cache.cache_exists(set_code, key):
+            return cache.read_cache(set_code, key)
 
     df = calc_fn()
 
     if write_cache:
-        spells.cache.write_cache(set_code, key, df)
+        cache.write_cache(set_code, key, df)
 
     return df
 
@@ -380,7 +372,7 @@ def _base_agg_df(
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
             continue
-        df_path = data_file_path(set_code, view)
+        df_path = cache.data_file_path(set_code, view)
         base_view_df = pl.scan_parquet(df_path)
         base_df_prefilter = _view_select(
             base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
@@ -519,7 +511,7 @@ def summon(
 
         if View.CARD in m.view_cols:
             card_cols = m.view_cols[View.CARD].union({ColName.NAME})
-            fp = data_file_path(code, View.CARD)
+            fp = cache.data_file_path(code, View.CARD)
             card_df = pl.read_parquet(fp)
             select_df = _view_select(
                 card_df, card_cols, m.col_def_map, is_agg_view=False
@@ -574,7 +566,7 @@ def view_select(
 
     col_def_map = _hydrate_col_defs(set_code, specs, card_context, set_context)
 
-    df_path = data_file_path(set_code, view)
+    df_path = cache.data_file_path(set_code, view)
     base_view_df = pl.scan_parquet(df_path)
 
     select_cols = frozenset(columns)
