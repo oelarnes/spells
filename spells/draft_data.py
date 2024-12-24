@@ -99,10 +99,7 @@ def _get_card_context(
 
         names = list(loaded_context.keys())
         for name in names:
-            assert (
-                name in card_context
-            ), f"card_context must include a row for each card name. {name} missing."
-            for col, value in card_context[name].items():
+            for col, value in card_context.get(name, {}).items():
                 loaded_context[name][col] = value
 
     return loaded_context
