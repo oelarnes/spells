@@ -126,46 +126,55 @@ def _determine_expression(
 
     if spec.col_type == ColType.NAME_SUM:
         if spec.expr is not None:
-            assert isinstance(
-                spec.expr, Callable
-            ), f"NAME_SUM column {col} must have a callable `expr` accepting a `name` argument"
-            unnamed_exprs = [
-                spec.expr(**{"name": name, **seed_params(spec.expr)}) for name in names
-            ]
+            try:
+                assert isinstance(
+                    spec.expr, Callable
+                ), f"NAME_SUM column {col} must have a callable `expr` accepting a `name` argument"
+                unnamed_exprs = [
+                    spec.expr(**{"name": name, **seed_params(spec.expr)})
+                    for name in names
+                ]
 
-            expr = tuple(
-                map(
-                    lambda ex, name: ex.alias(f"{col}_{name}"),
-                    unnamed_exprs,
-                    names,
+                expr = tuple(
+                    map(
+                        lambda ex, name: ex.alias(f"{col}_{name}"),
+                        unnamed_exprs,
+                        names,
+                    )
                 )
-            )
+            except KeyError:
+                expr = tuple(pl.lit(None).alias(f"{col}_{name}") for name in names)
         else:
             expr = tuple(map(lambda name: pl.col(f"{col}_{name}"), names))
 
     elif spec.expr is not None:
         if isinstance(spec.expr, Callable):
-            assert (
-                not spec.col_type == ColType.AGG
-            ), f"AGG column {col} must be a pure spells expression"
-            params = seed_params(spec.expr)
-            if (
-                spec.col_type in (ColType.PICK_SUM, ColType.CARD_ATTR)
-                and "name" in signature(spec.expr).parameters
-            ):
-                condition_col = (
-                    ColName.PICK if spec.col_type == ColType.PICK_SUM else ColName.NAME
-                )
-                expr = pl.lit(None)
-                for name in names:
-                    name_params = {"name": name, **params}
-                    expr = (
-                        pl.when(pl.col(condition_col) == name)
-                        .then(spec.expr(**name_params))
-                        .otherwise(expr)
+            try:
+                assert (
+                    not spec.col_type == ColType.AGG
+                ), f"AGG column {col} must be a pure spells expression"
+                params = seed_params(spec.expr)
+                if (
+                    spec.col_type in (ColType.PICK_SUM, ColType.CARD_ATTR)
+                    and "name" in signature(spec.expr).parameters
+                ):
+                    condition_col = (
+                        ColName.PICK
+                        if spec.col_type == ColType.PICK_SUM
+                        else ColName.NAME
                     )
-            else:
-                expr = spec.expr(**params)
+                    expr = pl.lit(None)
+                    for name in names:
+                        name_params = {"name": name, **params}
+                        expr = (
+                            pl.when(pl.col(condition_col) == name)
+                            .then(spec.expr(**name_params))
+                            .otherwise(expr)
+                        )
+                else:
+                    expr = spec.expr(**params)
+            except KeyError:
+                expr = pl.lit(None)
         else:
             expr = spec.expr
         expr = expr.alias(col)
@@ -262,10 +271,7 @@ def _hydrate_col_defs(
     assert len(names) > 0, "there should be names"
     hydrated = {}
     for col, spec in specs.items():
-        try:
-            expr = _determine_expression(col, spec, names, card_context, set_context)
-        except KeyError:
-            continue
+        expr = _determine_expression(col, spec, names, card_context, set_context)
         dependencies = _infer_dependencies(col, expr, specs, names)
 
         sig_expr = expr if isinstance(expr, pl.Expr) else expr[0]

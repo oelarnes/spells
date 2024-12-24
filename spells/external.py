@@ -29,9 +29,11 @@ RESOURCE_TEMPLATE = (
     "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
 )
 
+
 class FileFormat(StrEnum):
     CSV = "csv"
     PARQUET = "parquet"
+
 
 # Fred Cirera via https://stackoverflow.com/questions/1094841/get-a-human-readable-version-of-a-file-size
 def sizeof_fmt(num, suffix="B"):
@@ -323,7 +325,11 @@ def get_set_context(set_code: str, force_download=False) -> int:
         )
         return 1
 
-    df = summon(set_code, columns=[ColName.NUM_DRAFTS], group_by=[ColName.DRAFT_DATE, ColName.PICK_NUM])
+    df = summon(
+        set_code,
+        columns=[ColName.NUM_DRAFTS],
+        group_by=[ColName.DRAFT_DATE, ColName.PICK_NUM],
+    )
 
     context_df = df.filter(pl.col(ColName.NUM_DRAFTS) > 1000).select(
         [
