@@ -19,7 +19,7 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
             col_type=ColType.NAME_SUM,
             expr=(
                 lambda name, card_context: pl.lit(None)
-                if card_context[name][attr] is None
+                if card_context[name].get(attr) is None
                 or math.isnan(card_context[name][attr])
                 else pl.when(pl.col(f"pack_card_{name}") > 0)
                 .then(card_context[name][attr])
@@ -29,7 +29,7 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
         f"pick_{attr}_sum": ColSpec(
             col_type=ColType.PICK_SUM,
             expr=lambda name, card_context: pl.lit(None)
-            if card_context[name][attr] is None or math.isnan(card_context[name][attr])
+            if card_context[name].get(attr) is None or math.isnan(card_context[name][attr])
             else card_context[name][attr],
         ),
         f"pick_{attr}": ColSpec(

@@ -83,7 +83,11 @@ def _get_card_context(
             card_df, frozenset(columns), col_def_map, is_agg_view=False
         ).to_dicts()
 
+        names = get_names(set_code)
         loaded_context = {row[ColName.NAME]: row for row in select_rows}
+
+        for name in names:
+            loaded_context[name] = loaded_context.get(name, {})
     else:
         names = get_names(set_code)
         loaded_context = {name: {} for name in names}
