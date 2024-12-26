@@ -9,6 +9,7 @@ for performance.
 import functools
 import hashlib
 import re
+import logging
 from inspect import signature
 import os
 from typing import Callable, TypeVar, Any
@@ -21,7 +22,7 @@ import spells.filter
 import spells.manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.enums import View, ColName, ColType
-
+from spells.log import make_verbose
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 
@@ -355,8 +356,10 @@ def _fetch_or_cache(
 
     if read_cache:
         if cache.cache_exists(set_code, key):
+            logging.debug(f"Cache {key} found")
             return cache.read_cache(set_code, key)
 
+    logging.debug(f"Cache not found, calculating with signature {cache_args}")
     df = calc_fn()
 
     if write_cache:
@@ -451,6 +454,7 @@ def _base_agg_df(
     return joined_df
 
 
+@make_verbose
 def summon(
     set_code: str | list[str],
     columns: list[str] | None = None,
@@ -486,6 +490,7 @@ def summon(
 
     concat_dfs = []
     for code in codes:
+        logging.debug(f"Calculating agg df for {code}")
         if isinstance(card_context, pl.DataFrame):
             set_card_context = card_context.filter(pl.col("expansion") == code)
         elif isinstance(card_context, dict):

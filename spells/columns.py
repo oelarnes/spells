@@ -579,13 +579,6 @@ _specs: dict[str, ColSpec] = {
 for item in ColName:
     assert item in _specs, f"column {item} enumerated but not specified"
 
+def get_specs():
+    return dict(_specs)
 
-class GetSpecs:
-    def __init__(self, spec_dict: dict[str, ColSpec]):
-        self._specs = spec_dict
-
-    def __call__(self):
-        return dict(self._specs)
-
-
-get_specs = GetSpecs(_specs)
