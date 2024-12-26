@@ -32,7 +32,7 @@ def setup_logging(
     root_logger.handlers.clear()
     root_logger.addHandler(handler)
 
- 
+
 def rotate_logs():
     root_logger = logging.getLogger()
     for handler in root_logger.handlers:
@@ -48,7 +48,7 @@ def add_console_logging():
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
     console_handler.setFormatter(formatter)
-    logger = logging.getLogger() 
+    logger = logging.getLogger()
     logger.addHandler(console_handler)
 
     try:

@@ -579,6 +579,6 @@ _specs: dict[str, ColSpec] = {
 for item in ColName:
     assert item in _specs, f"column {item} enumerated but not specified"
 
+
 def get_specs():
     return dict(_specs)
-
