@@ -16,7 +16,7 @@ def setup_logging(
     log_format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 ):
     log_dir = Path(data_home()) / ".logs"
-    log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
     log_file_path = log_dir / log_file_name
 
     handler = logging.handlers.RotatingFileHandler(
