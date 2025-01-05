@@ -356,10 +356,11 @@ def _fetch_or_cache(
 
     if read_cache:
         if cache.cache_exists(set_code, key):
-            logging.debug(f"Cache {key} found")
+            logging.info(f"Cache {key} found")
             return cache.read_cache(set_code, key)
 
-    logging.debug(f"Cache not found, calculating with signature {cache_args}")
+    logging.info("Cache not found, calculating")
+    logging.debug(f"Signature:\n{cache_args}")
     df = calc_fn()
 
     if write_cache:
@@ -490,7 +491,7 @@ def summon(
 
     concat_dfs = []
     for code in codes:
-        logging.debug(f"Calculating agg df for {code}")
+        logging.info(f"Calculating agg df for {code}")
         if isinstance(card_context, pl.DataFrame):
             set_card_context = card_context.filter(pl.col("expansion") == code)
         elif isinstance(card_context, dict):

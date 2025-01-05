@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from functools import wraps
 import logging
 import logging.handlers
 from pathlib import Path
@@ -42,8 +43,9 @@ def rotate_logs():
 
 
 @contextmanager
-def add_console_logging():
+def console_logging(log_level):
     console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
     formatter = logging.Formatter(
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
@@ -57,12 +59,10 @@ def add_console_logging():
         logger.removeHandler(console_handler)
 
 
-def make_verbose(callable: Callable) -> Callable:
-    def wrapped(*args, verbose=False, **kwargs):
-        if verbose:
-            with add_console_logging():
-                return callable(*args, **kwargs)
-        else:
-            return callable(*args, **kwargs)
-
+def make_verbose(func: Callable) -> Callable:
+    @wraps(func)
+    def wrapped(*args, logging: int=logging.ERROR, **kwargs):
+        with console_logging(logging):
+            return func(*args, **kwargs)
     return wrapped
+
