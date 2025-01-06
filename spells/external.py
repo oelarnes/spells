@@ -19,6 +19,7 @@ from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
+from spells.config import all_sets
 from spells.enums import View, ColName
 from spells.schema import schema
 from spells.draft_data import summon
@@ -49,6 +50,7 @@ def cli() -> int:
     cache.spells_print("spells", f"[data home]={data_dir}")
     print()
     usage = """spells [add|refresh|remove|clean] [set_code]
+            spells add all 
             spells clean all
             spells info
 
@@ -98,6 +100,10 @@ def cli() -> int:
 
 
 def _add(set_code: str, force_download=False):
+    if set_code == 'all':
+        for code in all_sets:
+            _add(code, force_download=force_download)
+
     download_data_set(set_code, View.DRAFT, force_download=force_download)
     write_card_file(set_code, force_download=force_download)
     get_set_context(set_code, force_download=force_download)

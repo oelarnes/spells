@@ -1,10 +1,12 @@
 all_sets = [
+    "PIO",
     "FDN",
     "DSK",
     "BLB",
     "MH3",
     "OTJ",
     "MKM",
+    "KTK",
     "LCI",
     "WOE",
     "LTR",
