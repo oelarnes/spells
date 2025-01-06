@@ -238,7 +238,7 @@ Spells caches the results of expensive aggregations in the local file system as 
 
 ### Memory Usage
 
-One of my goals in creating Spells was to eliminate issues with memory pressure by exclusively using the map-reduce paradigm and a technology that supports partitioned/streaming aggregation of larget-than-memory datasets. By default, Polars loads the entire dataset in memory, but the API exposes a parameter `streaming` which I have exposed as `use_streaming`. Unfortunately, that feature does not seem to work for my queries and the memory performance can be quite poor. The one feature that may assist in memory management is the local caching, since you can restart the kernel without losing all of your progress. In particular, be careful about opening multiple Jupyter tabs unless you have at least 32 GB. In general I have not run into issues on my 16 GB MacBook Air except with running multiple kernels at once. Supporting larger-than memory computations is on my roadmap, so check back periodically to see if I've made any progress.
+One of my goals in creating Spells was to eliminate issues with memory pressure by exclusively using the map-reduce paradigm and a technology that supports partitioned/streaming aggregation of larget-than-memory datasets. By default, Polars loads the entire dataset in memory, but the API exposes a parameter `streaming` which I have exposed as `use_streaming`. Further testing is needed to determine the performance impacts, but this is the first thing you should try if you run into memory issues.
 
 When refreshing a given set's data files from 17Lands using the provided cli, the cache for that set is automatically cleared. The `spells` CLI gives additional tools for managing the local and external caches.
 
@@ -278,9 +278,10 @@ To use `spells`, make sure Spells is installed in your environment using pip or 
 ### Summon
 
 ```python
-from spell import summon
+from spells import summon
 
 summon(
+    set_code: list[str] | str,
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
@@ -289,10 +290,15 @@ summon(
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     read_cache: bool = True,
     write_cache: bool = True,
+    use_streaming: bool = False,
+    logging: int = logging.ERROR,
 ) -> polars.DataFrame
 ```
 
 #### parameters
+
+- `set_code`: a set code or list of set codes among those that you have added using `spells add`.
+You can use "expansion" as a group_by to separate results from multiple sets, or you can aggregate them together.
 
 - `columns`: a list of string or `ColName` values to select as non-grouped columns. Valid `ColTypes` are `PICK_SUM`, `NAME_SUM`, `GAME_SUM`, and `AGG`. Min/Max/Unique 
 aggregations of non-numeric (or numeric) data types are not supported. If `None`, use a set of columns modeled on the commonly used values on 17Lands.com/card_data.
