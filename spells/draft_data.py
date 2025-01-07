@@ -455,7 +455,7 @@ def _base_agg_df(
     return joined_df
 
 
-@make_verbose
+@make_verbose()
 def summon(
     set_code: str | list[str],
     columns: list[str] | None = None,
