@@ -23,6 +23,9 @@ build-backend = "pdm.backend"
 [tool.pdm]
 distribution = true
 
+[tool.pdm.scripts]
+post_install = "scripts/post_install.py"
+
 [tool.pdm.publish]
 upload.env_file = "$HOME/.pypienv"
 

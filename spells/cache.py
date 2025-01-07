@@ -25,7 +25,7 @@ class DataDir(StrEnum):
 
 
 def spells_print(mode, content):
-    print(f"🪄 {mode} ✨ {content}")
+    print(f"  🪄 {mode} ✨ {content}")
 
 
 def data_home() -> str:

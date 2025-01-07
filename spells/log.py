@@ -59,10 +59,12 @@ def console_logging(log_level):
         logger.removeHandler(console_handler)
 
 
-def make_verbose(func: Callable) -> Callable:
-    @wraps(func)
-    def wrapped(*args, logging: int=logging.ERROR, **kwargs):
-        with console_logging(logging):
-            return func(*args, **kwargs)
-    return wrapped
+def make_verbose(level: int=logging.ERROR) -> Callable:
+    def decorator(func: Callable) -> Callable:
+        @wraps(func)
+        def wrapped(*args, log_to_console: int=level, **kwargs):
+            with console_logging(log_to_console):
+                return func(*args, **kwargs)
+        return wrapped
+    return decorator
 
