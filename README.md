@@ -4,21 +4,23 @@
 
 ```
 $ spells add DSK
-🪄 spells ✨ [data home]=/Users/joel/.local/share/spells/
+  🪄 spells ✨ [data home]=/home/joel/.local/share/spells/
 
-🪄 add ✨ Downloading draft dataset from 17Lands.com
+  🪄 add ✨ Downloading draft dataset from 17Lands.com
 100% [......................................................................] 250466473 / 250466473
-🪄 add ✨ Unzipping and transforming to parquet (this might take a few minutes)...
-🪄 add ✨ Wrote file /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.parquet
-🪄 clean ✨ No local cache found for set DSK
-🪄 add ✨ Fetching card data from mtgjson.com and writing card parquet file
-🪄 add ✨ Wrote file /Users/joel/.local/share/spells/external/DSK/DSK_card.parquet
-🪄 add ✨ Downloading game dataset from 17Lands.com
+  🪄 add ✨ Unzipping and transforming to parquet (this might take a few minutes)...
+  🪄 add ✨ Wrote file /home/joel/.local/share/spells/external/DSK/DSK_PremierDraft_draft.parquet
+  🪄 clean ✨ No local cache found for set DSK
+  🪄 add ✨ Fetching card data from mtgjson.com and writing card file
+  🪄 add ✨ Wrote file /home/joel/.local/share/spells/external/DSK/DSK_card.parquet
+  🪄 add ✨ Calculating set context
+  🪄 add ✨ Wrote file /home/joel/.local/share/spells/external/DSK/DSK_PremierDraft_context.parquet
+  🪄 add ✨ Downloading game dataset from 17Lands.com
 100% [........................................................................] 77145600 / 77145600
-🪄 add ✨ Unzipping and transforming to parquet (this might take a few minutes)...
-🪄 add ✨ Wrote file /Users/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.parquet
-🪄 clean ✨ No local cache found for set DSK
-$ ipython
+  🪄 add ✨ Unzipping and transforming to parquet (this might take a few minutes)...
+  🪄 add ✨ Wrote file /home/joel/.local/share/spells/external/DSK/DSK_PremierDraft_game.parquet
+  🪄 clean ✨ Removed 1 files from local cache for set DSK
+  🪄 clean ✨ Removed local cache dir /home/joel/.local/share/spells/cache/DSK
 ```
 
 ```python
@@ -59,6 +61,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
 
 - Uses [Polars](https://docs.pola.rs/) for high-performance, multi-threaded aggregations of large datasets
 - Uses Polars to power an expressive query language for specifying custom extensions
+- Analyzes larger-than-memory datasets using Polars streaming mode
 - Converts csv datasets to parquet for 10x faster calculations and 20x smaller file sizes
 - Supports calculating the standard aggregations and measures out of the box with no arguments (ALSA, GIH WR, etc)
 - Caches aggregate DataFrames in the local file system automatically for instantaneous reproduction of previous analysis
@@ -291,7 +294,7 @@ summon(
     read_cache: bool = True,
     write_cache: bool = True,
     use_streaming: bool = False,
-    logging: int = logging.ERROR,
+    log_to_console: int = logging.ERROR,
 ) -> polars.DataFrame
 ```
 
@@ -320,6 +323,8 @@ aggregations of non-numeric (or numeric) data types are not supported. If `None`
 - `set_context`: Typically, a dict of abitrary values to use in column definitions, for example, you could provide the quick draft release date and have a column that depended on that. You can also provide a one-row dataframe and access the column values.
 
 - `read_cache`/`write_cache`: Use the local file system to cache and retrieve aggregations to minimize expensive reads of the large datasets. You shouldn't need to touch these arguments unless you are debugging.
+
+- 'log_to_console': Set to `logging.INFO` to see useful messages on the progress of your aggregation, or `logging.WARNING` to see warning messages about potentially invalid column definitions.
 
 ### Enums
 
@@ -500,13 +505,10 @@ A table of all included columns. Columns can be referenced by enum or by string 
 # Roadmap to 1.0
 
 - [ ] Support Traditional and Premier datasets (currently only Premier is supported)
-- [ ] Group by all
 - [ ] Enable configuration using $XDG_CONFIG_HOME/cfg.toml
-- [ ] Support min and max aggregations over base views
 - [ ] Enhanced profiling
 - [ ] Optimized caching strategy
 - [ ] Organize and analyze daily downloads from 17Lands (not a scraper!)
 - [ ] Helper functions to generate second-order analysis by card name
 - [ ] Helper functions for common plotting paradigms
-- [ ] Example notebooks
 - [ ] Scientific workflows: regression, MLE, etc
