@@ -42,8 +42,7 @@ def rotate_logs():
             logging.debug("Log file manually rotated")
 
 
-@contextmanager
-def console_logging(log_level):
+def add_console_handler(log_level):
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
     formatter = logging.Formatter(
@@ -52,7 +51,12 @@ def console_logging(log_level):
     console_handler.setFormatter(formatter)
     logger = logging.getLogger()
     logger.addHandler(console_handler)
+    return logger, console_handler
 
+
+@contextmanager
+def console_logging(log_level):
+    logger, console_handler = add_console_handler(log_level)
     try:
         yield
     finally:
