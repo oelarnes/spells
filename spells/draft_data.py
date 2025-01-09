@@ -148,6 +148,10 @@ def _determine_expression(
                     )
                 )
             except KeyError:
+                logging.warning(
+                    f"KeyError raised in calculation of {col}, probably caused by "
+                    + "missing context. Column will have value `None`"
+                )
                 expr = tuple(pl.lit(None).alias(f"{col}_{name}") for name in names)
         else:
             expr = tuple(map(lambda name: pl.col(f"{col}_{name}"), names))
@@ -233,7 +237,11 @@ def _infer_dependencies(
             ):
                 dependencies.add(split[0])
                 found = True
-        # fail silently here, so that columns can be passed in harmlessly
+        if not found:
+            logging.warning(
+                f"No column definition found matching dependency {item}! "
+                + "`summon` will fail if called with this column"
+            )
 
     return dependencies
 

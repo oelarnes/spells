@@ -100,7 +100,7 @@ def cli() -> int:
 
 
 def _add(set_code: str, force_download=False):
-    if set_code == 'all':
+    if set_code == "all":
         for code in all_sets:
             _add(code, force_download=force_download)
 

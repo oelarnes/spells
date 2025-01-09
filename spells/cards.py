@@ -78,7 +78,13 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     draft_set_json = _fetch_mtg_json(draft_set_code)
     booster_info = draft_set_json["data"]["booster"]
 
-    booster_type = "play" if "play" in booster_info else "draft" if "draft" in booster_info else list(booster_info.keys())[0]
+    booster_type = (
+        "play"
+        if "play" in booster_info
+        else "draft"
+        if "draft" in booster_info
+        else list(booster_info.keys())[0]
+    )
     set_codes = booster_info[booster_type]["sourceSetCodes"]
     set_codes.reverse()
 

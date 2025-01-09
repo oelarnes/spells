@@ -7,4 +7,12 @@ from spells.log import setup_logging
 
 setup_logging()
 
-__all__ = ["summon", "view_select", "get_names", "ColSpec", "ColType", "ColName", "logging"]
+__all__ = [
+    "summon",
+    "view_select",
+    "get_names",
+    "ColSpec",
+    "ColType",
+    "ColName",
+    "logging",
+]
