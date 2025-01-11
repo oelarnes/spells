@@ -11,6 +11,7 @@ all_sets = [
     "WOE",
     "LTR",
     "MOM",
+    "SIR",
     "ONE",
     "BRO",
     "DMU",
