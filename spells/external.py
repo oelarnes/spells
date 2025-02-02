@@ -69,6 +69,8 @@ def cli() -> int:
     clean: Delete [data home]/local/[set code] data directory (your cache of aggregate parquet files), or all of them.
 
     info: No set code argument. Print info on all external and local files.
+
+    context: Refresh context files
     """
     print_usage = functools.partial(cache.spells_print, "usage", usage)
 
@@ -80,6 +82,9 @@ def cli() -> int:
 
     if mode == "info":
         return _info()
+
+    if mode == "context":
+        return _context()
 
     if len(sys.argv) != 3:
         print_usage()
@@ -99,7 +104,7 @@ def cli() -> int:
             return 1
 
 
-def _add(set_code: str, force_download=False):
+def _add(set_code: str, force_download: bool = False) -> int:
     if set_code == "all":
         for code in all_sets:
             _add(code, force_download=force_download)
@@ -110,6 +115,13 @@ def _add(set_code: str, force_download=False):
     download_data_set(set_code, View.GAME, force_download=force_download)
     return 0
 
+
+def _context() -> int:
+    cache.spells_print("context", "Refreshing all context files")
+    for code in all_sets:
+        write_card_file(code, force_download=True)
+        get_set_context(code, force_download=True)
+    return 0 
 
 def _refresh(set_code: str):
     return _add(set_code, force_download=True)

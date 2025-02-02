@@ -241,7 +241,7 @@ Spells caches the results of expensive aggregations in the local file system as 
 
 ### Memory Usage
 
-One of my goals in creating Spells was to eliminate issues with memory pressure by exclusively using the map-reduce paradigm and a technology that supports partitioned/streaming aggregation of larget-than-memory datasets. By default, Polars loads the entire dataset in memory, but the API exposes a parameter `streaming` which I have exposed as `use_streaming`. Further testing is needed to determine the performance impacts, but this is the first thing you should try if you run into memory issues.
+One of my goals in creating Spells was to eliminate issues with memory pressure by exclusively using the map-reduce paradigm and a technology that supports partitioned/streaming aggregation of larget-than-memory datasets. By default, Polars loads the entire dataset in memory, but the API exposes a parameter `streaming` which I have exposed as `use_streaming` and defaulted to `True` in Spells. Further testing is needed to determine the performance impacts, so you could try turning it off if you have expansive virtual memory. My 16 GB MacBook Air is fine using 60 GB of memory, but my 32 GB homelab is not.
 
 When refreshing a given set's data files from 17Lands using the provided cli, the cache for that set is automatically cleared. The `spells` CLI gives additional tools for managing the local and external caches.
 

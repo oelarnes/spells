@@ -431,6 +431,12 @@ _specs: dict[str, ColSpec] = {
     ColName.CARD_JSON: ColSpec(
         col_type=ColType.CARD_ATTR,
     ),
+    ColName.SCRYFALL_ID: ColSpec(
+        col_type=ColType.CARD_ATTR,
+    ),
+    ColName.IMAGE_URL: ColSpec(
+        col_type=ColType.CARD_ATTR,
+    ),
     ColName.PICKED_MATCH_WR: ColSpec(
         col_type=ColType.AGG,
         expr=pl.col(ColName.EVENT_MATCH_WINS_SUM) / pl.col(ColName.EVENT_MATCHES_SUM),

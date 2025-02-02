@@ -128,6 +128,8 @@ class ColName(StrEnum):
     IS_DFC = "is_dfc"
     ORACLE_TEXT = "oracle_text"
     CARD_JSON = "card_json"
+    SCRYFALL_ID = "scryfall_id"
+    IMAGE_URL = "image_url"
     # agg extensions
     PICKED_MATCH_WR = "picked_match_wr"
     TROPHY_RATE = "trophy_rate"

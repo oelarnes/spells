@@ -23,6 +23,8 @@ class CardAttr(StrEnum):
     IS_DFC = ColName.IS_DFC
     ORACLE_TEXT = ColName.ORACLE_TEXT
     CARD_JSON = ColName.CARD_JSON
+    SCRYFALL_ID = ColName.SCRYFALL_ID
+    IMAGE_URL = ColName.IMAGE_URL
 
 
 MTG_JSON_TEMPLATE = "https://mtgjson.com/api/v5/{set_code}.json"
@@ -41,6 +43,13 @@ def _fetch_mtg_json(set_code: str) -> dict:
 
 
 def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
+    scryfall_id = card_dict.get("identifiers", {}).get("scryfallId", "")
+    if scryfall_id:
+        d1 = scryfall_id[0]
+        d2 = scryfall_id[1]
+        img_url = f"https://cards.scryfall.io/large/front/{d1}/{d2}/{scryfall_id}.jpg"
+    else:
+        img_url = ""
     match field:
         case CardAttr.NAME:
             return name
@@ -72,7 +81,10 @@ def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
             return card_dict.get("text", "")
         case CardAttr.CARD_JSON:
             return card_dict.get("json", "")
-
+        case CardAttr.SCRYFALL_ID:
+            return scryfall_id
+        case CardAttr.IMAGE_URL:
+            return img_url
 
 def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     draft_set_json = _fetch_mtg_json(draft_set_code)

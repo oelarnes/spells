@@ -380,7 +380,7 @@ def _fetch_or_cache(
 def _base_agg_df(
     set_code: str,
     m: spells.manifest.Manifest,
-    use_streaming: bool = False,
+    use_streaming: bool = True,
 ) -> pl.DataFrame:
     join_dfs = []
     group_by = m.base_view_group_by
@@ -470,7 +470,7 @@ def summon(
     group_by: list[str] | None = None,
     filter_spec: dict | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
-    use_streaming: bool = False,
+    use_streaming: bool = True,
     read_cache: bool = True,
     write_cache: bool = True,
     card_context: pl.DataFrame | dict[str, Any] | None = None,
