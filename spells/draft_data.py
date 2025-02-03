@@ -612,4 +612,12 @@ def view_select(
     else:
         base_df = base_df_prefilter
 
-    return base_df.select(columns)
+    select_defs = [col_def_map[c] for c in columns]
+    select_names = []
+    for d in select_defs:
+        if d.col_type == ColType.NAME_SUM:
+            select_names.extend([expr.meta.output_name() for expr in d.expr])
+        else:
+            select_names.append(d.expr.meta.output_name())
+
+    return base_df.select(select_names)
