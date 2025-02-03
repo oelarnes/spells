@@ -208,7 +208,7 @@ def create(
     else:
         needed_views = needed_views.union({View.GAME, View.DRAFT})
 
-    view_cols = {v: view_cols[v] for v in needed_views}
+    view_cols = {v: view_cols.get(v, frozenset({ColName.PICK})) for v in needed_views}
 
     return Manifest(
         columns=cols,

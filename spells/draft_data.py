@@ -407,7 +407,11 @@ def _base_agg_df(
             for c in cols_for_view
             if m.col_def_map[c].col_type in (ColType.PICK_SUM, ColType.GAME_SUM)
         )
-        if sum_cols:
+        name_sum_cols = tuple(
+            c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM
+        )
+
+        if sum_cols or not name_sum_cols:
             # manifest will verify that GAME_SUM manifests do not use NAME grouping
             name_col_tuple = (
                 (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
@@ -418,9 +422,6 @@ def _base_agg_df(
             grouped = sum_col_df.group_by(group_by) if group_by else sum_col_df
             join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
-        name_sum_cols = tuple(
-            c for c in cols_for_view if m.col_def_map[c].col_type == ColType.NAME_SUM
-        )
         for col in name_sum_cols:
             names = get_names(set_code)
             expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
