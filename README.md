@@ -293,7 +293,7 @@ summon(
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     read_cache: bool = True,
     write_cache: bool = True,
-    use_streaming: bool = False,
+    use_streaming: bool = True,
     log_to_console: int = logging.ERROR,
 ) -> polars.DataFrame
 ```
