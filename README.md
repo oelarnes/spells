@@ -354,7 +354,7 @@ Used to define extensions in `summon`
 and `AGG` must be derivable at the individual row level on one or both base views. `CARD_ATTR` must be derivable at the individual row level from the card file. `AGG` can depend on any column present after 
 summing over groups, and can include polars Expression aggregations. Arbitrarily long chains of aggregate dependencies are supported.
 
-- `expr`: A polars expression or function returning a polars expression giving the derivation of the column value at the first level where it is defined. 
+- `expr`: A polars expression or function returning a polars expression giving the derivation of the column value at the first level where it is defined. The name is inferred from the dictionary key in the extensions argument, you do not need to specify an alias.
     - For `NAME_SUM` columns, `expr` must be a function of `name` which will result in a list of expressions mapped over all card names.
     - `PICK_SUM` columns can also be functions on `name`, in which case the value will be a function of the value of the `PICK` field. 
     - `AGG` columns that depend on `NAME_SUM` columns reference the prefix (`cdef.name`) only, since the unpivot has occured prior to selection. 
