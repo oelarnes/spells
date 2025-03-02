@@ -1,3 +1,5 @@
+from typing import Callable
+
 import math
 
 import polars as pl
@@ -11,6 +13,19 @@ def print_ext(ext: dict[str, ColSpec]) -> None:
     spells_print("create", "Created extensions:")
     for key in ext:
         print("\t" + key)
+
+
+def seen_greatest_name_fn(attr: str) -> Callable:
+    def inner(names: list[str]) -> pl.Expr:
+        expr = pl.lit(None)
+        for name in names:
+            expr = (
+                pl.when(pl.col(f"seen_{attr}_is_greatest_{name}"))
+                .then(pl.lit(name))
+                .otherwise(expr)
+            )
+        return expr
+    return inner
 
 
 def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
@@ -40,6 +55,9 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
             col_type=ColType.NAME_SUM,
             expr=lambda name: pl.col(f"seen_{attr}_{name}")
             == pl.col(f"greatest_{attr}_seen"),
+        ),
+        f"seen_greatest_{attr}_name": ColSpec(
+            col_type=ColType.GROUP_BY, expr=seen_greatest_name_fn(attr)
         ),
         f"seen_{attr}_greater": ColSpec(
             col_type=ColType.NAME_SUM,
