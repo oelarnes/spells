@@ -28,7 +28,7 @@ def seen_greatest_name_fn(attr: str) -> Callable:
     return inner
 
 
-def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
+def context_cols(attr, silent: bool = True) -> dict[str, ColSpec]:
     ext = {
         f"seen_{attr}": ColSpec(
             col_type=ColType.NAME_SUM,
@@ -145,7 +145,7 @@ def context_cols(attr, silent: bool = False) -> dict[str, ColSpec]:
     return ext
 
 
-def stat_cols(attr: str, silent: bool = False) -> dict[str, ColSpec]:
+def stat_cols(attr: str, silent: bool = True) -> dict[str, ColSpec]:
     ext = {
         f"{attr}_deck_weight_group": ColSpec(
             col_type=ColType.AGG, expr=pl.col(f"{attr}") * pl.col(ColName.DECK)
