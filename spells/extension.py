@@ -75,6 +75,12 @@ def context_cols(attr, silent: bool = True) -> dict[str, ColSpec]:
                 [pl.col(f"seen_{attr}_{name}") for name in names]
             ),
         ),
+        f"seen_{attr}_pack_sum": ColSpec(
+            col_type=ColType.PICK_SUM,
+            expr=lambda names: pl.sum_horizontal(
+                [pl.col(f"seen_{attr}_{name}") for name in names]
+            )
+        ),
         f"least_{attr}_seen": ColSpec(
             col_type=ColType.PICK_SUM,
             expr=lambda names: pl.min_horizontal(
