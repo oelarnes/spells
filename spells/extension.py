@@ -25,6 +25,7 @@ def seen_greatest_name_fn(attr: str) -> Callable:
                 .otherwise(expr)
             )
         return expr
+
     return inner
 
 
@@ -49,7 +50,26 @@ def context_cols(attr, silent: bool = True) -> dict[str, ColSpec]:
             else card_context[name][attr],
         ),
         f"pick_{attr}": ColSpec(
-            col_type=ColType.AGG, expr=pl.col(f"pick_{attr}_sum") / pl.col("num_taken")
+            col_type=ColType.GROUP_BY, expr=pl.col(f"pick_{attr}_sum")
+        ),
+        f"pool_{attr}": ColSpec(
+            col_type=ColType.NAME_SUM,
+            expr=(
+                lambda name, card_context: pl.lit(None)
+                if card_context[name].get(attr) is None
+                or math.isnan(card_context[name][attr])
+                else card_context[name][attr] * pl.col(f"pool_{name}")
+            ),
+        ),
+        f"pool_{attr}_sum": ColSpec(
+            col_type=ColType.PICK_SUM,
+            expr=lambda names: pl.sum_horizontal(
+                [pl.col(f"pool_{attr}_{name}") for name in names]
+            ),
+        ),
+        f"pool_pick_{attr}_sum": ColSpec(
+            col_type=ColType.PICK_SUM,
+            expr=pl.col(f"pick_{attr}_sum") + pl.col(f"pool_{attr}_sum"),
         ),
         f"seen_{attr}_is_greatest": ColSpec(
             col_type=ColType.NAME_SUM,
@@ -79,7 +99,7 @@ def context_cols(attr, silent: bool = True) -> dict[str, ColSpec]:
             col_type=ColType.PICK_SUM,
             expr=lambda names: pl.sum_horizontal(
                 [pl.col(f"seen_{attr}_{name}") for name in names]
-            )
+            ),
         ),
         f"least_{attr}_seen": ColSpec(
             col_type=ColType.PICK_SUM,
