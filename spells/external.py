@@ -345,11 +345,11 @@ def get_set_context(set_code: str, force_download=False) -> int:
 
     df = summon(
         set_code,
-        columns=[ColName.NUM_DRAFTS],
+        columns=[ColName.NUM_TAKEN],
         group_by=[ColName.DRAFT_DATE, ColName.PICK_NUM],
     )
 
-    context_df = df.filter(pl.col(ColName.NUM_DRAFTS) > 1000).select(
+    context_df = df.filter(pl.col(ColName.NUM_TAKEN) > 1000).select(
         [
             pl.col(ColName.DRAFT_DATE).min().alias("release_date"),
             pl.col(ColName.PICK_NUM).max().alias("picks_per_pack"),
