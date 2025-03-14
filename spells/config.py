@@ -1,4 +1,5 @@
 all_sets = [
+    "DFT",
     "PIO",
     "FDN",
     "DSK",

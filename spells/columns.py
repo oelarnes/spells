@@ -217,21 +217,21 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.GAME_DATE: ColSpec(
         col_type=ColType.GROUP_BY,
-        expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.date(),
+        expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.date(),
     ),
     ColName.GAME_DAY_OF_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.GAME_TIME)
-        .str.to_datetime("%Y-%m-%d %H-%M-%S")
+        .str.to_datetime("%Y-%m-%d %H:%M:%S")
         .dt.weekday(),
     ),
     ColName.GAME_HOUR: ColSpec(
         col_type=ColType.GROUP_BY,
-        expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.hour(),
+        expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.hour(),
     ),
     ColName.GAME_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
-        expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H-%M-%S").dt.week(),
+        expr=pl.col(ColName.GAME_TIME).str.to_datetime("%Y-%m-%d %H:%M:%S").dt.week(),
     ),
     ColName.BUILD_INDEX: ColSpec(
         col_type=ColType.GROUP_BY,
