@@ -166,6 +166,10 @@ _specs: dict[str, ColSpec] = {
         col_type=ColType.GROUP_BY,
         expr=pl.col(ColName.PICK_NUMBER) + 1,
     ),
+    ColName.PICK_INDEX: ColSpec(
+        col_type=ColType.GROUP_BY,
+        expr=lambda set_context: pl.col(ColName.PICK_NUMBER) + pl.col(ColName.PACK_NUMBER) * set_context['picks_per_pack']
+    ),
     ColName.TAKEN_AT: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.col(ColName.PICK_NUM),

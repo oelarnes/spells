@@ -401,6 +401,7 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `PACK_NUM`               | `"pack_num"`               | `DRAFT` | `GROUP_BY`    | 1-indexed                                    | Int      |
 | `PICK_NUMBER`            | `"pick_number"`            | `DRAFT` | `FILTER_ONLY` | Dataset Column                               | Int      |
 | `PICK_NUM`               | `"pick_num"`               | `DRAFT` | `GROUP_BY`    | 1-indexed                                    | Int      |
+| `PICK_INDEX`              | `"pick_index"`            | `DRAFT` | `GROUP_BY`  | 0-indexed, through 39/42/45 depending on set   | Int      |
 | `TAKEN_AT`               | `"taken_at`                | `DRAFT` | `PICK_SUM`    | Summable alias of `PICK_NUM`                 | Int      |
 | `NUM_DRAFTS`           | `"num_drafts"` | `DRAFT` | `PICK_SUM` | | Int |
 | `NUM_TAKEN`              | `"num_taken"`              | `DRAFT` | `PICK_SUM`    | Sum 1 over rows                              | Int      |
