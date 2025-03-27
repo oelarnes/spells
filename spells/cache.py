@@ -10,8 +10,15 @@ Caches are cleared per-set when new files are downloaded.
 from enum import StrEnum
 import os
 import sys
-
 import polars as pl
+
+
+class Env(StrEnum):
+    PROD = "prod"
+    TEST = "test"
+
+
+env = Env.PROD
 
 
 class EventType(StrEnum):
@@ -28,8 +35,30 @@ def spells_print(mode, content):
     print(f"  🪄 {mode} ✨ {content}")
 
 
+def set_test_env():
+    global env
+    env = Env.TEST
+
+
+def set_prod_env():
+    global env
+    env = Env.PROD
+
+
 def data_home() -> str:
     is_win = sys.platform == "win32"
+    global env
+
+    if env == Env.TEST:
+        return os.path.expanduser(
+            os.environ.get(
+                "SPELLS_TEST_HOME",
+                r"~\AppData\Local\SpellsTest"
+                if is_win
+                else "~/.local/share/spellstest/",
+            )
+        )
+
     return os.path.expanduser(
         os.environ.get(
             "SPELLS_DATA_HOME",
@@ -39,6 +68,46 @@ def data_home() -> str:
             ),
         )
     )
+
+
+def create_test_data(set_code: str, test_num_drafts: int = 100):
+    """
+    run from prod environment to write test data for `set_code` into
+    the test environment. Then set `SPELLS_DATA_HOME=test_data_home`
+    to run from the test environment
+    """
+
+    context_df = pl.scan_parquet(data_file_path(set_code, "context")).collect()
+    picks_per_pack = context_df["picks_per_pack"][0]
+
+    draft_df = (
+        pl.scan_parquet(data_file_path(set_code, "draft"))
+        .head(50 * (test_num_drafts + 2))
+        .collect()
+    )
+
+    sample_draft_ids = (
+        draft_df.group_by("draft_id")
+        .len()
+        .filter(pl.col("len") == picks_per_pack * 3)["draft_id"][0:test_num_drafts]
+    )
+
+    draft_sample_df = draft_df.filter(pl.col("draft_id").is_in(sample_draft_ids))
+    game_sample_df = (
+        pl.scan_parquet(data_file_path(set_code, "game"))
+        .filter(pl.col("draft_id").is_in(sample_draft_ids))
+        .collect()
+    )
+    card_df = pl.scan_parquet(data_file_path(set_code, "card")).collect()
+
+    set_test_env()
+    if not os.path.isdir(set_dir := external_set_path(set_code)):
+        os.makedirs(set_dir)
+    context_df.write_parquet(data_file_path(set_code, "context"))
+    draft_sample_df.write_parquet(data_file_path(set_code, "draft"))
+    game_sample_df.write_parquet(data_file_path(set_code, "game"))
+    card_df.write_parquet(data_file_path(set_code, "card"))
+    set_prod_env()
 
 
 def data_dir_path(cache_dir: DataDir) -> str:
