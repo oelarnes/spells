@@ -9,7 +9,9 @@ Caches are cleared per-set when new files are downloaded.
 
 from enum import StrEnum
 import os
+from pathlib import Path
 import sys
+
 import polars as pl
 
 
@@ -68,6 +70,21 @@ def data_home() -> str:
             ),
         )
     )
+
+
+def ad_hoc_dir():
+    ad_hoc_dir = Path(data_home()) / "ad_hoc"
+    if not os.path.isdir(ad_hoc_dir):
+        os.makedirs(ad_hoc_dir)
+    return ad_hoc_dir
+
+
+def save_ad_hoc_dataset(df: pl.DataFrame, key: str):
+    df.write_parquet(ad_hoc_dir() / f"{key}.parquet")
+
+
+def read_ad_hoc_dataset(key: str):
+    return pl.read_parquet(ad_hoc_dir() / f"{key}.parquet")
 
 
 def create_test_data(set_code: str, test_num_drafts: int = 100):

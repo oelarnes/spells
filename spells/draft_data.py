@@ -19,7 +19,7 @@ from polars.exceptions import ColumnNotFoundError
 
 from spells import cache
 import spells.filter
-import spells.manifest
+from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.enums import View, ColName, ColType
 from spells.log import make_verbose
@@ -379,7 +379,7 @@ def _fetch_or_cache(
 
 def _base_agg_df(
     set_code: str,
-    m: spells.manifest.Manifest,
+    m: manifest.Manifest,
     use_streaming: bool = True,
 ) -> pl.DataFrame:
     join_dfs = []
@@ -516,7 +516,7 @@ def summon(
             this_set_context = None
 
         col_def_map = _hydrate_col_defs(code, specs, set_card_context, this_set_context)
-        m = spells.manifest.create(col_def_map, columns, group_by, filter_spec)
+        m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
         calc_fn = functools.partial(_base_agg_df, code, m, use_streaming=use_streaming)
         agg_df = _fetch_or_cache(
