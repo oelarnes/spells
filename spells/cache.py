@@ -84,7 +84,11 @@ def save_ad_hoc_dataset(df: pl.DataFrame, key: str):
 
 
 def read_ad_hoc_dataset(key: str):
-    return pl.read_parquet(ad_hoc_dir() / f"{key}.parquet")
+    path = ad_hoc_dir() / f"{key}.parquet"
+    if os.path.exists(path):
+        return pl.read_parquet(ad_hoc_dir() / f"{key}.parquet")
+    else:
+        return None
 
 
 def create_test_data(set_code: str, test_num_drafts: int = 100):
