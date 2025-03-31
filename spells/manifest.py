@@ -1,9 +1,8 @@
 from dataclasses import dataclass
 
-import spells.columns
-import spells.filter
+import spells.filter as spells_filter
 from spells.enums import View, ColName, ColType
-from spells.columns import ColDef
+from spells.columns import ColDef, default_columns
 
 
 @dataclass(frozen=True)
@@ -13,7 +12,7 @@ class Manifest:
     base_view_group_by: frozenset[str]
     view_cols: dict[View, frozenset[str]]
     group_by: tuple[str, ...]
-    filter: spells.filter.Filter | None
+    filter: spells_filter.Filter | None
 
     def __post_init__(self):
         # No name filter check
@@ -166,7 +165,7 @@ def create(
     gbs = (ColName.NAME,) if group_by is None else tuple(group_by)
 
     if columns is None:
-        cols = tuple(spells.columns.default_columns)
+        cols = tuple(default_columns)
         if ColName.NAME not in gbs:
             cols = tuple(
                 col for col in cols if col not in (ColName.COLOR, ColName.RARITY)
@@ -174,7 +173,7 @@ def create(
     else:
         cols = tuple(columns)
 
-    m_filter = spells.filter.from_spec(filter_spec)
+    m_filter = spells_filter.from_spec(filter_spec)
 
     col_set = frozenset(cols)
     col_set = col_set.union(frozenset(gbs) - {ColName.NAME})
