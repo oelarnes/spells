@@ -7,6 +7,7 @@ and groupbys.
 Caches are cleared per-set when new files are downloaded.
 """
 
+import datetime as dt
 from enum import StrEnum
 import os
 from pathlib import Path
@@ -31,6 +32,8 @@ class EventType(StrEnum):
 class DataDir(StrEnum):
     CACHE = "cache"
     EXTERNAL = "external"
+    RATINGS = "ratings"
+    DECK_COLOR = "deck_color"
 
 
 def spells_print(mode, content):
@@ -141,6 +144,8 @@ def data_dir_path(cache_dir: DataDir) -> str:
     ext = {
         DataDir.CACHE: "Cache" if is_win else "cache",
         DataDir.EXTERNAL: "External" if is_win else "external",
+        DataDir.RATINGS: "Ratings" if is_win else "ratings",
+        DataDir.DECK_COLOR: "DeckColor" if is_win else "deck_color",
     }[cache_dir]
 
     data_dir = os.path.join(data_home(), ext)
@@ -160,6 +165,38 @@ def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
 
     return os.path.join(
         external_set_path(set_code), f"{set_code}_{event_type}_{dataset_type}.parquet"
+    )
+
+
+def card_ratings_file_path(
+    set_code: str,
+    format: str,
+    user_group: str,
+    deck_color: str,
+    start_date: dt.date,
+    end_date: dt.date,
+) -> tuple[str, str]:
+    return os.path.join(
+        data_dir_path(DataDir.RATINGS),
+        set_code,
+    ), (
+        f"{format}_{user_group}_{deck_color}_{start_date.strftime('%Y-%m-%d')}"
+        f"_{end_date.strftime('%Y-%m-%d')}.json"
+    )
+
+def deck_color_file_path(
+    set_code: str,
+    format: str,
+    user_group: str,
+    start_date: dt.date,
+    end_date: dt.date,
+) -> tuple[str, str]:
+    return os.path.join(
+        data_dir_path(DataDir.DECK_COLOR),
+        set_code,
+    ), (
+        f"{format}_{user_group}_{start_date.strftime('%Y-%m-%d')}"
+        f"_{end_date.strftime('%Y-%m-%d')}.json"
     )
 
 

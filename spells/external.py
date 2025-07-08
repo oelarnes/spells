@@ -30,7 +30,6 @@ RESOURCE_TEMPLATE = (
     "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
 )
 
-
 class FileFormat(StrEnum):
     CSV = "csv"
     PARQUET = "parquet"
@@ -121,7 +120,8 @@ def _context() -> int:
     for code in all_sets:
         write_card_file(code, force_download=True)
         get_set_context(code, force_download=True)
-    return 0 
+    return 0
+
 
 def _refresh(set_code: str):
     return _add(set_code, force_download=True)
@@ -359,4 +359,5 @@ def get_set_context(set_code: str, force_download=False) -> int:
     context_df.write_parquet(context_fp)
 
     cache.spells_print(mode, f"Wrote file {context_fp}")
+    
     return 0

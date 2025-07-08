@@ -6,6 +6,8 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
+from dataclasses import dataclass
+import datetime
 import functools
 import hashlib
 import re
@@ -23,8 +25,18 @@ from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.enums import View, ColName, ColType
 from spells.log import make_verbose
+from spells.card_data_files import base_ratings_df
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
+
+@dataclass
+class CardDataFileSpec():
+    set_code: str
+    format: str = "PremierDraft"
+    player_cohort: str = "all"
+    deck_color: str = "any"
+    start_date: datetime.datetime | None = None
+    end_date: datetime.datetime | None = None
 
 
 def _cache_key(args) -> str:
@@ -476,6 +488,7 @@ def summon(
     write_cache: bool = True,
     card_context: pl.DataFrame | dict[str, Any] | None = None,
     set_context: pl.DataFrame | dict[str, Any] | None = None,
+    cdfs: CardDataFileSpec | None = None,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -518,30 +531,43 @@ def summon(
         col_def_map = _hydrate_col_defs(code, specs, set_card_context, this_set_context)
         m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
-        calc_fn = functools.partial(_base_agg_df, code, m, use_streaming=use_streaming)
-        agg_df = _fetch_or_cache(
-            calc_fn,
-            code,
-            (
+        if cdfs is None:
+            calc_fn = functools.partial(_base_agg_df, code, m, use_streaming=use_streaming)
+            agg_df = _fetch_or_cache(
+                calc_fn,
                 code,
-                sorted(m.view_cols.get(View.DRAFT, set())),
-                sorted(m.view_cols.get(View.GAME, set())),
-                sorted(c.signature or "" for c in m.col_def_map.values()),
-                sorted(m.base_view_group_by),
-                filter_spec,
-            ),
-            read_cache=read_cache,
-            write_cache=write_cache,
-        )
-
-        if View.CARD in m.view_cols:
-            card_cols = m.view_cols[View.CARD].union({ColName.NAME})
-            fp = cache.data_file_path(code, View.CARD)
-            card_df = pl.read_parquet(fp)
-            select_df = _view_select(
-                card_df, card_cols, m.col_def_map, is_agg_view=False
+                (
+                    code,
+                    sorted(m.view_cols.get(View.DRAFT, set())),
+                    sorted(m.view_cols.get(View.GAME, set())),
+                    sorted(c.signature or "" for c in m.col_def_map.values()),
+                    sorted(m.base_view_group_by),
+                    filter_spec,
+                ),
+                read_cache=read_cache,
+                write_cache=write_cache,
             )
-            agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
+            if View.CARD in m.view_cols:
+                card_cols = m.view_cols[View.CARD].union({ColName.NAME})
+                fp = cache.data_file_path(code, View.CARD)
+                card_df = pl.read_parquet(fp)
+                select_df = _view_select(
+                    card_df, card_cols, m.col_def_map, is_agg_view=False
+                )
+                agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
+        else:
+            assert len(codes) == 1, "Only one set supported for loading from card data file"
+            assert codes[0] == cdfs.set_code, "Wrong set file specified"
+            assert cdfs.format == "PremierDraft", "Only PremierDraft supported"
+            agg_df = base_ratings_df(
+                set_code=cdfs.set_code,
+                format=cdfs.format,
+                player_cohort=cdfs.player_cohort,
+                deck_color=cdfs.deck_color,
+                start_date=cdfs.start_date,
+                end_date=cdfs.end_date,
+            )
+
         concat_dfs.append(agg_df)
 
     full_agg_df = pl.concat(concat_dfs, how="vertical")
