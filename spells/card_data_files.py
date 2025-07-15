@@ -1,6 +1,7 @@
 import datetime as dt
 import os
 import wget
+from time import sleep
 
 import polars as pl
 
@@ -19,6 +20,7 @@ DECK_COLOR_DATA_TEMPLATE = (
 
 START_DATE_MAP = {
     "DFT": dt.date(2025, 2, 11),
+    "TDM": dt.date(2025, 4, 8),
     "FIN": dt.date(2025, 6, 10),
 }
 
@@ -120,7 +122,7 @@ def base_ratings_df(
     set_code: str,
     format: str = "PremierDraft",
     player_cohort: str = "all",
-    deck_color: str = "any",
+    deck_colors: str | list[str] = "any",
     start_date: dt.date | None = None,
     end_date: dt.date | None = None,
 ) -> pl.DataFrame:
@@ -129,41 +131,53 @@ def base_ratings_df(
     if end_date is None:
         end_date = dt.date.today() - dt.timedelta(days=1)
 
-    ratings_dir, filename = cache.card_ratings_file_path(
-        set_code,
-        format,
-        player_cohort,
-        deck_color,
-        start_date,
-        end_date,
-    )
+    if isinstance(deck_colors, str):
+        deck_colors = [deck_colors]
 
-    if not os.path.isdir(ratings_dir):
-        os.makedirs(ratings_dir)
-
-    ratings_file_path = os.path.join(ratings_dir, filename)
-
-    if not os.path.isfile(ratings_file_path):
-        user_group_param = (
-            "" if player_cohort == "all" else f"&user_group={player_cohort}"
-        )
-        deck_color_param = "" if deck_color == "any" else f"&deck_colors={deck_color}"
-
-        url = RATINGS_TEMPLATE.format(
-            set_code=set_code,
-            format=format,
-            user_group_param=user_group_param,
-            deck_color_param=deck_color_param,
-            start_date_str=start_date.strftime("%Y-%m-%d"),
-            end_date_str=end_date.strftime("%Y-%m-%d"),
+    concat_list = []
+    for i, deck_color in enumerate(deck_colors):
+        ratings_dir, filename = cache.card_ratings_file_path(
+            set_code,
+            format,
+            player_cohort,
+            deck_color,
+            start_date,
+            end_date,
         )
 
-        wget.download(
-            url,
-            out=ratings_file_path,
-        )
+        if not os.path.isdir(ratings_dir):
+            os.makedirs(ratings_dir)
 
-    df = pl.read_json(ratings_file_path)
+        ratings_file_path = os.path.join(ratings_dir, filename)
+
+        if not os.path.isfile(ratings_file_path):
+            if i > 0:
+                sleep(5)
+            user_group_param = (
+                "" if player_cohort == "all" else f"&user_group={player_cohort}"
+            )
+            deck_color_param = "" if deck_color == "any" else f"&deck_colors={deck_color}"
+
+            url = RATINGS_TEMPLATE.format(
+                set_code=set_code,
+                format=format,
+                user_group_param=user_group_param,
+                deck_color_param=deck_color_param,
+                start_date_str=start_date.strftime("%Y-%m-%d"),
+                end_date_str=end_date.strftime("%Y-%m-%d"),
+            )
+
+            wget.download(
+                url,
+                out=ratings_file_path,
+            )
+
+        concat_list.append(pl.read_json(ratings_file_path).with_columns(
+            (pl.lit(deck_color) if deck_color != "any" else pl.lit(None)).alias(
+                ColName.MAIN_COLORS
+            )
+        ))
+    df = pl.concat(concat_list)
 
     return df.select(
         [
@@ -172,9 +186,7 @@ def base_ratings_df(
             (pl.lit("Top") if player_cohort == "top" else pl.lit(None)).alias(
                 ColName.PLAYER_COHORT
             ),
-            (pl.lit(deck_color) if deck_color != "any" else pl.lit(None)).alias(
-                ColName.MAIN_COLORS
-            ),
+            ColName.MAIN_COLORS,
             *[val.alias(key) for key, val in ratings_col_defs.items()],
         ]
     )

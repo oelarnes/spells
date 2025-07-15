@@ -34,9 +34,9 @@ class CardDataFileSpec():
     set_code: str
     format: str = "PremierDraft"
     player_cohort: str = "all"
-    deck_color: str = "any"
-    start_date: datetime.datetime | None = None
-    end_date: datetime.datetime | None = None
+    deck_colors: str = "any"
+    start_date: datetime.date | None = None
+    end_date: datetime.date | None = None
 
 
 def _cache_key(args) -> str:
@@ -563,7 +563,7 @@ def summon(
                 set_code=cdfs.set_code,
                 format=cdfs.format,
                 player_cohort=cdfs.player_cohort,
-                deck_color=cdfs.deck_color,
+                deck_colors=cdfs.deck_colors,
                 start_date=cdfs.start_date,
                 end_date=cdfs.end_date,
             )
