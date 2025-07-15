@@ -156,7 +156,7 @@ def base_ratings_df(
             user_group_param = (
                 "" if player_cohort == "all" else f"&user_group={player_cohort}"
             )
-            deck_color_param = "" if deck_color == "any" else f"&deck_colors={deck_color}"
+            deck_color_param = "" if deck_color == "any" else f"&colors={deck_color}"
 
             url = RATINGS_TEMPLATE.format(
                 set_code=set_code,
