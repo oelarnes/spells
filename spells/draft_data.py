@@ -34,7 +34,7 @@ class CardDataFileSpec():
     set_code: str
     format: str = "PremierDraft"
     player_cohort: str = "all"
-    deck_colors: str = "any"
+    deck_colors: str | list[str] = "any"
     start_date: datetime.date | None = None
     end_date: datetime.date | None = None
 
