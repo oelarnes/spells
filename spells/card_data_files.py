@@ -25,35 +25,35 @@ START_DATE_MAP = {
 }
 
 ratings_col_defs = {
-    ColName.NAME: pl.col("name"),
-    ColName.COLOR: pl.col("color"),
-    ColName.RARITY: pl.col("rarity"),
-    ColName.CARD_TYPE: pl.col("types"),
-    ColName.IMAGE_URL: pl.col("url"),
-    ColName.NUM_SEEN: pl.col("seen_count"),
-    ColName.LAST_SEEN: pl.col("seen_count") * pl.col("avg_seen"),
-    ColName.NUM_TAKEN: pl.col("pick_count"),
-    ColName.TAKEN_AT: pl.col("pick_count") * pl.col("avg_pick"),
-    ColName.DECK: pl.col("game_count"),
-    ColName.WON_DECK: pl.col("win_rate") * pl.col("game_count"),
-    ColName.SIDEBOARD: pl.col("pool_count") - pl.col("game_count"),
-    ColName.OPENING_HAND: pl.col("opening_hand_game_count"),
+    ColName.NAME: pl.col("name").cast(pl.String),
+    ColName.COLOR: pl.col("color").cast(pl.String),
+    ColName.RARITY: pl.col("rarity").cast(pl.String),
+    ColName.CARD_TYPE: pl.col("types").cast(pl.String),
+    ColName.IMAGE_URL: pl.col("url").cast(pl.String),
+    ColName.NUM_SEEN: pl.col("seen_count").cast(pl.Int64),
+    ColName.LAST_SEEN: pl.col("seen_count") * pl.col("avg_seen").cast(pl.Float64),
+    ColName.NUM_TAKEN: pl.col("pick_count").cast(pl.Int64),
+    ColName.TAKEN_AT: pl.col("pick_count") * pl.col("avg_pick").cast(pl.Float64),
+    ColName.DECK: pl.col("game_count").cast(pl.Int64),
+    ColName.WON_DECK: pl.col("win_rate") * pl.col("game_count").cast(pl.Float64),
+    ColName.SIDEBOARD: (pl.col("pool_count") - pl.col("game_count")).cast(pl.Int64),
+    ColName.OPENING_HAND: pl.col("opening_hand_game_count").cast(pl.Int64),
     ColName.WON_OPENING_HAND: pl.col("opening_hand_game_count")
-    * pl.col("opening_hand_win_rate"),
-    ColName.DRAWN: pl.col("drawn_game_count"),
-    ColName.WON_DRAWN: pl.col("drawn_win_rate") * pl.col("drawn_game_count"),
-    ColName.NUM_GIH: pl.col("ever_drawn_game_count"),
+    * pl.col("opening_hand_win_rate").cast(pl.Float64),
+    ColName.DRAWN: pl.col("drawn_game_count").cast(pl.Int64),
+    ColName.WON_DRAWN: pl.col("drawn_win_rate") * pl.col("drawn_game_count").cast(pl.Float64),
+    ColName.NUM_GIH: pl.col("ever_drawn_game_count").cast(pl.Int64),
     ColName.NUM_GIH_WON: pl.col("ever_drawn_game_count")
-    * pl.col("ever_drawn_win_rate"),
-    ColName.NUM_GNS: pl.col("never_drawn_game_count"),
+    * pl.col("ever_drawn_win_rate").cast(pl.Float64),
+    ColName.NUM_GNS: pl.col("never_drawn_game_count").cast(pl.Int64),
     ColName.WON_NUM_GNS: pl.col("never_drawn_game_count")
-    * pl.col("never_drawn_win_rate"),
+    * pl.col("never_drawn_win_rate").cast(pl.Float64),
 }
 
 deck_color_col_defs = {
-    ColName.MAIN_COLORS: pl.col("short_name"),
-    ColName.NUM_GAMES: pl.col("games"),
-    ColName.NUM_WON: pl.col("wins"),
+    ColName.MAIN_COLORS: pl.col("short_name").cast(pl.String),
+    ColName.NUM_GAMES: pl.col("games").cast(pl.Int64),
+    ColName.NUM_WON: pl.col("wins").cast(pl.Int64),
 }
 
 
@@ -109,7 +109,7 @@ def deck_color_df(
                 pl.lit(format).alias(ColName.EVENT_TYPE),
                 (pl.lit("Top") if player_cohort == "top" else pl.lit(None)).alias(
                     ColName.PLAYER_COHORT
-                ),
+                ).cast(pl.String),
                 *[val.alias(key) for key, val in deck_color_col_defs.items()],
             ]
         )
@@ -175,7 +175,7 @@ def base_ratings_df(
         concat_list.append(pl.read_json(ratings_file_path).with_columns(
             (pl.lit(deck_color) if deck_color != "any" else pl.lit(None)).alias(
                 ColName.MAIN_COLORS
-            )
+            ).cast(pl.String)
         ))
     df = pl.concat(concat_list)
 
@@ -185,7 +185,7 @@ def base_ratings_df(
             pl.lit(format).alias(ColName.EVENT_TYPE),
             (pl.lit("Top") if player_cohort == "top" else pl.lit(None)).alias(
                 ColName.PLAYER_COHORT
-            ),
+            ).cast(pl.String),
             ColName.MAIN_COLORS,
             *[val.alias(key) for key, val in ratings_col_defs.items()],
         ]
