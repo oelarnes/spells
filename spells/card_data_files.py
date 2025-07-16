@@ -28,7 +28,6 @@ ratings_col_defs = {
     ColName.NAME: pl.col("name").cast(pl.String),
     ColName.COLOR: pl.col("color").cast(pl.String),
     ColName.RARITY: pl.col("rarity").cast(pl.String),
-    ColName.CARD_TYPE: pl.col("types").cast(pl.String),
     ColName.IMAGE_URL: pl.col("url").cast(pl.String),
     ColName.NUM_SEEN: pl.col("seen_count").cast(pl.Int64),
     ColName.LAST_SEEN: pl.col("seen_count") * pl.col("avg_seen").cast(pl.Float64),
