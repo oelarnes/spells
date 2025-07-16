@@ -40,7 +40,8 @@ ratings_col_defs = {
     ColName.WON_OPENING_HAND: pl.col("opening_hand_game_count")
     * pl.col("opening_hand_win_rate").cast(pl.Float64),
     ColName.DRAWN: pl.col("drawn_game_count").cast(pl.Int64),
-    ColName.WON_DRAWN: pl.col("drawn_win_rate") * pl.col("drawn_game_count").cast(pl.Float64),
+    ColName.WON_DRAWN: pl.col("drawn_win_rate")
+    * pl.col("drawn_game_count").cast(pl.Float64),
     ColName.NUM_GIH: pl.col("ever_drawn_game_count").cast(pl.Int64),
     ColName.NUM_GIH_WON: pl.col("ever_drawn_game_count")
     * pl.col("ever_drawn_win_rate").cast(pl.Float64),
@@ -106,9 +107,9 @@ def deck_color_df(
             [
                 pl.lit(set_code).alias(ColName.EXPANSION),
                 pl.lit(format).alias(ColName.EVENT_TYPE),
-                (pl.lit("Top") if player_cohort == "top" else pl.lit(None)).alias(
-                    ColName.PLAYER_COHORT
-                ).cast(pl.String),
+                (pl.lit("Top") if player_cohort == "top" else pl.lit(None))
+                .alias(ColName.PLAYER_COHORT)
+                .cast(pl.String),
                 *[val.alias(key) for key, val in deck_color_col_defs.items()],
             ]
         )
@@ -171,20 +172,24 @@ def base_ratings_df(
                 out=ratings_file_path,
             )
 
-        concat_list.append(pl.read_json(ratings_file_path).with_columns(
-            (pl.lit(deck_color) if deck_color != "any" else pl.lit(None)).alias(
-                ColName.MAIN_COLORS
-            ).cast(pl.String)
-        ).select(
-            [
-                pl.lit(set_code).alias(ColName.EXPANSION),
-                pl.lit(format).alias(ColName.EVENT_TYPE),
-                (pl.lit("Top") if player_cohort == "top" else pl.lit(None)).alias(
-                    ColName.PLAYER_COHORT
-                ).cast(pl.String),
-                ColName.MAIN_COLORS,
-                *[val.alias(key) for key, val in ratings_col_defs.items()],
-            ]
-       ))
+        concat_list.append(
+            pl.read_json(ratings_file_path, infer_schema_length=500)
+            .with_columns(
+                (pl.lit(deck_color) if deck_color != "any" else pl.lit(None))
+                .alias(ColName.MAIN_COLORS)
+                .cast(pl.String)
+            )
+            .select(
+                [
+                    pl.lit(set_code).alias(ColName.EXPANSION),
+                    pl.lit(format).alias(ColName.EVENT_TYPE),
+                    (pl.lit("Top") if player_cohort == "top" else pl.lit(None))
+                    .alias(ColName.PLAYER_COHORT)
+                    .cast(pl.String),
+                    ColName.MAIN_COLORS,
+                    *[val.alias(key) for key, val in ratings_col_defs.items()],
+                ]
+            )
+        )
 
     return pl.concat(concat_list)
