@@ -175,17 +175,16 @@ def base_ratings_df(
             (pl.lit(deck_color) if deck_color != "any" else pl.lit(None)).alias(
                 ColName.MAIN_COLORS
             ).cast(pl.String)
-        ))
-    df = pl.concat(concat_list)
+        ).select(
+            [
+                pl.lit(set_code).alias(ColName.EXPANSION),
+                pl.lit(format).alias(ColName.EVENT_TYPE),
+                (pl.lit("Top") if player_cohort == "top" else pl.lit(None)).alias(
+                    ColName.PLAYER_COHORT
+                ).cast(pl.String),
+                ColName.MAIN_COLORS,
+                *[val.alias(key) for key, val in ratings_col_defs.items()],
+            ]
+       ))
 
-    return df.select(
-        [
-            pl.lit(set_code).alias(ColName.EXPANSION),
-            pl.lit(format).alias(ColName.EVENT_TYPE),
-            (pl.lit("Top") if player_cohort == "top" else pl.lit(None)).alias(
-                ColName.PLAYER_COHORT
-            ).cast(pl.String),
-            ColName.MAIN_COLORS,
-            *[val.alias(key) for key, val in ratings_col_defs.items()],
-        ]
-    )
+    return pl.concat(concat_list)
