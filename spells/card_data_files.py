@@ -18,12 +18,6 @@ DECK_COLOR_DATA_TEMPLATE = (
     "{user_group_param}&start_date={start_date_str}&end_date={end_date_str}&combine_splash=true"
 )
 
-START_DATE_MAP = {
-    "DFT": dt.date(2025, 2, 11),
-    "TDM": dt.date(2025, 4, 8),
-    "FIN": dt.date(2025, 6, 10),
-}
-
 ratings_col_defs = {
     ColName.NAME: pl.col("name").cast(pl.String),
     ColName.COLOR: pl.col("color").cast(pl.String),
@@ -59,16 +53,11 @@ deck_color_col_defs = {
 
 def deck_color_df(
     set_code: str,
+    start_date: dt.date,
+    end_date: dt.date,
     format: str = "PremierDraft",
     player_cohort: str = "all",
-    start_date: dt.date | None = None,
-    end_date: dt.date | None = None,
 ):
-    if start_date is None:
-        start_date = START_DATE_MAP[set_code]
-    if end_date is None:
-        end_date = dt.date.today() - dt.timedelta(days=1)
-
     target_dir, filename = cache.deck_color_file_path(
         set_code,
         format,
@@ -120,17 +109,12 @@ def deck_color_df(
 
 def base_ratings_df(
     set_code: str,
+    start_date: dt.date,
+    end_date: dt.date,
     format: str = "PremierDraft",
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
-    start_date: dt.date | None = None,
-    end_date: dt.date | None = None,
 ) -> pl.DataFrame:
-    if start_date is None:
-        start_date = START_DATE_MAP[set_code]
-    if end_date is None:
-        end_date = dt.date.today() - dt.timedelta(days=1)
-
     if isinstance(deck_colors, str):
         deck_colors = [deck_colors]
 
