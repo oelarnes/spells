@@ -49,20 +49,25 @@ def _cache_key(args) -> str:
 @functools.lru_cache(maxsize=None)
 def get_names(set_code: str) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
-    card_view = pl.read_parquet(card_fp)
-    card_names_set = frozenset(card_view.get_column("name").to_list())
+    try:
+        card_view = pl.read_parquet(card_fp)
+        card_names_set = frozenset(card_view.get_column("name").to_list())
 
-    draft_fp = cache.data_file_path(set_code, View.DRAFT)
-    draft_view = pl.scan_parquet(draft_fp)
-    cols = draft_view.collect_schema().names()
+        draft_fp = cache.data_file_path(set_code, View.DRAFT)
+        draft_view = pl.scan_parquet(draft_fp)
+        cols = draft_view.collect_schema().names()
 
-    prefix = "pack_card_"
-    names = [col[len(prefix) :] for col in cols if col.startswith(prefix)]
-    draft_names_set = frozenset(names)
+        prefix = "pack_card_"
+        names = [col[len(prefix) :] for col in cols if col.startswith(prefix)]
+        draft_names_set = frozenset(names)
 
-    assert (
-        draft_names_set == card_names_set
-    ), "names mismatch between card and draft file"
+        assert (
+            draft_names_set == card_names_set
+        ), "names mismatch between card and draft file"
+    except FileNotFoundError:
+        ratings_data = base_ratings_df(set_code)
+        names = list(ratings_data['name'])
+
     return names
 
 
