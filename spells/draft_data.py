@@ -533,7 +533,13 @@ def summon(
         else:
             this_set_context = None
 
-        col_def_map = _hydrate_col_defs(code, specs, set_card_context, this_set_context)
+        col_def_map = _hydrate_col_defs(
+            code, 
+            specs, 
+            set_card_context, 
+            this_set_context,
+            card_only=cdfs is not None,
+        )
         m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
         if cdfs is None:
