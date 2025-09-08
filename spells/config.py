@@ -1,4 +1,5 @@
 all_sets = [
+    "EOE",
     "FIN",
     "TDM",
     "DFT",
