@@ -19,10 +19,12 @@ DECK_COLOR_DATA_TEMPLATE = (
 )
 
 START_DATE_MAP = {
+    "PIO": dt.date(2024, 12, 10),
     "DFT": dt.date(2025, 2, 11),
     "TDM": dt.date(2025, 4, 8),
     "FIN": dt.date(2025, 6, 10),
     "EOE": dt.date(2025, 7, 29),
+    "OM1": dt.date(2025, 9, 23),
 }
 
 ratings_col_defs = {
