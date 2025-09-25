@@ -347,7 +347,10 @@ def _view_select(
     cdefs = [col_def_map[c] for c in sorted(view_cols)]
     select = []
     for cdef in cdefs:
-        if is_agg_view:
+        if isinstance(df, pl.DataFrame) and cdef.name in df.columns:
+            base_cols = base_cols.union(frozenset({cdef.name}))
+            select.append(cdef.name)
+        elif is_agg_view:
             if cdef.col_type == ColType.AGG:
                 base_cols = base_cols.union(cdef.dependencies)
                 select.append(cdef.expr)
@@ -471,7 +474,7 @@ def _base_agg_df(
 
     if group_by:
         joined_df = functools.reduce(
-            lambda prev, curr: prev.join(curr, on=group_by, how="outer", coalesce=True),
+            lambda prev, curr: prev.join(curr, on=group_by, how="full", coalesce=True),
             join_dfs,
         )
     else:
@@ -565,11 +568,10 @@ def summon(
                 select_df = _view_select(
                     card_df, card_cols, m.col_def_map, is_agg_view=False
                 )
-                agg_df = agg_df.join(select_df, on="name", how="outer", coalesce=True)
+                agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
         else:
             assert len(codes) == 1, "Only one set supported for loading from card data file"
             assert codes[0] == cdfs.set_code, "Wrong set file specified"
-            assert cdfs.format == "PremierDraft", "Only PremierDraft supported"
             agg_df = base_ratings_df(
                 set_code=cdfs.set_code,
                 format=cdfs.format,
