@@ -25,6 +25,7 @@ START_DATE_MAP = {
     "FIN": dt.date(2025, 6, 10),
     "EOE": dt.date(2025, 7, 29),
     "OM1": dt.date(2025, 9, 23),
+    "Cube+-+Powered": dt.date(2025, 10, 28),
 }
 
 ratings_col_defs = {
@@ -195,4 +196,27 @@ def base_ratings_df(
             )
         )
 
-    return pl.concat(concat_list)
+    raw_df = pl.concat(concat_list)
+
+    group_cols = [
+        ColName.NAME,
+        ColName.EXPANSION,
+        ColName.MAIN_COLORS,
+    ]
+
+    attr_cols = [
+        ColName.EVENT_TYPE,
+        ColName.PLAYER_COHORT,
+        ColName.COLOR,
+        ColName.RARITY,
+        ColName.IMAGE_URL,
+    ]
+
+    sum_cols = list(set(ratings_col_defs) - set(group_cols + attr_cols))
+
+    attr_df = raw_df.select(group_cols + attr_cols).group_by(group_cols).first()
+    sum_df = raw_df.select(group_cols + sum_cols).group_by(group_cols).sum()
+
+    df = attr_df.join(sum_df, on=group_cols, join_nulls=True)
+
+    return df
