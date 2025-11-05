@@ -177,7 +177,7 @@ def base_ratings_df(
             )
 
         concat_list.append(
-            pl.read_json(ratings_file_path, infer_schema_length=500)
+            pl.read_json(ratings_file_path, infer_schema_length=540)
             .with_columns(
                 (pl.lit(deck_color) if deck_color != "any" else pl.lit(None))
                 .alias(ColName.MAIN_COLORS)
