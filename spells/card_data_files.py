@@ -19,6 +19,7 @@ DECK_COLOR_DATA_TEMPLATE = (
 )
 
 START_DATE_MAP = {
+    "TLA": dt.date(2025, 11, 18),
     "PIO": dt.date(2024, 12, 10),
     "DFT": dt.date(2025, 2, 11),
     "TDM": dt.date(2025, 4, 8),
