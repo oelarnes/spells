@@ -20,7 +20,7 @@ import polars as pl
 from polars.exceptions import ColumnNotFoundError
 
 from spells import cache
-import spells.filter
+import spells.filter as spells_filter
 from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.enums import View, ColName, ColType
@@ -635,7 +635,7 @@ def view_select(
 
     select_cols = frozenset(columns)
 
-    filter_ = spells.filter.from_spec(filter_spec)
+    filter_ = spells_filter.from_spec(filter_spec)
     if filter_ is not None:
         select_cols = select_cols.union(filter_.lhs)
 
