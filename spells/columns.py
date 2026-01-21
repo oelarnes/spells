@@ -187,8 +187,8 @@ _specs: dict[str, ColSpec] = {
     ColName.NUM_DRAFTS: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.when(
-            (pl.col(ColName.PACK_NUMBER) == 0) & (pl.col(ColName.PICK_NUMBER) == 0)
-        )
+            (pl.col(ColName.PACK_NUMBER) == 0) & (pl.col(ColName.PICK_NUMBER) == 1)
+        ) # use p1p2 since some datasets are missing p1p1
         .then(1)
         .otherwise(0),
     ),
