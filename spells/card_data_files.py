@@ -19,6 +19,7 @@ DECK_COLOR_DATA_TEMPLATE = (
 )
 
 START_DATE_MAP = {
+    "SOS": dt.date(2026, 4, 21),
     "TMT": dt.date(2026, 3, 3),
     "ECL": dt.date(2026, 1, 20),
     "TLA": dt.date(2025, 11, 18),
