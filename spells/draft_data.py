@@ -77,6 +77,7 @@ def _get_card_context(
     card_context: pl.DataFrame | dict[str, dict[str, Any]] | None,
     set_context: pl.DataFrame | dict[str, Any] | None,
     card_only: bool = False,
+    names: list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
@@ -107,7 +108,8 @@ def _get_card_context(
         for name in names:
             loaded_context[name] = loaded_context.get(name, {})
     else:
-        names = get_names(set_code)
+        if names is None:
+            names = get_names(set_code)
         loaded_context = {name: {} for name in names}
 
     if card_context is not None:
@@ -297,7 +299,7 @@ def _hydrate_col_defs(
     set_context = _get_set_context(set_code, set_context)
 
     card_context = _get_card_context(
-        set_code, specs, card_context, set_context, card_only=card_only
+        set_code, specs, card_context, set_context, card_only=card_only, names=names
     )
 
     assert len(names) > 0, "there should be names"
