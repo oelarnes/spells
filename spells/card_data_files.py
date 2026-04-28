@@ -56,11 +56,10 @@ def deck_color_df(
     set_code: str,
     format: str = "PremierDraft",
     player_cohort: str = "all",
-    start_date: dt.date | None = None,
+    *,
+    start_date: dt.date,
     end_date: dt.date | None = None,
 ):
-    if start_date is None:
-        raise ValueError(f"start_date is required for {set_code}")
     if end_date is None:
         end_date = dt.date.today() - dt.timedelta(days=1)
 
@@ -118,11 +117,10 @@ def base_ratings_df(
     format: str = "PremierDraft",
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
-    start_date: dt.date | None = None,
+    *,
+    start_date: dt.date,
     end_date: dt.date | None = None,
 ) -> pl.DataFrame:
-    if start_date is None:
-        raise ValueError(f"start_date is required for {set_code}")
     if end_date is None:
         end_date = dt.date.today() - dt.timedelta(days=1)
 
