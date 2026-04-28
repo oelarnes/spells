@@ -18,19 +18,6 @@ DECK_COLOR_DATA_TEMPLATE = (
     "{user_group_param}&start_date={start_date_str}&end_date={end_date_str}&combine_splash=true"
 )
 
-START_DATE_MAP = {
-    "SOS": dt.date(2026, 4, 21),
-    "TMT": dt.date(2026, 3, 3),
-    "ECL": dt.date(2026, 1, 20),
-    "TLA": dt.date(2025, 11, 18),
-    "PIO": dt.date(2024, 12, 10),
-    "DFT": dt.date(2025, 2, 11),
-    "TDM": dt.date(2025, 4, 8),
-    "FIN": dt.date(2025, 6, 10),
-    "EOE": dt.date(2025, 7, 29),
-    "OM1": dt.date(2025, 9, 23),
-    "Cube+-+Powered": dt.date(2025, 10, 28),
-}
 
 ratings_col_defs = {
     ColName.NAME: pl.col("name").cast(pl.String),
@@ -73,7 +60,7 @@ def deck_color_df(
     end_date: dt.date | None = None,
 ):
     if start_date is None:
-        start_date = START_DATE_MAP[set_code]
+        raise ValueError(f"start_date is required for {set_code}")
     if end_date is None:
         end_date = dt.date.today() - dt.timedelta(days=1)
 
@@ -135,7 +122,7 @@ def base_ratings_df(
     end_date: dt.date | None = None,
 ) -> pl.DataFrame:
     if start_date is None:
-        start_date = START_DATE_MAP[set_code]
+        raise ValueError(f"start_date is required for {set_code}")
     if end_date is None:
         end_date = dt.date.today() - dt.timedelta(days=1)
 
