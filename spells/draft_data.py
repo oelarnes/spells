@@ -49,24 +49,20 @@ def _cache_key(args) -> str:
 @functools.lru_cache(maxsize=None)
 def get_names(set_code: str) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
-    try:
-        card_view = pl.read_parquet(card_fp)
-        card_names_set = frozenset(card_view.get_column("name").to_list())
+    card_view = pl.read_parquet(card_fp)
+    card_names_set = frozenset(card_view.get_column("name").to_list())
 
-        draft_fp = cache.data_file_path(set_code, View.DRAFT)
-        draft_view = pl.scan_parquet(draft_fp)
-        cols = draft_view.collect_schema().names()
+    draft_fp = cache.data_file_path(set_code, View.DRAFT)
+    draft_view = pl.scan_parquet(draft_fp)
+    cols = draft_view.collect_schema().names()
 
-        prefix = "pack_card_"
-        names = [col[len(prefix) :] for col in cols if col.startswith(prefix)]
-        draft_names_set = frozenset(names)
+    prefix = "pack_card_"
+    names = [col[len(prefix) :] for col in cols if col.startswith(prefix)]
+    draft_names_set = frozenset(names)
 
-        assert (
-            draft_names_set == card_names_set
-        ), "names mismatch between card and draft file"
-    except FileNotFoundError:
-        ratings_data = base_ratings_df(set_code)
-        names = list(ratings_data['name'])
+    assert (
+        draft_names_set == card_names_set
+    ), "names mismatch between card and draft file"
 
     return names
 
@@ -77,6 +73,7 @@ def _get_card_context(
     card_context: pl.DataFrame | dict[str, dict[str, Any]] | None,
     set_context: pl.DataFrame | dict[str, Any] | None,
     card_only: bool = False,
+    names: list[str] | None = None,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
@@ -107,7 +104,8 @@ def _get_card_context(
         for name in names:
             loaded_context[name] = loaded_context.get(name, {})
     else:
-        names = get_names(set_code)
+        if names is None:
+            names = get_names(set_code)
         loaded_context = {name: {} for name in names}
 
     if card_context is not None:
@@ -289,13 +287,15 @@ def _hydrate_col_defs(
     card_context: pl.DataFrame | dict[str, dict] | None = None,
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     card_only: bool = False,
+    names: list[str] | None = None,
 ):
-    names = get_names(set_code)
+    if names is None:
+        names = get_names(set_code)
 
     set_context = _get_set_context(set_code, set_context)
 
     card_context = _get_card_context(
-        set_code, specs, card_context, set_context, card_only=card_only
+        set_code, specs, card_context, set_context, card_only=card_only, names=names
     )
 
     assert len(names) > 0, "there should be names"
@@ -536,12 +536,28 @@ def summon(
         else:
             this_set_context = None
 
+        if cdfs is not None:
+            assert len(codes) == 1, "Only one set supported for loading from card data file"
+            assert codes[0] == cdfs.set_code, "Wrong set file specified"
+            agg_df = base_ratings_df(
+                set_code=cdfs.set_code,
+                format=cdfs.format,
+                player_cohort=cdfs.player_cohort,
+                deck_colors=cdfs.deck_colors,
+                start_date=cdfs.start_date,
+                end_date=cdfs.end_date,
+            )
+            cdfs_names = agg_df[ColName.NAME].to_list()
+        else:
+            cdfs_names = None
+
         col_def_map = _hydrate_col_defs(
-            code, 
-            specs, 
-            set_card_context, 
+            code,
+            specs,
+            set_card_context,
             this_set_context,
             card_only=cdfs is not None,
+            names=cdfs_names,
         )
         m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
@@ -569,17 +585,6 @@ def summon(
                     card_df, card_cols, m.col_def_map, is_agg_view=False
                 )
                 agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
-        else:
-            assert len(codes) == 1, "Only one set supported for loading from card data file"
-            assert codes[0] == cdfs.set_code, "Wrong set file specified"
-            agg_df = base_ratings_df(
-                set_code=cdfs.set_code,
-                format=cdfs.format,
-                player_cohort=cdfs.player_cohort,
-                deck_colors=cdfs.deck_colors,
-                start_date=cdfs.start_date,
-                end_date=cdfs.end_date,
-            )
 
         concat_dfs.append(agg_df)
 
