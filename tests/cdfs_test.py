@@ -71,15 +71,16 @@ def test_cdfs_summon_no_parquet_files_needed(fake_ratings_file):
 # ---------------------------------------------------------------------------
 # Filtering
 # ---------------------------------------------------------------------------
-# Note: filtering by CARD_ATTR columns (rarity, color, etc.) is not supported
-# in the cdfs path. The manifest requires filter columns to be present in the
-# resolved base views; CARD_ATTR columns only appear in View.CARD, which is
-# never populated when cdfs is used. Filter after summon() instead.
+# filter_spec is a pre-aggregation, row-level filter — it removes individual
+# draft/game rows before summing. The cdfs API response is already aggregated
+# (one row per card), so there is nothing to pre-filter. filter_spec is not
+# applicable in the cdfs path; filter the returned DataFrame instead.
 
 
-def test_cdfs_summon_filter_card_attr_raises(fake_ratings_file):
-    # Demonstrates the current limitation: CARD_ATTR filter cols are rejected
-    # by the manifest when a non-CARD view is also present.
+def test_cdfs_summon_filter_spec_not_applicable(fake_ratings_file):
+    # The manifest rejects filter_spec in the cdfs path when the filter column
+    # is not in a resolved base view. This is the correct rejection: there are
+    # no pre-aggregation rows to filter against.
     with pytest.raises(AssertionError, match="filter col rarity not found in base view"):
         summon(
             FAKE_SET,
@@ -91,7 +92,7 @@ def test_cdfs_summon_filter_card_attr_raises(fake_ratings_file):
 
 
 def test_cdfs_summon_filter_post_summon(fake_ratings_file):
-    # The practical workaround: fetch all cards, then filter the DataFrame.
+    # Correct pattern for cdfs: fetch all cards, filter the resulting DataFrame.
     result = summon(FAKE_SET, ["num_gih", "rarity"], group_by=["name"], cdfs=make_cdfs())
     filtered = result.filter(pl.col("rarity") == "common")
     assert len(filtered) == 1

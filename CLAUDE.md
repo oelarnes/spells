@@ -30,23 +30,47 @@ first has data. The goal for DEq is data on Wednesday morning when community int
 
 ## Key architectural facts
 
-**`card_only=cdfs is not None` (draft_data.py line 544):** When `cdfs` is provided,
-`_hydrate_col_defs()` is called with `card_only=True`. This causes `_get_card_context()` to
-take the `else` branch — it calls `get_names()` and returns empty context dicts, never
-touching the card parquet. CARD_ATTR columns in the cdfs path get their values from the
-ratings API response directly, not from card context.
+**`card_only=cdfs is not None` (draft_data.py):** When `cdfs` is provided,
+`_hydrate_col_defs()` is called with `card_only=True` and `names=cdfs_names` (extracted
+from the ratings response). Both are threaded into `_get_card_context()`, which takes the
+`else` branch and returns empty context dicts without touching parquet or calling
+`get_names()`. CARD_ATTR columns in the cdfs path get their values from the ratings API
+response directly, not from card context.
 
-**`get_names()` fallback:** When card parquet doesn't exist, `get_names()` falls back to
-`base_ratings_df(set_code)` with no `start_date`. This hits `START_DATE_MAP` in
-`card_data_files.py`. For a new set not yet in that map, this raises `KeyError` — the sole
-failure point when DEq first processes a new set. Everything else in the cdfs path works
-because `start_date` is passed explicitly from DEq's config.
+**`get_names()` is not called in the cdfs path.** `summon()` extracts names from `agg_df`
+and passes them as `names=cdfs_names` all the way through `_hydrate_col_defs` →
+`_get_card_context`. This means cdfs works for any set code with an explicit `start_date`,
+regardless of whether local parquet files or `START_DATE_MAP` entries exist.
 
-**`START_DATE_MAP` in `card_data_files.py`:** Exists only to support the `get_names()`
-fallback. It's a maintenance burden — every new set requires updating it in addition to
-`deq/main.py`. The canonical start dates live in `deq/deq/main.py`'s `config` dict.
+**`START_DATE_MAP` in `card_data_files.py`:** A maintenance-burden fallback that should be
+removed. The canonical start dates live in `deq/deq/main.py`'s `config` dict and are always
+passed explicitly via `CardDataFileSpec.start_date`. The map is only reached if someone
+calls `base_ratings_df()` or `get_names()` without a `start_date`, which the cdfs path no
+longer does.
 
 **`deq/start_days.py`:** Dead file, no imports anywhere.
+
+## filter_spec semantics and the cdfs path
+
+`filter_spec` is a **pre-aggregation, row-level filter**. In the parquet path it is applied
+to individual draft or game rows before any summing occurs — e.g., `{"player_cohort": "Top"}`
+removes non-top-player rows before counting picks. This is fundamentally different from
+filtering a final result.
+
+In the cdfs path, `agg_df` is the 17Lands ratings API response — data that is **already
+aggregated by the API**. There are no individual rows to filter; each row is already a card
+summary. As a result:
+
+- `filter_spec` has no meaningful application in the cdfs path.
+- The manifest validation will reject any `filter_spec` whose columns appear in a non-CARD
+  base view (because `rarity`, `color`, etc. are CARD_ATTR, and the only way they'd appear
+  in a non-CARD view is if a GAME_SUM or PICK_SUM column is also requested — triggering the
+  assertion `filter col X not found in base view`).
+- Even if validation passed, no filter application code runs for `agg_df` in the cdfs path.
+
+**The correct approach for cdfs:** call `summon()` without `filter_spec`, then filter the
+returned DataFrame with Polars: `result.filter(pl.col("rarity") == "common")`. Since the
+cdfs result already has one row per card, this is equivalent and correct.
 
 ## Module roles
 
