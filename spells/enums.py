@@ -162,7 +162,7 @@ class ColName(StrEnum):
     GIH_WR_MEAN = "gih_wr_mean"
     GIH_WR_EXCESS = "gih_wr_excess"
     GIH_WR_VAR = "gih_wr_var"
-    GIH_WR_STDEV = "gh_wr_stdev"
+    GIH_WR_STDEV = "gih_wr_stdev"
     GIH_WR_Z = "gih_wr_z"
     DECK_MANA_VALUE_AVG = "deck_mana_value_avg"
     DECK_LANDS_AVG = "deck_lands_avg"

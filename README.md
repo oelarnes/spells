@@ -497,7 +497,7 @@ A table of all included columns. Columns can be referenced by enum or by string 
 | `GIH_WR_MEAN` | `"gih_wr_mean"` | | `AGG` | `WON_GIH_TOTAL` / `GIH_TOTAL` | Float |
 | `GIH_WR_EXCESS` | `"gih_wr_excess"` | | `AGG` | `GIH_WR - GIH_WR_MEAN` | Float |
 | `GIH_WR_VAR` | `"gih_wr_var"` | | `AGG` | Game-weighted Variance | Float |
-| `GIH_WR_STDEV` | `"gh_wr_stdev"` | | `AGG` | Sqrt of `GIH_WR_VAR` | Float |
+| `GIH_WR_STDEV` | `"gih_wr_stdev"` | | `AGG` | Sqrt of `GIH_WR_VAR` | Float |
 | `GIH_WR_Z` | `"gih_wr_z"` | | `AGG` |`GIH_WR_EXCESS` / `GIH_WR_STDEV` | Float |
 | `DECK_MANA_VALUE_AVG` | `"deck_mana_value_avg"` | | `AGG` | `DECK_MANA_VALUE ` / `DECK_SPELLS` | Float |
 | `DECK_LANDS_AVG` | `"deck_lands_avg"` | | `AGG` | `DECK_LANDS ` / `NUM_GAMES` | Float |
