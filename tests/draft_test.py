@@ -1,9 +1,7 @@
 import polars as pl
-import pytest
 
 from spells import summon
 from spells.columns import P1P1_MISSING_SETS
-from tests.conftest import FAKE_CARD_NAMES
 
 
 def test_summon_returns_dataframe(fake_draft_sets):

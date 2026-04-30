@@ -1,5 +1,7 @@
 import datetime
 import json
+from collections.abc import Generator
+from pathlib import Path
 
 import polars as pl
 import pytest
@@ -408,7 +410,7 @@ def _tla_draft_rows():
 
 
 @pytest.fixture()
-def fake_draft_sets(tmp_path, monkeypatch):
+def fake_draft_sets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
     """
     Writes fake parquet files for two sets under SPELLS_DATA_HOME:
 
@@ -471,7 +473,7 @@ FAKE_CARD_RATINGS = [
 
 
 @pytest.fixture()
-def fake_ratings_file(tmp_path, monkeypatch):
+def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
 
     ratings_dir = tmp_path / "ratings" / FAKE_SET
@@ -488,7 +490,7 @@ def fake_ratings_file(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def clear_lru_caches():
+def clear_lru_caches() -> Generator[None, None, None]:
     get_names.cache_clear()
     yield
     get_names.cache_clear()

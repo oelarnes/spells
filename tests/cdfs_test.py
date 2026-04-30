@@ -7,8 +7,6 @@ serves as a regression suite for the new-set KeyError that occurred when a set
 code was absent from the (now-removed) START_DATE_MAP.
 """
 
-import datetime
-
 import polars as pl
 import pytest
 
