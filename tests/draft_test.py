@@ -24,18 +24,6 @@ def test_num_drafts_missing_set_uses_p1p2(fake_draft_sets):
     assert df["num_drafts"].sum() == 2
 
 
-def test_num_drafts_regression_normal_set_not_p1p2(fake_draft_sets):
-    # If the bug were present (always p1p2), TST would return 4 not 5.
-    df = summon("TST", ["num_drafts"])
-    assert df["num_drafts"].sum() != 4
-
-
-def test_num_drafts_regression_missing_set_not_p1p1(fake_draft_sets):
-    # If fixed to always p1p1, TLA would return 0 (no p1p1 rows exist).
-    df = summon("TLA", ["num_drafts"])
-    assert df["num_drafts"].sum() != 0
-
-
 def test_num_taken_counts_all_picks(fake_draft_sets):
     # TST fixture has 14 pick rows total (see _tst_draft_rows() docstring).
     df = summon("TST", ["num_taken"])

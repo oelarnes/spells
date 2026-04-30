@@ -325,7 +325,7 @@ def _tst_game_rows():
             sideboard={"Blazing Howl": 1, "Ember Brute": 1},
         ),
         _make_game_row(
-            "TST", "d001", game_number=2, match_number=1,
+            "TST", "d001", game_number=2, match_number=2,
             won=False, on_play=False, main_colors="U", opp_colors="R",
             draft_time="2026-01-01 12:00:00", game_time="2026-01-01 13:30:00", **_TOP,
             deck={"Aether Sprite": 4, "Tidal Reckoning": 2, "Crystal Idol": 2},
@@ -345,7 +345,7 @@ def _tst_game_rows():
             sideboard={"Aether Sprite": 1, "Tidal Reckoning": 1},
         ),
         _make_game_row(
-            "TST", "d002", game_number=2, match_number=1,
+            "TST", "d002", game_number=2, match_number=2,
             won=True, on_play=True, main_colors="R", opp_colors="U",
             draft_time="2026-01-02 14:00:00", game_time="2026-01-02 15:30:00", **_BOTTOM,
             deck={"Blazing Howl": 3, "Ember Brute": 4, "Crystal Idol": 2},
@@ -363,7 +363,7 @@ def _tst_game_rows():
             opening_hand={"Tidal Reckoning": 1},
         ),
         _make_game_row(
-            "TST", "d003", game_number=2, match_number=1,
+            "TST", "d003", game_number=2, match_number=2,
             won=True, on_play=True, main_colors="UR", opp_colors="",
             draft_time="2026-01-08 10:00:00", game_time="2026-01-08 11:30:00", **_MIDDLE,
             deck={"Aether Sprite": 2, "Tidal Reckoning": 2, "Blazing Howl": 2, "Ember Brute": 2, "Stormcrash Wyvern": 1, "Crystal Idol": 1},
@@ -431,7 +431,7 @@ def fake_draft_sets(tmp_path, monkeypatch):
     yield tmp_path
 
 
-FAKE_CARDS = [
+FAKE_CARD_RATINGS = [
     {
         "name": "Aether Sprite", "color": "U", "rarity": "common",
         "url": "https://example.com/aether_sprite.jpg",
@@ -455,7 +455,7 @@ FAKE_CARDS = [
         "never_drawn_game_count": 150, "never_drawn_win_rate": 0.51,
     },
     {
-        # Distinct from the parquet-path "Crystal Idol" — FAKE_CARDS feeds the
+        # Distinct from the parquet-path "Crystal Idol" — FAKE_CARD_RATINGS feeds the
         # cdfs/ratings-JSON fixture, which is independent of the card parquet.
         "name": "Crystal Warden", "color": "W", "rarity": "rare",
         "url": "https://example.com/crystal_warden.jpg",
@@ -482,7 +482,7 @@ def fake_ratings_file(tmp_path, monkeypatch):
         f"_{FAKE_START.strftime('%Y-%m-%d')}"
         f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
     )
-    (ratings_dir / filename).write_text(json.dumps(FAKE_CARDS))
+    (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
 
     yield tmp_path
 
