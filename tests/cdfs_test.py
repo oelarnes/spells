@@ -7,8 +7,6 @@ serves as a regression suite for the new-set KeyError that occurred when a set
 code was absent from the (now-removed) START_DATE_MAP.
 """
 
-import datetime
-
 import polars as pl
 import pytest
 
@@ -16,7 +14,7 @@ from spells.draft_data import CardDataFileSpec, summon
 from spells.columns import ColSpec
 from spells.enums import ColType
 
-from tests.conftest import FAKE_SET, FAKE_START, FAKE_END, FAKE_CARDS
+from tests.conftest import FAKE_SET, FAKE_START, FAKE_END, FAKE_CARD_RATINGS
 
 
 def make_cdfs(**kwargs) -> CardDataFileSpec:
@@ -41,7 +39,7 @@ def test_cdfs_summon_returns_dataframe(fake_ratings_file):
 
 def test_cdfs_summon_one_row_per_card(fake_ratings_file):
     result = summon(FAKE_SET, ["num_gih"], group_by=["name"], cdfs=make_cdfs())
-    assert len(result) == len(FAKE_CARDS)
+    assert len(result) == len(FAKE_CARD_RATINGS)
     assert result["name"].is_unique().all()
 
 
@@ -56,7 +54,7 @@ def test_cdfs_summon_num_gih_values_match_source(fake_ratings_file):
     result = summon(FAKE_SET, ["num_gih"], group_by=["name"], cdfs=make_cdfs())
     result_map = dict(zip(result["name"].to_list(), result["num_gih"].to_list()))
 
-    for card in FAKE_CARDS:
+    for card in FAKE_CARD_RATINGS:
         expected = card["opening_hand_game_count"] + card["drawn_game_count"]
         assert result_map[card["name"]] == expected
 

@@ -12,6 +12,7 @@ import functools
 import hashlib
 import re
 import logging
+import warnings
 from inspect import signature
 import os
 from typing import Callable, TypeVar, Any
@@ -440,7 +441,9 @@ def _base_agg_df(
             sum_col_df = base_df.select(nonname_gb + name_col_tuple + sum_cols)
 
             grouped = sum_col_df.group_by(group_by) if group_by else sum_col_df
-            join_dfs.append(grouped.sum().collect(streaming=use_streaming))
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", "The old streaming engine is being deprecated", DeprecationWarning)
+                join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         for col in name_sum_cols:
             names = get_names(set_code)
