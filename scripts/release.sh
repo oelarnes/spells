@@ -29,9 +29,11 @@ case "$BUMP" in
 esac
 
 TAG="v${MAJOR}.${MINOR}.${PATCH}"
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 if $DRY_RUN; then
     echo "Dry run: $LATEST -> $TAG"
+    echo "Branch: $BRANCH$([ "$BRANCH" != "main" ] && echo " (WARNING: not on main)")"
     echo ""
     echo "Latest commit:"
     git log -1 --format="  %h %s (%an, %ar)"
@@ -39,6 +41,11 @@ if $DRY_RUN; then
     echo "Commits since $LATEST:"
     git log "${LATEST}..HEAD" --format="  %h %s"
     exit 0
+fi
+
+if [[ "$BRANCH" != "main" ]]; then
+    echo "Error: must be on main to release (currently on $BRANCH)"
+    exit 1
 fi
 
 echo "Releasing $LATEST -> $TAG"
