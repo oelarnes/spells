@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BUMP="${1:-patch}"
-if [[ "$BUMP" != "major" && "$BUMP" != "minor" && "$BUMP" != "patch" ]]; then
-    echo "Usage: $0 [major|minor|patch]  (default: patch)"
-    exit 1
-fi
+BUMP="patch"
+DRY_RUN=false
+
+for arg in "$@"; do
+    case "$arg" in
+        major|minor|patch) BUMP="$arg" ;;
+        --dry-run) DRY_RUN=true ;;
+        *) echo "Usage: $0 [major|minor|patch] [--dry-run]"; exit 1 ;;
+    esac
+done
 
 LATEST=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
 if [[ -z "$LATEST" ]]; then
@@ -24,8 +29,19 @@ case "$BUMP" in
 esac
 
 TAG="v${MAJOR}.${MINOR}.${PATCH}"
-echo "Releasing $LATEST -> $TAG"
 
+if $DRY_RUN; then
+    echo "Dry run: $LATEST -> $TAG"
+    echo ""
+    echo "Latest commit:"
+    git log -1 --format="  %h %s (%an, %ar)"
+    echo ""
+    echo "Commits since $LATEST:"
+    git log "${LATEST}..HEAD" --format="  %h %s"
+    exit 0
+fi
+
+echo "Releasing $LATEST -> $TAG"
 git tag "$TAG"
 git push origin "$TAG"
 gh release create "$TAG" --generate-notes --title "$TAG"
