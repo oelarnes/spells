@@ -19,7 +19,6 @@ from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
-from spells.config import all_sets
 from spells.enums import View, ColName
 from spells.schema import schema
 from spells.draft_data import summon
@@ -49,27 +48,24 @@ def cli() -> int:
     cache.spells_print("spells", f"[data home]={data_dir}")
     print()
     usage = """spells [add|refresh|remove|clean] [set_code]
-            spells add all 
             spells clean all
             spells info
 
-    add: Download draft and game files from 17Lands.com and card file from MTGJSON.com and save to path 
-        [data home]/external/[set code] (use $SPELLS_DATA_HOME or $XDG_DATA_HOME to configure). 
+    add: Download draft and game files from 17Lands.com and card file from MTGJSON.com and save to path
+        [data home]/external/[set code] (use $SPELLS_DATA_HOME or $XDG_DATA_HOME to configure).
         Does not overwrite existing files. If any files are downloaded, existing local cache is cleared.
         [set code] should be the capitalized official set code for the draft release.
 
         e.g. $ spells add OTJ
 
-    refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear 
-        local 
+    refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear
+        local
 
     remove: Delete the [data home]/external/[set code] and [data home]/local/[set code] directories and their contents
 
     clean: Delete [data home]/local/[set code] data directory (your cache of aggregate parquet files), or all of them.
 
     info: No set code argument. Print info on all external and local files.
-
-    context: Refresh context files
     """
     print_usage = functools.partial(cache.spells_print, "usage", usage)
 
@@ -81,9 +77,6 @@ def cli() -> int:
 
     if mode == "info":
         return _info()
-
-    if mode == "context":
-        return _context()
 
     if len(sys.argv) != 3:
         print_usage()
@@ -104,22 +97,10 @@ def cli() -> int:
 
 
 def _add(set_code: str, force_download: bool = False) -> int:
-    if set_code == "all":
-        for code in all_sets:
-            _add(code, force_download=force_download)
-
     download_data_set(set_code, View.DRAFT, force_download=force_download)
     write_card_file(set_code, force_download=force_download)
     get_set_context(set_code, force_download=force_download)
     download_data_set(set_code, View.GAME, force_download=force_download)
-    return 0
-
-
-def _context() -> int:
-    cache.spells_print("context", "Refreshing all context files")
-    for code in all_sets:
-        write_card_file(code, force_download=True)
-        get_set_context(code, force_download=True)
     return 0
 
 
