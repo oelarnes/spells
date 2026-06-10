@@ -1,5 +1,5 @@
 """
-this is where calculations are performed on the 17Lands public data sets and
+This is where calculations are performed on the 17Lands public data sets and
 aggregate calculations are returned.
 
 Aggregate dataframes containing raw counts are cached in the local file system
@@ -24,6 +24,7 @@ from spells import cache
 import spells.filter as spells_filter
 from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
+from spells.cards import write_card_file
 from spells.enums import View, ColName, ColType
 from spells.log import make_verbose
 from spells.card_data_files import base_ratings_df
@@ -33,10 +34,10 @@ DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 @dataclass
 class CardDataFileSpec():
     set_code: str
+    start_date: datetime.date
     format: str = "PremierDraft"
     player_cohort: str = "all"
     deck_colors: str | list[str] = "any"
-    start_date: datetime.date | None = None
     end_date: datetime.date | None = None
 
 
@@ -94,6 +95,8 @@ def _get_card_context(
         columns = list(col_def_map.keys())
 
         fp = cache.data_file_path(set_code, View.CARD)
+        if not os.path.isfile(fp):
+            write_card_file(set_code)
         card_df = pl.read_parquet(fp)
         select_rows = _view_select(
             card_df, frozenset(columns), col_def_map, is_agg_view=False

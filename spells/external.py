@@ -98,7 +98,7 @@ def cli() -> int:
 
 def _add(set_code: str, force_download: bool = False) -> int:
     download_data_set(set_code, View.DRAFT, force_download=force_download)
-    write_card_file(set_code, force_download=force_download)
+    cards.write_card_file(set_code, force_download=force_download)
     get_set_context(set_code, force_download=force_download)
     download_data_set(set_code, View.GAME, force_download=force_download)
     return 0
@@ -268,47 +268,6 @@ def download_data_set(
     if clear_set_cache:
         cache.clean(set_code)
 
-    return 0
-
-
-def write_card_file(draft_set_code: str, force_download=False) -> int:
-    """
-    Write a csv containing basic information about draftable cards, such as rarity,
-    set symbol, color, mana cost, and type.
-    """
-    mode = "refresh" if force_download else "add"
-
-    cache.spells_print(
-        mode, "Fetching card data from mtgjson.com and writing card file"
-    )
-    card_filepath = cache.data_file_path(draft_set_code, View.CARD)
-    if os.path.isfile(card_filepath) and not force_download:
-        cache.spells_print(
-            mode,
-            f"File {card_filepath} already exists, use `spells refresh {draft_set_code}` to overwrite",
-        )
-        return 1
-
-    draft_filepath = cache.data_file_path(draft_set_code, View.DRAFT)
-
-    if not os.path.isfile(draft_filepath):
-        cache.spells_print(mode, f"Error: No draft file for set {draft_set_code}")
-        return 1
-
-    columns = pl.scan_parquet(draft_filepath).collect_schema().names()
-
-    pattern = "^pack_card_"
-    names = [
-        re.split(pattern, name)[1]
-        for name in columns
-        if re.search(pattern, name) is not None
-    ]
-
-    card_df = cards.card_df(draft_set_code, names)
-
-    card_df.write_parquet(card_filepath)
-
-    cache.spells_print(mode, f"Wrote file {card_filepath}")
     return 0
 
 

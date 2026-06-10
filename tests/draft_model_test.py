@@ -3,6 +3,7 @@ Test the Draft object model built from 17lands draft data responses.
 """
 
 import json
+import os
 
 import pytest
 
@@ -108,12 +109,95 @@ def test_missing_pick_gives_none_ind():
     assert state.pool == []
 
 
+FAKE_ATTR_MAP = {
+    "Aether Sprite": {
+        "set_code": "TST",
+        "color": "U",
+        "rarity": "common",
+        "card_type": "Creature",
+        "mana_value": 2.0,
+        "mana_cost": "{1}{U}",
+        "oracle_text": "Flying",
+        "image_url": "https://attr-img/Aether Sprite.jpg",
+    },
+}
+
+
+def test_attr_map_populates_card_fields():
+    draft = _draft_from_data("abc123", FAKE_DATA, FAKE_ATTR_MAP)
+    sprite = draft.picks[0].pack_cards[0]
+
+    assert sprite.set_code == "TST"
+    assert sprite.color == "U"
+    assert sprite.rarity == "common"
+    assert sprite.card_type == "Creature"
+    assert sprite.mana_value == 2.0
+    assert sprite.oracle_text == "Flying"
+    # the feed image_url wins over the card-file one
+    assert sprite.image_url == "https://img/Aether Sprite.jpg"
+
+    # cards missing from the attr map parse bare
+    howl = draft.picks[0].pack_cards[1]
+    assert howl.name == "Blazing Howl"
+    assert howl.set_code is None
+    assert howl.rarity is None
+
+
+def test_card_attr_map_reads_card_file(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    import polars as pl
+
+    from spells import cache
+    from spells.enums import View
+
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+
+    file_path = cache.data_file_path("TST", View.CARD)
+    os.makedirs(os.path.dirname(file_path))
+    pl.DataFrame(
+        [{"name": "Aether Sprite", "set_code": "TST", "rarity": "common"}]
+    ).write_parquet(file_path)
+
+    attr_map = draft_model._card_attr_map("TST", ["Aether Sprite"])
+
+    assert attr_map["Aether Sprite"]["rarity"] == "common"
+
+
+def test_card_attr_map_falls_back_to_mtgjson(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    import polars as pl
+
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    monkeypatch.setattr(
+        draft_model,
+        "card_df",
+        lambda expansion, names: pl.DataFrame(
+            [{"name": n, "set_code": expansion, "rarity": "rare"} for n in names]
+        ),
+    )
+
+    attr_map = draft_model._card_attr_map("TST", ["Aether Sprite"])
+
+    assert attr_map["Aether Sprite"]["set_code"] == "TST"
+
+
+def test_card_attr_map_empty_when_unavailable(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    def boom(expansion, names):
+        raise ValueError("no such set")
+
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    monkeypatch.setattr(draft_model, "card_df", boom)
+
+    assert draft_model._card_attr_map("Cube+-+Powered", ["Aether Sprite"]) == {}
+
+
 def test_fetch_draft_reads_cached_file(tmp_path, monkeypatch: pytest.MonkeyPatch):
     file_path = tmp_path / "abc123.json"
     file_path.write_text(json.dumps(FAKE_DATA))
 
     monkeypatch.setattr(
         draft_model, "download_data_file", lambda url, target_dir, filename: str(file_path)
+    )
+    monkeypatch.setattr(
+        draft_model, "_card_attr_map", lambda expansion, names: FAKE_ATTR_MAP
     )
 
     draft = fetch_draft("abc123")
@@ -122,3 +206,23 @@ def test_fetch_draft_reads_cached_file(tmp_path, monkeypatch: pytest.MonkeyPatch
     assert draft.draft_id == "abc123"
     assert len(draft.picks) == 3
     assert isinstance(draft.picks[0].pack_cards[0], DraftCard)
+    # card attrs joined through the fetch path
+    assert draft.picks[0].pack_cards[0].rarity == "common"
+
+
+def test_fetch_draft_without_card_data(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    file_path = tmp_path / "abc123.json"
+    file_path.write_text(json.dumps(FAKE_DATA))
+
+    monkeypatch.setattr(
+        draft_model, "download_data_file", lambda url, target_dir, filename: str(file_path)
+    )
+
+    def no_call(expansion, names):
+        raise AssertionError("_card_attr_map should not be called")
+
+    monkeypatch.setattr(draft_model, "_card_attr_map", no_call)
+
+    draft = fetch_draft("abc123", card_data=False)
+
+    assert draft.picks[0].pack_cards[0].rarity is None
