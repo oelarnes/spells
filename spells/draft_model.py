@@ -107,10 +107,10 @@ def _card_attr_map(expansion: str, names: list[str]) -> dict[str, dict]:
 
 
 def _draft_card(card: dict, attr_map: dict[str, dict]) -> DraftCard:
-    attrs = attr_map.get(card["name"], {})
+    attrs = attr_map.get(card[ColName.NAME], {})
     return DraftCard(
-        name=card["name"],
-        image_url=card.get("image_url", "") or attrs.get(ColName.IMAGE_URL, ""),
+        name=card[ColName.NAME],
+        image_url=card.get(ColName.IMAGE_URL, "") or attrs.get(ColName.IMAGE_URL, ""),
         **{field: attrs.get(field) for field in CARD_ATTR_FIELDS},
     )
 
@@ -139,19 +139,19 @@ def _draft_state(
     """
     pack_cards = [_draft_card(c, attr_map) for c in pick_data["available"]]
 
-    picked_names = [c["name"] for c in pick_data.get("picks") or []]
+    picked_names = [c[ColName.NAME] for c in pick_data.get("picks") or []]
     picks_ind = _pick_indices(pack_cards, picked_names)
 
-    pick = pick_data.get("pick")
+    pick = pick_data.get(ColName.PICK)
     pick_ind = (
-        next((i for i, c in enumerate(pack_cards) if c.name == pick["name"]), None)
+        next((i for i, c in enumerate(pack_cards) if c.name == pick[ColName.NAME]), None)
         if pick
         else None
     )
 
     return DraftState(
-        pack_num=pick_data["pack_number"] + 1,
-        pick_num=pick_data["pick_number"] + 1,
+        pack_num=pick_data[ColName.PACK_NUMBER] + 1,
+        pick_num=pick_data[ColName.PICK_NUMBER] + 1,
         pack_cards=pack_cards,
         pick_ind=pick_ind,
         picks_ind=picks_ind,
@@ -166,7 +166,8 @@ def _draft_from_data(
     states = []
     pool: list[DraftCard] = []
     for pick_data in sorted(
-        data["picks"], key=lambda p: (p["pack_number"], p["pick_number"])
+        data["picks"],
+        key=lambda p: (p[ColName.PACK_NUMBER], p[ColName.PICK_NUMBER]),
     ):
         state = _draft_state(pick_data, list(pool), attr_map)
         states.append(state)
@@ -176,7 +177,7 @@ def _draft_from_data(
         )
         pool.extend(state.pack_cards[i] for i in picked_ind)
 
-    return Draft(expansion=data["expansion"], draft_id=draft_id, picks=states)
+    return Draft(expansion=data[ColName.EXPANSION], draft_id=draft_id, picks=states)
 
 
 def fetch_draft(draft_id: str, card_data: bool = True) -> Draft:
@@ -195,8 +196,8 @@ def fetch_draft(draft_id: str, card_data: bool = True) -> Draft:
     attr_map = None
     if card_data:
         names = sorted(
-            {c["name"] for p in data["picks"] for c in p["available"]}
+            {c[ColName.NAME] for p in data["picks"] for c in p["available"]}
         )
-        attr_map = _card_attr_map(data["expansion"], names)
+        attr_map = _card_attr_map(data[ColName.EXPANSION], names)
 
     return _draft_from_data(draft_id, data, attr_map)
