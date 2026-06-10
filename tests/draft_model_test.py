@@ -5,10 +5,21 @@ Test the Draft object model built from 17lands draft data responses.
 import json
 import os
 
+import polars as pl
 import pytest
+from polars.testing import assert_frame_equal
 
 import spells.draft_model as draft_model
-from spells.draft_model import Draft, DraftCard, _draft_from_data, fetch_draft
+from spells import cache
+from spells.draft_model import (
+    Draft,
+    DraftCard,
+    _draft_from_data,
+    draft_view_df,
+    fetch_draft,
+    view_draft,
+)
+from spells.enums import View
 
 
 def card(name: str) -> dict:
@@ -226,3 +237,126 @@ def test_fetch_draft_without_card_data(tmp_path, monkeypatch: pytest.MonkeyPatch
     draft = fetch_draft("abc123", card_data=False)
 
     assert draft.picks[0].pack_cards[0].rarity is None
+
+
+VIEW_NAMES = ["Aether Sprite", "Blazing Howl", "Crystal Idol"]
+
+VIEW_SCHEMA = {
+    "expansion": pl.String,
+    "event_type": pl.String,
+    "draft_id": pl.String,
+    "draft_time": pl.String,
+    "rank": pl.String,
+    "event_match_wins": pl.Int8,
+    "event_match_losses": pl.Int8,
+    "pack_number": pl.Int8,
+    "pick_number": pl.Int8,
+    "pick": pl.String,
+    "pick_maindeck_rate": pl.Float64,
+    "pick_sideboard_in_rate": pl.Float64,
+    "user_n_games_bucket": pl.Int16,
+    "user_game_win_rate_bucket": pl.Float64,
+    **{f"pool_{n}": pl.Int8 for n in VIEW_NAMES},
+    **{f"pack_card_{n}": pl.Int8 for n in VIEW_NAMES},
+}
+
+
+def view_row(draft_id, pack_number, pick_number, pack, pool, pick, rank="gold"):
+    row = {
+        "expansion": "TST",
+        "event_type": "PremierDraft",
+        "draft_id": draft_id,
+        "draft_time": "2026-01-01 10:00:00",
+        "rank": rank,
+        "event_match_wins": 3,
+        "event_match_losses": 1,
+        "pack_number": pack_number,
+        "pick_number": pick_number,
+        "pick": pick,
+        "pick_maindeck_rate": 1.0,
+        "pick_sideboard_in_rate": 0.0,
+        "user_n_games_bucket": 100,
+        "user_game_win_rate_bucket": 0.55,
+    }
+    for n in VIEW_NAMES:
+        row[f"pool_{n}"] = pool.get(n, 0)
+        row[f"pack_card_{n}"] = pack.get(n, 0)
+    return row
+
+
+@pytest.fixture()
+def fake_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    rows = [
+        view_row("d1", 0, 0, {"Crystal Idol": 2, "Aether Sprite": 1}, {}, "Crystal Idol"),
+        view_row("d1", 0, 1, {"Blazing Howl": 1}, {"Crystal Idol": 1}, "Blazing Howl"),
+        view_row("d2", 0, 0, {"Aether Sprite": 1}, {}, "Aether Sprite", rank="bronze"),
+    ]
+    df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
+    fp = cache.data_file_path("TST", View.DRAFT)
+    os.makedirs(os.path.dirname(fp), exist_ok=True)
+    df.write_parquet(fp)
+    return df
+
+
+def test_view_draft_by_id(fake_view):
+    draft = view_draft("TST", "d1", card_data=False)
+
+    assert draft.expansion == "TST"
+    assert draft.draft_id == "d1"
+    assert draft.rank == "gold"
+    assert draft.event_match_wins == 3
+    assert draft.user_n_games_bucket == 100
+
+    first = draft.picks[0]
+    assert (first.pack_num, first.pick_num) == (1, 1)
+    # pack expands count columns with multiplicity, in column (name) order
+    assert [c.name for c in first.pack_cards] == [
+        "Aether Sprite", "Crystal Idol", "Crystal Idol",
+    ]
+    assert first.pick_ind == 1
+    assert first.picks_ind == [1]
+    assert first.pick_maindeck_rate == 1.0
+
+    second = draft.picks[1]
+    assert [c.name for c in second.pool] == ["Crystal Idol"]
+
+
+def test_view_draft_sampling(fake_view):
+    draft = view_draft(
+        "TST", filter_expr=pl.col("rank") == "bronze", seed=1, card_data=False
+    )
+    assert draft.draft_id == "d2"
+
+    # seeded sampling is deterministic
+    a = view_draft("TST", seed=7, card_data=False)
+    b = view_draft("TST", seed=7, card_data=False)
+    assert a.draft_id == b.draft_id
+
+
+def test_view_draft_no_match_raises(fake_view):
+    with pytest.raises(ValueError):
+        view_draft("TST", filter_expr=pl.col("rank") == "mythic", card_data=False)
+
+
+def test_view_round_trip(fake_view):
+    draft = view_draft("TST", "d1", card_data=False)
+    df = draft_view_df(draft)
+
+    expected = fake_view.filter(pl.col("draft_id") == "d1")
+    assert_frame_equal(df, expected)
+
+
+def test_draft_view_df_constructed_schema(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    # no local view file: schema is constructed from the draft's own cards
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    draft = _draft_from_data("abc123", FAKE_DATA)
+
+    df = draft_view_df(draft)
+
+    assert df.height == 3
+    assert df["pack_number"].to_list() == [0, 0, 1]
+    assert df["pick"].to_list() == ["Aether Sprite", "Tidal Reckoning", "Crystal Idol"]
+    assert df["pool_Aether Sprite"].to_list() == [0, 1, 1]
+    assert df["rank"][0] is None
+    assert df.schema["pack_card_Crystal Idol"] == pl.Int8

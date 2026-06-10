@@ -11,6 +11,9 @@ name downstream.
 
 import json
 import os
+import random
+import warnings
+from collections import Counter
 from dataclasses import dataclass
 
 import polars as pl
@@ -21,6 +24,9 @@ from spells.cards import card_df, write_card_file
 from spells.enums import ColName, View
 
 DRAFT_DATA_TEMPLATE = "https://www.17lands.com/data/draft?draft_id={draft_id}"
+
+PACK_CARD_PREFIX = f"{ColName.PACK_CARD}_"
+POOL_PREFIX = f"{ColName.POOL}_"
 
 
 @dataclass
@@ -51,6 +57,9 @@ class DraftState:
     pick_ind: int | None  # None for pick two draft, use picks_ind
     picks_ind: list[int]
     pool: list[DraftCard]
+    # per-pick annotations from the draft view; None on the live feed path
+    pick_maindeck_rate: float | None = None
+    pick_sideboard_in_rate: float | None = None
 
 
 @dataclass
@@ -58,6 +67,26 @@ class Draft:
     expansion: str
     draft_id: str
     picks: list[DraftState]
+    # draft-level metadata from the draft view; None on the live feed path
+    event_type: str | None = None
+    draft_time: str | None = None
+    rank: str | None = None
+    event_match_wins: int | None = None
+    event_match_losses: int | None = None
+    user_n_games_bucket: int | None = None
+    user_game_win_rate_bucket: float | None = None
+
+
+# Draft fields read from / written to the draft view by column name
+DRAFT_META_FIELDS = (
+    ColName.EVENT_TYPE,
+    ColName.DRAFT_TIME,
+    ColName.RANK,
+    ColName.EVENT_MATCH_WINS,
+    ColName.EVENT_MATCH_LOSSES,
+    ColName.USER_N_GAMES_BUCKET,
+    ColName.USER_GAME_WIN_RATE_BUCKET,
+)
 
 
 # DraftCard fields populated from the card file rather than the draft feed
@@ -201,3 +230,172 @@ def fetch_draft(draft_id: str, card_data: bool = True) -> Draft:
         attr_map = _card_attr_map(data[ColName.EXPANSION], names)
 
     return _draft_from_data(draft_id, data, attr_map)
+
+
+def _collect(lf: pl.LazyFrame) -> pl.DataFrame:
+    """Collect with the streaming engine so large draft views stay off-heap."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            "The old streaming engine is being deprecated",
+            DeprecationWarning,
+        )
+        return lf.collect(streaming=True)
+
+
+def _cards_from_counts(
+    row: dict, prefix: str, attr_map: dict[str, dict]
+) -> list[DraftCard]:
+    """Expand a view row's prefixed count columns into cards, with multiplicity."""
+    return [
+        card
+        for col, count in row.items()
+        if col.startswith(prefix) and count
+        for card in [_draft_card({ColName.NAME: col[len(prefix):]}, attr_map)] * count
+    ]
+
+
+def _state_from_row(row: dict, attr_map: dict[str, dict]) -> DraftState:
+    """Build one DraftState from a draft view row (0-indexed -> 1-indexed)."""
+    pack_cards = _cards_from_counts(row, PACK_CARD_PREFIX, attr_map)
+    pick_ind = next(
+        (i for i, c in enumerate(pack_cards) if c.name == row[ColName.PICK]), None
+    )
+
+    return DraftState(
+        pack_num=row[ColName.PACK_NUMBER] + 1,
+        pick_num=row[ColName.PICK_NUMBER] + 1,
+        pack_cards=pack_cards,
+        pick_ind=pick_ind,
+        picks_ind=[pick_ind] if pick_ind is not None else [],
+        pool=_cards_from_counts(row, POOL_PREFIX, attr_map),
+        pick_maindeck_rate=row.get(ColName.PICK_MAINDECK_RATE),
+        pick_sideboard_in_rate=row.get(ColName.PICK_SIDEBOARD_IN_RATE),
+    )
+
+
+def view_draft(
+    set_code: str,
+    draft_id: str | None = None,
+    *,
+    filter_expr: pl.Expr | None = None,
+    seed: int | None = None,
+    card_data: bool = True,
+) -> Draft:
+    """Build a Draft from the local draft view (public 17lands dataset).
+
+    Look up by draft_id, or sample a random draft from the rows matching
+    filter_expr (a polars expression over the raw view columns). Sampling is
+    two-pass and streaming: first collect just the matching draft ids, then
+    the ~45 rows of the chosen draft -- the full view is never materialized.
+    """
+    lf = pl.scan_parquet(cache.data_file_path(set_code, View.DRAFT))
+
+    if draft_id is None:
+        id_lf = lf if filter_expr is None else lf.filter(filter_expr)
+        ids = _collect(id_lf.select(ColName.DRAFT_ID).unique().sort(ColName.DRAFT_ID))[
+            ColName.DRAFT_ID
+        ]
+        if len(ids) == 0:
+            raise ValueError(f"no drafts match filter for {set_code}")
+        draft_id = ids[random.Random(seed).randrange(len(ids))]
+
+    rows = (
+        _collect(lf.filter(pl.col(ColName.DRAFT_ID) == draft_id))
+        .sort(ColName.PACK_NUMBER, ColName.PICK_NUMBER)
+        .to_dicts()
+    )
+    if not rows:
+        raise ValueError(f"draft {draft_id} not found in {set_code} draft view")
+
+    attr_map = {}
+    if card_data:
+        names = sorted(
+            col[len(PACK_CARD_PREFIX):]
+            for col in rows[0]
+            if col.startswith(PACK_CARD_PREFIX)
+        )
+        attr_map = _card_attr_map(set_code, names)
+
+    return Draft(
+        expansion=rows[0][ColName.EXPANSION],
+        draft_id=draft_id,
+        picks=[_state_from_row(row, attr_map) for row in rows],
+        **{field: rows[0].get(field) for field in DRAFT_META_FIELDS},
+    )
+
+
+def draft_view_df(draft: Draft) -> pl.DataFrame:
+    """Render a Draft as a dataframe matching the draft view schema.
+
+    One row per DraftState, with the model's 1-indexed numbers written back
+    as the view's 0-indexed ones. When the local draft view exists for the
+    expansion its exact schema (column order and dtypes) is used; otherwise
+    a conforming schema is constructed from the draft's own card names.
+    Fields the model doesn't carry come out null; the view's pool ordering
+    (counts) loses the model's pick-order pool.
+    """
+    file_path = cache.data_file_path(draft.expansion, View.DRAFT)
+    if os.path.isfile(file_path):
+        target_schema = pl.scan_parquet(file_path).collect_schema()
+    else:
+        names = sorted(
+            {c.name for s in draft.picks for c in [*s.pack_cards, *s.pool]}
+        )
+        meta_schema = {
+            ColName.EXPANSION: pl.String,
+            ColName.EVENT_TYPE: pl.String,
+            ColName.DRAFT_ID: pl.String,
+            ColName.DRAFT_TIME: pl.String,
+            ColName.RANK: pl.String,
+            ColName.EVENT_MATCH_WINS: pl.Int8,
+            ColName.EVENT_MATCH_LOSSES: pl.Int8,
+            ColName.PACK_NUMBER: pl.Int8,
+            ColName.PICK_NUMBER: pl.Int8,
+            ColName.PICK: pl.String,
+            ColName.PICK_MAINDECK_RATE: pl.Float64,
+            ColName.PICK_SIDEBOARD_IN_RATE: pl.Float64,
+            ColName.USER_N_GAMES_BUCKET: pl.Int16,
+            ColName.USER_GAME_WIN_RATE_BUCKET: pl.Float64,
+        }
+        target_schema = pl.Schema(
+            {
+                **{str(k): v for k, v in meta_schema.items()},
+                **{f"{POOL_PREFIX}{n}": pl.Int8 for n in names},
+                **{f"{PACK_CARD_PREFIX}{n}": pl.Int8 for n in names},
+            }
+        )
+
+    rows = []
+    for state in draft.picks:
+        pack_counts = Counter(c.name for c in state.pack_cards)
+        pool_counts = Counter(c.name for c in state.pool)
+        row = {
+            ColName.EXPANSION: draft.expansion,
+            ColName.DRAFT_ID: draft.draft_id,
+            ColName.PACK_NUMBER: state.pack_num - 1,
+            ColName.PICK_NUMBER: state.pick_num - 1,
+            ColName.PICK: (
+                state.pack_cards[state.pick_ind].name
+                if state.pick_ind is not None
+                else None
+            ),
+            ColName.PICK_MAINDECK_RATE: state.pick_maindeck_rate,
+            ColName.PICK_SIDEBOARD_IN_RATE: state.pick_sideboard_in_rate,
+            **{field: getattr(draft, field) for field in DRAFT_META_FIELDS},
+        }
+        rows.append(
+            {
+                col: row.get(
+                    col,
+                    pack_counts.get(col[len(PACK_CARD_PREFIX):], 0)
+                    if col.startswith(PACK_CARD_PREFIX)
+                    else pool_counts.get(col[len(POOL_PREFIX):], 0)
+                    if col.startswith(POOL_PREFIX)
+                    else None,
+                )
+                for col in target_schema.names()
+            }
+        )
+
+    return pl.DataFrame(rows, schema=target_schema)
