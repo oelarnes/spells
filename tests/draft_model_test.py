@@ -101,7 +101,8 @@ def test_duplicate_names_consume_distinct_indices():
     }
     state = _draft_from_data("abc123", data).picks[0]
 
-    assert state.pick_ind == 0
+    # two picks -> pick-two semantics: pick_ind is None, picks_ind holds both
+    assert state.pick_ind is None
     assert state.picks_ind == [0, 1]
     assert [c.name for c in _draft_from_data("abc123", data).picks[0].pack_cards] == [
         "Crystal Idol", "Crystal Idol", "Aether Sprite",
@@ -290,7 +291,11 @@ def fake_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
     rows = [
         view_row("d1", 0, 0, {"Crystal Idol": 2, "Aether Sprite": 1}, {}, "Crystal Idol"),
         view_row("d1", 0, 1, {"Blazing Howl": 1}, {"Crystal Idol": 1}, "Blazing Howl"),
-        view_row("d2", 0, 0, {"Aether Sprite": 1}, {}, "Aether Sprite", rank="bronze"),
+        # d2's pool is seeded with a promo card never picked (TLA-style)
+        view_row(
+            "d2", 0, 0, {"Aether Sprite": 1}, {"Blazing Howl": 1},
+            "Aether Sprite", rank="bronze",
+        ),
     ]
     df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
     fp = cache.data_file_path("TST", View.DRAFT)
@@ -347,6 +352,17 @@ def test_view_round_trip(fake_view):
     assert_frame_equal(df, expected)
 
 
+def test_view_pool_promo_cards(fake_view):
+    """Cards seeded into the pool outside of picks are recovered from pool_."""
+    draft = view_draft("TST", "d2", card_data=False)
+
+    assert [c.name for c in draft.picks[0].pool] == ["Blazing Howl"]
+
+    # and they round-trip exactly
+    df = draft_view_df(draft)
+    assert_frame_equal(df, fake_view.filter(pl.col("draft_id") == "d2"))
+
+
 def test_draft_view_df_constructed_schema(tmp_path, monkeypatch: pytest.MonkeyPatch):
     # no local view file: schema is constructed from the draft's own cards
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
@@ -360,3 +376,109 @@ def test_draft_view_df_constructed_schema(tmp_path, monkeypatch: pytest.MonkeyPa
     assert df["pool_Aether Sprite"].to_list() == [0, 1, 1]
     assert df["rank"][0] is None
     assert df.schema["pack_card_Crystal Idol"] == pl.Int8
+
+
+PICK_TWO_SCHEMA = {}
+for _k, _v in VIEW_SCHEMA.items():
+    PICK_TWO_SCHEMA[_k] = _v
+    if _k == "pick":
+        PICK_TWO_SCHEMA["pick_2"] = pl.String
+
+
+@pytest.fixture()
+def fake_pick_two_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
+    """Mimics the OM1 PickTwoDraft file: pick_2 column present, and the
+    pool_ columns only track `pick` cards (the 17lands undercount)."""
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    rows = [
+        view_row(
+            "d1", 0, 0,
+            {"Crystal Idol": 2, "Aether Sprite": 1, "Blazing Howl": 1},
+            {}, "Crystal Idol",
+        ),
+        view_row(
+            "d1", 0, 1,
+            {"Aether Sprite": 1, "Blazing Howl": 1},
+            {"Crystal Idol": 1},  # undercount: the pick_2 copy is missing
+            "Aether Sprite",
+        ),
+    ]
+    rows[0]["pick_2"] = "Crystal Idol"  # two copies of the same card
+    rows[1]["pick_2"] = "Blazing Howl"
+    df = pl.DataFrame(rows, schema=PICK_TWO_SCHEMA)
+    fp = cache.data_file_path("TS2", View.DRAFT, cache.EventType.PICK_TWO)
+    os.makedirs(os.path.dirname(fp), exist_ok=True)
+    df.write_parquet(fp)
+    return df
+
+
+def test_view_draft_pick_two(fake_pick_two_view):
+    draft = view_draft(
+        "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
+    )
+
+    first = draft.picks[0]
+    # pack in column order: Aether Sprite, Blazing Howl, Crystal Idol x2
+    assert [c.name for c in first.pack_cards] == [
+        "Aether Sprite", "Blazing Howl", "Crystal Idol", "Crystal Idol",
+    ]
+    # pick-two: pick_ind None, both copies consume distinct indices
+    assert first.pick_ind is None
+    assert first.picks_ind == [2, 3]
+
+    second = draft.picks[1]
+    assert second.pick_ind is None
+    assert second.picks_ind == [0, 1]
+    # pool corrected by accumulation: both Crystal Idol copies, not the
+    # file's undercounted single copy
+    assert [c.name for c in second.pool] == ["Crystal Idol", "Crystal Idol"]
+
+
+def test_pick_two_round_trip(fake_pick_two_view):
+    draft = view_draft(
+        "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
+    )
+    df = draft_view_df(draft)
+
+    # non-pool columns round-trip exactly, including pick_2
+    non_pool = [c for c in fake_pick_two_view.columns if not c.startswith("pool_")]
+    assert_frame_equal(df.select(non_pool), fake_pick_two_view.select(non_pool))
+    assert df["pick_2"].to_list() == ["Crystal Idol", "Blazing Howl"]
+
+    # pool columns come out corrected relative to the source file
+    assert df["pool_Crystal Idol"].to_list() == [0, 2]
+    assert df["pool_Blazing Howl"].to_list() == [0, 0]
+
+
+def test_live_pick_two_feed():
+    data = {
+        "expansion": "OM1",
+        "picks": [
+            pick_obj(
+                0, 0,
+                ["Aether Sprite", "Blazing Howl", "Crystal Idol", "Ember Brute"],
+                "Aether Sprite",
+                picks=["Aether Sprite", "Crystal Idol"],
+            ),
+        ],
+    }
+    state = _draft_from_data("abc123", data).picks[0]
+
+    assert state.pick_ind is None
+    assert state.picks_ind == [0, 2]
+
+
+def test_live_feed_pool_promo_from_sections():
+    p1 = pick_obj(0, 0, ["Aether Sprite", "Blazing Howl"], "Aether Sprite")
+    p2 = pick_obj(0, 1, ["Crystal Idol"], "Crystal Idol")
+    # the feed's sections show a promo card that never appears in picks
+    p2["sections"] = [
+        {
+            "title": "Possible Maindeck",
+            "cards": [[card("Ember Brute")], [card("Aether Sprite")]],
+        },
+    ]
+    draft = _draft_from_data("abc123", {"expansion": "TST", "picks": [p1, p2]})
+
+    # promo prepended, accumulated picks follow in pick order
+    assert [c.name for c in draft.picks[1].pool] == ["Ember Brute", "Aether Sprite"]

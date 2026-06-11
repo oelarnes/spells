@@ -159,6 +159,34 @@ def _pick_indices(pack_cards: list[DraftCard], names: list[str]) -> list[int]:
     return indices
 
 
+def _pick_inds(
+    pack_cards: list[DraftCard], picked_names: list[str]
+) -> tuple[int | None, list[int]]:
+    """pick_ind is the single pick; None for pick-two, where picks_ind holds both."""
+    picks_ind = _pick_indices(pack_cards, picked_names)
+    pick_ind = picks_ind[0] if len(picks_ind) == 1 else None
+    return pick_ind, picks_ind
+
+
+def _reconcile_pool(
+    pool_counts: Counter, acc_pool: list[DraftCard], attr_map: dict[str, dict]
+) -> list[DraftCard]:
+    """Accumulated picks, prepended with pool cards picks don't explain.
+
+    Each source's own pool is incomplete in one direction: the view's pool_
+    columns omit pick_2 cards in PickTwoDraft files (kept here via the
+    accumulation), while pure accumulation misses cards seeded into the pool
+    outside of picks, e.g. starting promos (recovered here from pool_counts).
+    """
+    extra = pool_counts - Counter(c.name for c in acc_pool)
+    extra_cards = [
+        card
+        for name, count in extra.items()
+        for card in [_draft_card({ColName.NAME: name}, attr_map)] * count
+    ]
+    return extra_cards + list(acc_pool)
+
+
 def _draft_state(
     pick_data: dict, pool: list[DraftCard], attr_map: dict[str, dict]
 ) -> DraftState:
@@ -169,13 +197,16 @@ def _draft_state(
     pack_cards = [_draft_card(c, attr_map) for c in pick_data["available"]]
 
     picked_names = [c[ColName.NAME] for c in pick_data.get("picks") or []]
-    picks_ind = _pick_indices(pack_cards, picked_names)
+    if not picked_names and (pick := pick_data.get(ColName.PICK)):
+        picked_names = [pick[ColName.NAME]]
+    pick_ind, picks_ind = _pick_inds(pack_cards, picked_names)
 
-    pick = pick_data.get(ColName.PICK)
-    pick_ind = (
-        next((i for i, c in enumerate(pack_cards) if c.name == pick[ColName.NAME]), None)
-        if pick
-        else None
+    # the feed's sections (maindeck/sideboard columns) are its view of the pool
+    section_counts = Counter(
+        c[ColName.NAME]
+        for section in pick_data.get("sections") or []
+        for column in section.get("cards") or []
+        for c in column
     )
 
     return DraftState(
@@ -184,7 +215,7 @@ def _draft_state(
         pack_cards=pack_cards,
         pick_ind=pick_ind,
         picks_ind=picks_ind,
-        pool=pool,
+        pool=_reconcile_pool(section_counts, pool, attr_map),
     )
 
 
@@ -200,11 +231,7 @@ def _draft_from_data(
     ):
         state = _draft_state(pick_data, list(pool), attr_map)
         states.append(state)
-
-        picked_ind = state.picks_ind or (
-            [state.pick_ind] if state.pick_ind is not None else []
-        )
-        pool.extend(state.pack_cards[i] for i in picked_ind)
+        pool.extend(state.pack_cards[i] for i in state.picks_ind)
 
     return Draft(expansion=data[ColName.EXPANSION], draft_id=draft_id, picks=states)
 
@@ -255,11 +282,26 @@ def _cards_from_counts(
     ]
 
 
-def _state_from_row(row: dict, attr_map: dict[str, dict]) -> DraftState:
-    """Build one DraftState from a draft view row (0-indexed -> 1-indexed)."""
+def _state_from_row(
+    row: dict, pool: list[DraftCard], attr_map: dict[str, dict]
+) -> DraftState:
+    """Build one DraftState from a draft view row (0-indexed -> 1-indexed).
+
+    The pool reconciles the caller-accumulated picks against the row's pool_
+    columns; see _reconcile_pool.
+    """
     pack_cards = _cards_from_counts(row, PACK_CARD_PREFIX, attr_map)
-    pick_ind = next(
-        (i for i, c in enumerate(pack_cards) if c.name == row[ColName.PICK]), None
+    picked_names = [
+        name for name in (row.get(ColName.PICK), row.get(ColName.PICK_2)) if name
+    ]
+    pick_ind, picks_ind = _pick_inds(pack_cards, picked_names)
+
+    pool_counts = Counter(
+        {
+            col[len(POOL_PREFIX):]: count
+            for col, count in row.items()
+            if col.startswith(POOL_PREFIX) and count
+        }
     )
 
     return DraftState(
@@ -267,8 +309,8 @@ def _state_from_row(row: dict, attr_map: dict[str, dict]) -> DraftState:
         pick_num=row[ColName.PICK_NUMBER] + 1,
         pack_cards=pack_cards,
         pick_ind=pick_ind,
-        picks_ind=[pick_ind] if pick_ind is not None else [],
-        pool=_cards_from_counts(row, POOL_PREFIX, attr_map),
+        picks_ind=picks_ind,
+        pool=_reconcile_pool(pool_counts, pool, attr_map),
         pick_maindeck_rate=row.get(ColName.PICK_MAINDECK_RATE),
         pick_sideboard_in_rate=row.get(ColName.PICK_SIDEBOARD_IN_RATE),
     )
@@ -278,6 +320,7 @@ def view_draft(
     set_code: str,
     draft_id: str | None = None,
     *,
+    event_type: cache.EventType = cache.EventType.PREMIER,
     filter_expr: pl.Expr | None = None,
     seed: int | None = None,
     card_data: bool = True,
@@ -289,7 +332,7 @@ def view_draft(
     two-pass and streaming: first collect just the matching draft ids, then
     the ~45 rows of the chosen draft -- the full view is never materialized.
     """
-    lf = pl.scan_parquet(cache.data_file_path(set_code, View.DRAFT))
+    lf = pl.scan_parquet(cache.data_file_path(set_code, View.DRAFT, event_type))
 
     if draft_id is None:
         id_lf = lf if filter_expr is None else lf.filter(filter_expr)
@@ -317,10 +360,17 @@ def view_draft(
         )
         attr_map = _card_attr_map(set_code, names)
 
+    states = []
+    pool: list[DraftCard] = []
+    for row in rows:
+        state = _state_from_row(row, list(pool), attr_map)
+        states.append(state)
+        pool.extend(state.pack_cards[i] for i in state.picks_ind)
+
     return Draft(
         expansion=rows[0][ColName.EXPANSION],
         draft_id=draft_id,
-        picks=[_state_from_row(row, attr_map) for row in rows],
+        picks=states,
         **{field: rows[0].get(field) for field in DRAFT_META_FIELDS},
     )
 
@@ -342,6 +392,7 @@ def draft_view_df(draft: Draft) -> pl.DataFrame:
         names = sorted(
             {c.name for s in draft.picks for c in [*s.pack_cards, *s.pool]}
         )
+        has_pick_2 = any(len(s.picks_ind) > 1 for s in draft.picks)
         meta_schema = {
             ColName.EXPANSION: pl.String,
             ColName.EVENT_TYPE: pl.String,
@@ -353,6 +404,7 @@ def draft_view_df(draft: Draft) -> pl.DataFrame:
             ColName.PACK_NUMBER: pl.Int8,
             ColName.PICK_NUMBER: pl.Int8,
             ColName.PICK: pl.String,
+            **({ColName.PICK_2: pl.String} if has_pick_2 else {}),
             ColName.PICK_MAINDECK_RATE: pl.Float64,
             ColName.PICK_SIDEBOARD_IN_RATE: pl.Float64,
             ColName.USER_N_GAMES_BUCKET: pl.Int16,
@@ -370,16 +422,14 @@ def draft_view_df(draft: Draft) -> pl.DataFrame:
     for state in draft.picks:
         pack_counts = Counter(c.name for c in state.pack_cards)
         pool_counts = Counter(c.name for c in state.pool)
+        picked = [state.pack_cards[i].name for i in state.picks_ind]
         row = {
             ColName.EXPANSION: draft.expansion,
             ColName.DRAFT_ID: draft.draft_id,
             ColName.PACK_NUMBER: state.pack_num - 1,
             ColName.PICK_NUMBER: state.pick_num - 1,
-            ColName.PICK: (
-                state.pack_cards[state.pick_ind].name
-                if state.pick_ind is not None
-                else None
-            ),
+            ColName.PICK: picked[0] if picked else None,
+            ColName.PICK_2: picked[1] if len(picked) > 1 else None,
             ColName.PICK_MAINDECK_RATE: state.pick_maindeck_rate,
             ColName.PICK_SIDEBOARD_IN_RATE: state.pick_sideboard_in_rate,
             **{field: getattr(draft, field) for field in DRAFT_META_FIELDS},

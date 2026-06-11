@@ -27,6 +27,7 @@ env = Env.PROD
 class EventType(StrEnum):
     PREMIER = "PremierDraft"
     TRADITIONAL = "TradDraft"
+    PICK_TWO = "PickTwoDraft"
 
 
 class DataDir(StrEnum):

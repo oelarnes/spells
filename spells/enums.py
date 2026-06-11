@@ -65,6 +65,7 @@ class ColName(StrEnum):
     NUM_TAKEN = "num_taken"
     NUM_DRAFTS = "num_drafts"
     PICK = "pick"
+    PICK_2 = "pick_2"  # PickTwoDraft only
     PICK_MAINDECK_RATE = "pick_maindeck_rate"
     PICK_SIDEBOARD_IN_RATE = "pick_sideboard_in_rate"
     PACK_CARD = "pack_card"

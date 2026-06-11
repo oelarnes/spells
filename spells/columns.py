@@ -203,6 +203,10 @@ _specs: dict[str, ColSpec] = {
         col_type=ColType.FILTER_ONLY,
         views=[View.DRAFT],
     ),
+    ColName.PICK_2: ColSpec(
+        col_type=ColType.FILTER_ONLY,
+        views=[View.DRAFT],
+    ),
     ColName.PICK_MAINDECK_RATE: ColSpec(
         col_type=ColType.PICK_SUM,
         views=[View.DRAFT],
