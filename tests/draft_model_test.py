@@ -291,7 +291,8 @@ def fake_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
     rows = [
         view_row("d1", 0, 0, {"Crystal Idol": 2, "Aether Sprite": 1}, {}, "Crystal Idol"),
         view_row("d1", 0, 1, {"Blazing Howl": 1}, {"Crystal Idol": 1}, "Blazing Howl"),
-        # d2's pool is seeded with a promo card never picked (TLA-style)
+        # d2: pick_number=0 row is present, but pool already has a card before
+        # any pick — models a true game-mechanic promo/seed (row not missing)
         view_row(
             "d2", 0, 0, {"Aether Sprite": 1}, {"Blazing Howl": 1},
             "Aether Sprite", rank="bronze",
@@ -376,6 +377,58 @@ def test_draft_view_df_constructed_schema(tmp_path, monkeypatch: pytest.MonkeyPa
     assert df["pool_Aether Sprite"].to_list() == [0, 1, 1]
     assert df["rank"][0] is None
     assert df.schema["pack_card_Crystal Idol"] == pl.Int8
+
+
+@pytest.fixture()
+def fake_view_missing_p1p1(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
+    """Mimics sets affected by the Arena client bug: pack 0 pick_number=0 row
+    is absent from the parquet. The first recorded row is pick_number=1, and
+    pool_ at that row reveals the card picked at the missing p1p1."""
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    rows = [
+        # pick_number=0 row is missing; pool at pick_number=1 shows Aether Sprite
+        # was already picked (at the unrecorded p1p1)
+        view_row("d1", 0, 1, {"Blazing Howl": 1}, {"Aether Sprite": 1}, "Blazing Howl"),
+        view_row("d1", 0, 2, {}, {"Aether Sprite": 1, "Blazing Howl": 1}, None),
+    ]
+    df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
+    fp = cache.data_file_path("TST", View.DRAFT)
+    os.makedirs(os.path.dirname(fp), exist_ok=True)
+    df.write_parquet(fp)
+    return df
+
+
+def test_view_draft_missing_p1p1_synthesized(fake_view_missing_p1p1):
+    """A missing p1p1 row produces a synthetic DraftState with the inferred pick."""
+    draft = view_draft("TST", "d1", card_data=False)
+
+    # synthetic p1p1 prepended; total states = 1 synthetic + 2 recorded
+    assert len(draft.picks) == 3
+
+    p1p1 = draft.picks[0]
+    assert (p1p1.pack_num, p1p1.pick_num) == (1, 1)
+    assert [c.name for c in p1p1.pack_cards] == ["Aether Sprite"]  # only known card
+    assert p1p1.pick_ind == 0
+    assert p1p1.picks_ind == [0]
+    assert p1p1.pool == []  # nothing before first pick
+
+    p1p2 = draft.picks[1]
+    assert (p1p2.pack_num, p1p2.pick_num) == (1, 2)
+    assert [c.name for c in p1p2.pool] == ["Aether Sprite"]  # synthetic pick accumulated
+
+
+def test_view_draft_missing_p1p1_round_trip(fake_view_missing_p1p1):
+    """draft_view_df includes the synthetic row — a superset of the parquet source."""
+    draft = view_draft("TST", "d1", card_data=False)
+    df = draft_view_df(draft)
+
+    # three rows rendered (synthetic p1p1 + two recorded)
+    assert df.height == 3
+    assert df["pick_number"].to_list() == [0, 1, 2]
+    assert df["pick"][0] == "Aether Sprite"
+    # synthetic row has only the picked card in the pack
+    assert df["pack_card_Aether Sprite"][0] == 1
+    assert df["pack_card_Blazing Howl"][0] == 0
 
 
 PICK_TWO_SCHEMA = {}

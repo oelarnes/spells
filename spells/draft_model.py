@@ -15,6 +15,7 @@ import random
 import warnings
 from collections import Counter
 from dataclasses import dataclass
+import itertools
 
 import polars as pl
 
@@ -185,6 +186,46 @@ def _reconcile_pool(
         for card in [_draft_card({ColName.NAME: name}, attr_map)] * count
     ]
     return extra_cards + list(acc_pool)
+
+
+def _gap_states(
+    pack_num_0: int,
+    first_pick_0: int,
+    pool_counts: Counter,
+    acc_pool: list[DraftCard],
+    attr_map: dict[str, dict],
+) -> list[DraftState]:
+    """Synthesize DraftStates for pick rows absent from the draft view.
+
+    A known Arena client bug caused picks to go unrecorded in several sets;
+    the 17lands parquet strips those rows entirely while the live API returns
+    them with available=[picked_card]. The picked card is inferred from the
+    pool_ columns at the first recorded row minus accumulated pool.
+    """
+    extra = pool_counts - Counter(c.name for c in acc_pool)
+    inferred = [
+        _draft_card({ColName.NAME: name}, attr_map)
+        for name, count in extra.items()
+        for _ in range(count)
+    ]
+    states: list[DraftState] = []
+    local_pool = list(acc_pool)
+    for i in range(first_pick_0):
+        picked = inferred[i] if i < len(inferred) else None
+        pack_cards = [picked] if picked else []
+        states.append(
+            DraftState(
+                pack_num=pack_num_0 + 1,
+                pick_num=i + 1,
+                pack_cards=pack_cards,
+                pick_ind=0 if picked else None,
+                picks_ind=[0] if picked else [],
+                pool=list(local_pool),
+            )
+        )
+        if picked:
+            local_pool.append(picked)
+    return states
 
 
 def _draft_state(
@@ -362,10 +403,24 @@ def view_draft(
 
     states = []
     pool: list[DraftCard] = []
-    for row in rows:
-        state = _state_from_row(row, list(pool), attr_map)
-        states.append(state)
-        pool.extend(state.pack_cards[i] for i in state.picks_ind)
+    for pack_num_0, pack_rows in itertools.groupby(rows, key=lambda r: r[ColName.PACK_NUMBER]):
+        pack_rows = list(pack_rows)
+        first_pick = pack_rows[0][ColName.PICK_NUMBER]
+        if first_pick > 0:
+            pool_counts = Counter(
+                {
+                    col[len(POOL_PREFIX):]: count
+                    for col, count in pack_rows[0].items()
+                    if col.startswith(POOL_PREFIX) and count
+                }
+            )
+            for s in _gap_states(pack_num_0, first_pick, pool_counts, list(pool), attr_map):
+                states.append(s)
+                pool.extend(s.pack_cards[i] for i in s.picks_ind)
+        for row in pack_rows:
+            state = _state_from_row(row, list(pool), attr_map)
+            states.append(state)
+            pool.extend(state.pack_cards[i] for i in state.picks_ind)
 
     return Draft(
         expansion=rows[0][ColName.EXPANSION],
