@@ -9,7 +9,7 @@ from spells.draft_model import (
     DraftState,
     draft_view_df,
     fetch_draft,
-    view_draft,
+    draft_from_public_data,
 )
 from spells.log import setup_logging
 
@@ -20,7 +20,7 @@ __all__ = [
     "view_select",
     "get_names",
     "fetch_draft",
-    "view_draft",
+    "draft_from_public_data",
     "draft_view_df",
     "Draft",
     "DraftCard",

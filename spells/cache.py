@@ -187,6 +187,7 @@ def card_ratings_file_path(
         f"_{end_date.strftime('%Y-%m-%d')}.json"
     )
 
+
 def draft_file_path(draft_id: str) -> tuple[str, str]:
     """Completed drafts are immutable, so files are cached indefinitely by id."""
     return data_dir_path(DataDir.DRAFT), f"{draft_id}.json"

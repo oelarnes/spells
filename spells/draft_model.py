@@ -15,6 +15,7 @@ import random
 import warnings
 from collections import Counter
 from dataclasses import dataclass
+from typing import Any
 import itertools
 
 import polars as pl
@@ -22,6 +23,7 @@ import polars as pl
 from spells import cache
 from spells.card_data_files import download_data_file
 from spells.cards import card_df, write_card_file
+from spells.draft_data import view_select
 from spells.enums import ColName, View
 
 DRAFT_DATA_TEMPLATE = "https://www.17lands.com/data/draft?draft_id={draft_id}"
@@ -357,32 +359,51 @@ def _state_from_row(
     )
 
 
-def view_draft(
+def draft_from_public_data(
     set_code: str,
     draft_id: str | None = None,
     *,
     event_type: cache.EventType = cache.EventType.PREMIER,
-    filter_expr: pl.Expr | None = None,
+    filter_spec: dict[str, Any] | None = None,
     seed: int | None = None,
     card_data: bool = True,
 ) -> Draft:
     """Build a Draft from the local draft view (public 17lands dataset).
 
     Look up by draft_id, or sample a random draft from the rows matching
-    filter_expr (a polars expression over the raw view columns). Sampling is
+    filter_spec (a filter DSL dict over the raw view columns). Sampling is
     two-pass and streaming: first collect just the matching draft ids, then
     the ~45 rows of the chosen draft -- the full view is never materialized.
     """
-    lf = pl.scan_parquet(cache.data_file_path(set_code, View.DRAFT, event_type))
+    lf = view_select(
+        set_code=set_code,
+        view=View.DRAFT,
+        columns=[
+            ColName.EXPANSION,
+            ColName.DRAFT_ID,
+            ColName.PACK_NUMBER,
+            ColName.PICK_NUMBER,
+            ColName.PACK_CARD,
+            ColName.PICK,
+            *([ColName.PICK_2] if event_type == cache.EventType.PICK_TWO else []),
+            ColName.POOL,
+            *DRAFT_META_FIELDS,
+            ColName.PICK_MAINDECK_RATE,
+            ColName.PICK_SIDEBOARD_IN_RATE,
+        ],
+        event_type=event_type,
+        filter_spec=filter_spec,
+    )
 
     if draft_id is None:
-        id_lf = lf if filter_expr is None else lf.filter(filter_expr)
-        ids = _collect(id_lf.select(ColName.DRAFT_ID).unique().sort(ColName.DRAFT_ID))[
+        ids = _collect(lf.select(ColName.DRAFT_ID).unique().sort(ColName.DRAFT_ID))[
             ColName.DRAFT_ID
         ]
         if len(ids) == 0:
             raise ValueError(f"no drafts match filter for {set_code}")
         draft_id = ids[random.Random(seed).randrange(len(ids))]
+
+    assert isinstance(draft_id, str)
 
     rows = (
         _collect(lf.filter(pl.col(ColName.DRAFT_ID) == draft_id))

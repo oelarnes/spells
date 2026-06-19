@@ -626,11 +626,13 @@ def view_select(
     set_code: str,
     view: View,
     columns: list[str],
+    event_type: cache.EventType = cache.EventType.PREMIER,
     filter_spec: dict | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
     card_context: dict | pl.DataFrame | None = None,
     set_context: dict | pl.DataFrame | None = None,
 ) -> pl.LazyFrame:
+    assert event_type == cache.EventType.PREMIER, "only PremierDraft supported"
     specs = get_specs()
 
     if extensions is not None:
