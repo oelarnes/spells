@@ -499,7 +499,7 @@ def draft_view_df(draft: Draft) -> pl.DataFrame:
         pack_counts = Counter(c.name for c in state.pack_cards)
         pool_counts = Counter(c.name for c in state.pool)
         picked = [state.pack_cards[i].name for i in state.picks_ind]
-        row = {
+        row: dict[str, Any] = {
             ColName.EXPANSION: draft.expansion,
             ColName.DRAFT_ID: draft.draft_id,
             ColName.PACK_NUMBER: state.pack_num - 1,
