@@ -52,6 +52,19 @@ deck_color_col_defs = {
 }
 
 
+def download_data_file(url: str, target_dir: str, filename: str) -> str:
+    """Download a 17lands data file unless already cached; return the local path."""
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir)
+
+    file_path = os.path.join(target_dir, filename)
+
+    if not os.path.isfile(file_path):
+        wget.download(url, out=file_path)
+
+    return file_path
+
+
 def deck_color_df(
     set_code: str,
     format: str = "PremierDraft",
@@ -71,28 +84,19 @@ def deck_color_df(
         end_date,
     )
 
-    if not os.path.isdir(target_dir):
-        os.makedirs(target_dir)
+    user_group_param = (
+        "" if player_cohort == "all" else f"&user_group={player_cohort}"
+    )
 
-    deck_color_file_path = os.path.join(target_dir, filename)
+    url = DECK_COLOR_DATA_TEMPLATE.format(
+        set_code=set_code,
+        format=format,
+        user_group_param=user_group_param,
+        start_date_str=start_date.strftime("%Y-%m-%d"),
+        end_date_str=end_date.strftime("%Y-%m-%d"),
+    )
 
-    if not os.path.isfile(deck_color_file_path):
-        user_group_param = (
-            "" if player_cohort == "all" else f"&user_group={player_cohort}"
-        )
-
-        url = DECK_COLOR_DATA_TEMPLATE.format(
-            set_code=set_code,
-            format=format,
-            user_group_param=user_group_param,
-            start_date_str=start_date.strftime("%Y-%m-%d"),
-            end_date_str=end_date.strftime("%Y-%m-%d"),
-        )
-
-        wget.download(
-            url,
-            out=deck_color_file_path,
-        )
+    deck_color_file_path = download_data_file(url, target_dir, filename)
 
     df = (
         pl.read_json(deck_color_file_path)
@@ -138,32 +142,25 @@ def base_ratings_df(
             end_date,
         )
 
-        if not os.path.isdir(ratings_dir):
-            os.makedirs(ratings_dir)
+        # rate-limit consecutive downloads, but not cache hits
+        if i > 0 and not os.path.isfile(os.path.join(ratings_dir, filename)):
+            sleep(5)
 
-        ratings_file_path = os.path.join(ratings_dir, filename)
+        user_group_param = (
+            "" if player_cohort == "all" else f"&user_group={player_cohort}"
+        )
+        deck_color_param = "" if deck_color == "any" else f"&colors={deck_color}"
 
-        if not os.path.isfile(ratings_file_path):
-            if i > 0:
-                sleep(5)
-            user_group_param = (
-                "" if player_cohort == "all" else f"&user_group={player_cohort}"
-            )
-            deck_color_param = "" if deck_color == "any" else f"&colors={deck_color}"
+        url = RATINGS_TEMPLATE.format(
+            set_code=set_code,
+            format=format,
+            user_group_param=user_group_param,
+            deck_color_param=deck_color_param,
+            start_date_str=start_date.strftime("%Y-%m-%d"),
+            end_date_str=end_date.strftime("%Y-%m-%d"),
+        )
 
-            url = RATINGS_TEMPLATE.format(
-                set_code=set_code,
-                format=format,
-                user_group_param=user_group_param,
-                deck_color_param=deck_color_param,
-                start_date_str=start_date.strftime("%Y-%m-%d"),
-                end_date_str=end_date.strftime("%Y-%m-%d"),
-            )
-
-            wget.download(
-                url,
-                out=ratings_file_path,
-            )
+        ratings_file_path = download_data_file(url, ratings_dir, filename)
 
         concat_list.append(
             pl.read_json(ratings_file_path, infer_schema_length=1000)

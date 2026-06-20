@@ -27,6 +27,7 @@ env = Env.PROD
 class EventType(StrEnum):
     PREMIER = "PremierDraft"
     TRADITIONAL = "TradDraft"
+    PICK_TWO = "PickTwoDraft"
 
 
 class DataDir(StrEnum):
@@ -34,6 +35,7 @@ class DataDir(StrEnum):
     EXTERNAL = "external"
     RATINGS = "ratings"
     DECK_COLOR = "deck_color"
+    DRAFT = "draft"
 
 
 def spells_print(mode, content):
@@ -146,6 +148,7 @@ def data_dir_path(cache_dir: DataDir) -> str:
         DataDir.EXTERNAL: "External" if is_win else "external",
         DataDir.RATINGS: "Ratings" if is_win else "ratings",
         DataDir.DECK_COLOR: "DeckColor" if is_win else "deck_color",
+        DataDir.DRAFT: "Draft" if is_win else "draft",
     }[cache_dir]
 
     data_dir = os.path.join(data_home(), ext)
@@ -183,6 +186,12 @@ def card_ratings_file_path(
         f"{format}_{user_group}_{deck_color}_{start_date.strftime('%Y-%m-%d')}"
         f"_{end_date.strftime('%Y-%m-%d')}.json"
     )
+
+
+def draft_file_path(draft_id: str) -> tuple[str, str]:
+    """Completed drafts are immutable, so files are cached indefinitely by id."""
+    return data_dir_path(DataDir.DRAFT), f"{draft_id}.json"
+
 
 def deck_color_file_path(
     set_code: str,

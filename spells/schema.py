@@ -27,6 +27,7 @@ COLUMN_TYPES = (
     (re.compile(r"^pack_number$"), pl.Int8),
     (re.compile(r"^pick_number$"), pl.Int8),
     (re.compile(r"^pick$"), pl.String),
+    (re.compile(r"^pick_2$"), pl.String),
     (re.compile(r"^pick_maindeck_rate$"), pl.Float64),
     (re.compile(r"^pick_sideboard_in_rate$"), pl.Float64),
     (re.compile(r"^pool_.*"), pl.Int8),

@@ -1,10 +1,13 @@
 import json
+import os
+import re
 import urllib.request
 from enum import StrEnum
 
 import polars as pl
 
-from spells.enums import ColName
+from spells import cache
+from spells.enums import ColName, View
 
 
 class CardAttr(StrEnum):
@@ -88,17 +91,22 @@ def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
 
 def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     draft_set_json = _fetch_mtg_json(draft_set_code)
-    booster_info = draft_set_json["data"]["booster"]
+    booster_info = draft_set_json["data"].get("booster")
 
-    booster_type = (
-        "play"
-        if "play" in booster_info
-        else "draft"
-        if "draft" in booster_info
-        else list(booster_info.keys())[0]
-    )
-    set_codes = booster_info[booster_type]["sourceSetCodes"]
-    set_codes.reverse()
+    if booster_info:
+        booster_type = (
+            "play"
+            if "play" in booster_info
+            else "draft"
+            if "draft" in booster_info
+            else list(booster_info.keys())[0]
+        )
+        set_codes = booster_info[booster_type]["sourceSetCodes"]
+        set_codes.reverse()
+    else:
+        # Some products (e.g. the OM1 pick-two set) have no booster info in
+        # MTGJSON; their cards come only from their own set list.
+        set_codes = [draft_set_code]
 
     card_data_map = {}
     for set_code in set_codes:
@@ -126,3 +134,50 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
             for name in names
         ]
     )
+
+
+def write_card_file(
+    draft_set_code: str,
+    event_type: cache.EventType = cache.EventType.PREMIER,
+    force_download=False,
+) -> int:
+    """
+    Write a parquet file containing basic information about draftable cards,
+    such as rarity, set symbol, color, mana cost, and type. Card names are
+    derived from the local public draft file. The card file is set-level, but
+    the draft file it reads names from is event-type-specific.
+    """
+    mode = "refresh" if force_download else "add"
+
+    cache.spells_print(
+        mode, "Fetching card data from mtgjson.com and writing card file"
+    )
+    card_filepath = cache.data_file_path(draft_set_code, View.CARD)
+    if os.path.isfile(card_filepath) and not force_download:
+        cache.spells_print(
+            mode,
+            f"File {card_filepath} already exists, use `spells refresh {draft_set_code}` to overwrite",
+        )
+        return 1
+
+    draft_filepath = cache.data_file_path(draft_set_code, View.DRAFT, event_type)
+
+    if not os.path.isfile(draft_filepath):
+        cache.spells_print(mode, f"Error: No draft file for set {draft_set_code}")
+        return 1
+
+    columns = pl.scan_parquet(draft_filepath).collect_schema().names()
+
+    pattern = "^pack_card_"
+    names = [
+        re.split(pattern, name)[1]
+        for name in columns
+        if re.search(pattern, name) is not None
+    ]
+
+    df = card_df(draft_set_code, names)
+
+    df.write_parquet(card_filepath)
+
+    cache.spells_print(mode, f"Wrote file {card_filepath}")
+    return 0
