@@ -232,6 +232,14 @@ _specs: dict[str, ColSpec] = {
         col_type=ColType.NAME_SUM,
         views=[View.DRAFT],
     ),
+    ColName.POOL_COUNT: ColSpec(
+        # Cards in the pool before this pick, summed across pool_ columns. Note
+        # this undercounts multi-pick formats (PickTwoDraft), whose public
+        # pool_ columns only track the `pick` card, not pick_2.
+        col_type=ColType.PICK_SUM,
+        views=[View.DRAFT],
+        expr=lambda names: pl.sum_horizontal([pl.col(f"pool_{name}") for name in names]),
+    ),
     ColName.GAME_TIME: ColSpec(
         col_type=ColType.FILTER_ONLY,
         views=[View.GAME],

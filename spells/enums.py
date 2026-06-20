@@ -72,6 +72,7 @@ class ColName(StrEnum):
     LAST_SEEN = "last_seen"
     NUM_SEEN = "num_seen"
     POOL = "pool"
+    POOL_COUNT = "pool_count"
     # game
     GAME_TIME = "game_time"
     GAME_DATE = "game_date"

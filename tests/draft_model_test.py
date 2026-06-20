@@ -19,7 +19,8 @@ from spells.draft_model import (
     fetch_draft,
     draft_from_public_data,
 )
-from spells.enums import View
+from spells.draft_data import view_select
+from spells.enums import View, ColName
 
 
 def card(name: str) -> dict:
@@ -400,6 +401,21 @@ def test_view_pool_promo_cards(fake_view):
     # and they round-trip exactly
     df = draft_view_df(draft)
     assert_frame_equal(df, fake_view.filter(pl.col("draft_id") == "d2"))
+
+
+def test_pool_count_builtin(fake_view):
+    """pool_count sums the pool_ columns horizontally for each pick row."""
+    df = (
+        view_select(
+            "TST",
+            View.DRAFT,
+            [ColName.DRAFT_ID, ColName.PICK_NUMBER, ColName.POOL_COUNT],
+        )
+        .sort(ColName.DRAFT_ID, ColName.PICK_NUMBER)
+        .collect()
+    )
+    # d1 p0: empty pool -> 0; d1 p1: one card -> 1; d2 p0: one promo card -> 1
+    assert df[ColName.POOL_COUNT].to_list() == [0, 1, 1]
 
 
 def test_draft_view_df_constructed_schema(tmp_path, monkeypatch: pytest.MonkeyPatch):
