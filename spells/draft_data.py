@@ -49,12 +49,14 @@ def _cache_key(args) -> str:
 
 
 @functools.lru_cache(maxsize=None)
-def get_names(set_code: str) -> list[str]:
+def get_names(
+    set_code: str, event_type: cache.EventType = cache.EventType.PREMIER
+) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
     card_names_set = frozenset(card_view.get_column("name").to_list())
 
-    draft_fp = cache.data_file_path(set_code, View.DRAFT)
+    draft_fp = cache.data_file_path(set_code, View.DRAFT, event_type)
     draft_view = pl.scan_parquet(draft_fp)
     cols = draft_view.collect_schema().names()
 
@@ -76,6 +78,7 @@ def _get_card_context(
     set_context: pl.DataFrame | dict[str, Any] | None,
     card_only: bool = False,
     names: list[str] | None = None,
+    event_type: cache.EventType = cache.EventType.PREMIER,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
@@ -90,26 +93,27 @@ def _get_card_context(
             set_context=set_context,
             card_context=card_context,
             card_only=True,
+            event_type=event_type,
         )
 
         columns = list(col_def_map.keys())
 
         fp = cache.data_file_path(set_code, View.CARD)
         if not os.path.isfile(fp):
-            write_card_file(set_code)
+            write_card_file(set_code, event_type)
         card_df = pl.read_parquet(fp)
         select_rows = _view_select(
             card_df, frozenset(columns), col_def_map, is_agg_view=False
         ).to_dicts()
 
-        names = get_names(set_code)
+        names = get_names(set_code, event_type)
         loaded_context = {row[ColName.NAME]: row for row in select_rows}
 
         for name in names:
             loaded_context[name] = loaded_context.get(name, {})
     else:
         if names is None:
-            names = get_names(set_code)
+            names = get_names(set_code, event_type)
         loaded_context = {name: {} for name in names}
 
     if card_context is not None:
@@ -292,14 +296,21 @@ def _hydrate_col_defs(
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     card_only: bool = False,
     names: list[str] | None = None,
+    event_type: cache.EventType = cache.EventType.PREMIER,
 ):
     if names is None:
-        names = get_names(set_code)
+        names = get_names(set_code, event_type)
 
     set_context = _get_set_context(set_code, set_context)
 
     card_context = _get_card_context(
-        set_code, specs, card_context, set_context, card_only=card_only, names=names
+        set_code,
+        specs,
+        card_context,
+        set_context,
+        card_only=card_only,
+        names=names,
+        event_type=event_type,
     )
 
     assert len(names) > 0, "there should be names"
@@ -632,7 +643,6 @@ def view_select(
     card_context: dict | pl.DataFrame | None = None,
     set_context: dict | pl.DataFrame | None = None,
 ) -> pl.LazyFrame:
-    assert event_type == cache.EventType.PREMIER, "only PremierDraft supported"
     specs = get_specs()
 
     if extensions is not None:
@@ -641,9 +651,11 @@ def view_select(
         for ext in extensions:
             specs.update(ext)
 
-    col_def_map = _hydrate_col_defs(set_code, specs, card_context, set_context)
+    col_def_map = _hydrate_col_defs(
+        set_code, specs, card_context, set_context, event_type=event_type
+    )
 
-    df_path = cache.data_file_path(set_code, view)
+    df_path = cache.data_file_path(set_code, view, event_type)
     base_view_df = pl.scan_parquet(df_path)
 
     select_cols = frozenset(columns)

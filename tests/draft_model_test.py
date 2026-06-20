@@ -318,7 +318,8 @@ CARD_ATTR_ROWS = [
 def write_card_view(set_code: str = "TST") -> None:
     fp = cache.data_file_path(set_code, View.CARD)
     os.makedirs(os.path.dirname(fp), exist_ok=True)
-    pl.DataFrame(CARD_ATTR_ROWS).write_parquet(fp)
+    rows = [{**r, "set_code": set_code} for r in CARD_ATTR_ROWS]
+    pl.DataFrame(rows).write_parquet(fp)
 
 
 @pytest.fixture()
@@ -481,6 +482,7 @@ def fake_pick_two_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFram
     """Mimics the OM1 PickTwoDraft file: pick_2 column present, and the
     pool_ columns only track `pick` cards (the 17lands undercount)."""
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    write_card_view("TS2")
     rows = [
         view_row(
             "d1", 0, 0,
@@ -503,42 +505,42 @@ def fake_pick_two_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFram
     return df
 
 
-# def test_draft_from_public_data_pick_two(fake_pick_two_view):
-#     draft = draft_from_public_data(
-#         "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
-#     )
-# 
-#     first = draft.picks[0]
-#     # pack in column order: Aether Sprite, Blazing Howl, Crystal Idol x2
-#     assert [c.name for c in first.pack_cards] == [
-#         "Aether Sprite", "Blazing Howl", "Crystal Idol", "Crystal Idol",
-#     ]
-#     # pick-two: pick_ind None, both copies consume distinct indices
-#     assert first.pick_ind is None
-#     assert first.picks_ind == [2, 3]
-# 
-#     second = draft.picks[1]
-#     assert second.pick_ind is None
-#     assert second.picks_ind == [0, 1]
-#     # pool corrected by accumulation: both Crystal Idol copies, not the
-#     # file's undercounted single copy
-#     assert [c.name for c in second.pool] == ["Crystal Idol", "Crystal Idol"]
+def test_draft_from_public_data_pick_two(fake_pick_two_view):
+    draft = draft_from_public_data(
+        "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
+    )
+
+    first = draft.picks[0]
+    # pack in column order: Aether Sprite, Blazing Howl, Crystal Idol x2
+    assert [c.name for c in first.pack_cards] == [
+        "Aether Sprite", "Blazing Howl", "Crystal Idol", "Crystal Idol",
+    ]
+    # pick-two: pick_ind None, both copies consume distinct indices
+    assert first.pick_ind is None
+    assert first.picks_ind == [2, 3]
+
+    second = draft.picks[1]
+    assert second.pick_ind is None
+    assert second.picks_ind == [0, 1]
+    # pool corrected by accumulation: both Crystal Idol copies, not the
+    # file's undercounted single copy
+    assert [c.name for c in second.pool] == ["Crystal Idol", "Crystal Idol"]
 
 
-# def test_pick_two_round_trip(fake_pick_two_view):
-#     draft = draft_from_public_data(
-#         "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
-#     )
-#     df = draft_view_df(draft)
-# 
-#     # non-pool columns round-trip exactly, including pick_2
-#     non_pool = [c for c in fake_pick_two_view.columns if not c.startswith("pool_")]
-#     assert_frame_equal(df.select(non_pool), fake_pick_two_view.select(non_pool))
-#     assert df["pick_2"].to_list() == ["Crystal Idol", "Blazing Howl"]
-# 
-#     # pool columns come out corrected relative to the source file
-#     assert df["pool_Crystal Idol"].to_list() == [0, 2]
-#     assert df["pool_Blazing Howl"].to_list() == [0, 0]
+def test_pick_two_round_trip(fake_pick_two_view):
+    draft = draft_from_public_data(
+        "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
+    )
+    df = draft_view_df(draft)
+
+    # non-pool columns round-trip exactly, including pick_2
+    non_pool = [c for c in fake_pick_two_view.columns if not c.startswith("pool_")]
+    assert_frame_equal(df.select(non_pool), fake_pick_two_view.select(non_pool))
+    assert df["pick_2"].to_list() == ["Crystal Idol", "Blazing Howl"]
+
+    # pool columns come out corrected relative to the source file
+    assert df["pool_Crystal Idol"].to_list() == [0, 2]
+    assert df["pool_Blazing Howl"].to_list() == [0, 0]
 
 
 def test_live_pick_two_feed():

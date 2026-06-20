@@ -47,7 +47,7 @@ def cli() -> int:
     data_dir = cache.data_home()
     cache.spells_print("spells", f"[data home]={data_dir}")
     print()
-    usage = """spells [add|refresh|remove|clean] [set_code]
+    usage = """spells [add|refresh|remove|clean] [set_code] [event_type]
             spells clean all
             spells info
 
@@ -57,6 +57,13 @@ def cli() -> int:
         [set code] should be the capitalized official set code for the draft release.
 
         e.g. $ spells add OTJ
+
+        [event_type] is optional and defaults to PremierDraft. Pass a 17Lands event type
+        (e.g. PickTwoDraft) to download an alternate draft format. The draft, game, and
+        card downloads are format-agnostic; only the set context (and summon) are not
+        supported for multi-pick formats yet.
+
+        e.g. $ spells add OM1 PickTwoDraft
 
     refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear
         local
@@ -78,34 +85,71 @@ def cli() -> int:
     if mode == "info":
         return _info()
 
-    if len(sys.argv) != 3:
+    if len(sys.argv) not in (3, 4):
         print_usage()
         return 1
 
+    set_code = sys.argv[2]
+
+    if len(sys.argv) == 4:
+        try:
+            event_type = cache.EventType(sys.argv[3])
+        except ValueError:
+            cache.spells_print(
+                "usage",
+                f"Unknown event type '{sys.argv[3]}'; expected one of "
+                f"{[e.value for e in cache.EventType]}",
+            )
+            return 1
+    else:
+        event_type = cache.EventType.PREMIER
+
     match mode:
         case "add":
-            return _add(sys.argv[2])
+            return _add(set_code, event_type=event_type)
         case "refresh":
-            return _refresh(sys.argv[2])
+            return _refresh(set_code, event_type=event_type)
         case "remove":
-            return _remove(sys.argv[2])
+            return _remove(set_code)
         case "clean":
-            return cache.clean(sys.argv[2])
+            return cache.clean(set_code)
         case _:
             print_usage()
             return 1
 
 
-def _add(set_code: str, force_download: bool = False) -> int:
-    download_data_set(set_code, View.DRAFT, force_download=force_download)
-    cards.write_card_file(set_code, force_download=force_download)
-    get_set_context(set_code, force_download=force_download)
-    download_data_set(set_code, View.GAME, force_download=force_download)
+def _add(
+    set_code: str,
+    event_type: cache.EventType = cache.EventType.PREMIER,
+    force_download: bool = False,
+) -> int:
+    mode = "refresh" if force_download else "add"
+    cache.spells_print(mode, f"Adding {set_code} {event_type} to {cache.external_set_path(set_code)}")
+
+    download_data_set(
+        set_code, View.DRAFT, event_type=event_type, force_download=force_download
+    )
+    cards.write_card_file(set_code, event_type=event_type, force_download=force_download)
+    download_data_set(
+        set_code, View.GAME, event_type=event_type, force_download=force_download
+    )
+
+    if event_type == cache.EventType.PREMIER:
+        get_set_context(set_code, force_download=force_download)
+    else:
+        # get_set_context is the only step driven by summon(), which still bakes
+        # in the one-pick-per-row assumption and can't aggregate multi-pick
+        # formats yet. The raw draft/game/card downloads are format-agnostic.
+        cache.spells_print(
+            "add",
+            f"Skipping set context for {event_type} "
+            "(summon does not support multi-pick formats yet)",
+        )
     return 0
 
 
-def _refresh(set_code: str):
-    return _add(set_code, force_download=True)
+def _refresh(set_code: str, event_type: cache.EventType = cache.EventType.PREMIER):
+    return _add(set_code, event_type=event_type, force_download=True)
 
 
 def _remove(set_code: str):
@@ -236,12 +280,15 @@ def download_data_set(
     clear_set_cache=True,
 ):
     mode = "refresh" if force_download else "add"
-    cache.spells_print(mode, f"Downloading {dataset_type} dataset from 17Lands.com")
+    cache.spells_print(
+        mode,
+        f"Downloading {set_code} {event_type} {dataset_type} dataset from 17Lands.com",
+    )
 
     if not os.path.isdir(set_dir := cache.external_set_path(set_code)):
         os.makedirs(set_dir)
 
-    target_path = cache.data_file_path(set_code, dataset_type)
+    target_path = cache.data_file_path(set_code, dataset_type, event_type)
 
     if os.path.isfile(target_path) and not force_download:
         cache.spells_print(
@@ -253,11 +300,10 @@ def download_data_set(
     dataset_file = DATASET_TEMPLATE.format(
         set_code=set_code, dataset_type=dataset_type, event_type=event_type
     )
+    source_url = RESOURCE_TEMPLATE.format(dataset_type=dataset_type) + dataset_file
     dataset_path = os.path.join(cache.external_set_path(set_code), dataset_file)
-    wget.download(
-        RESOURCE_TEMPLATE.format(dataset_type=dataset_type) + dataset_file,
-        out=dataset_path,
-    )
+    cache.spells_print(mode, f"Fetching {source_url}")
+    wget.download(source_url, out=dataset_path)
     print()
 
     cache.spells_print(

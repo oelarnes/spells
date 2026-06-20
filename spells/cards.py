@@ -91,17 +91,22 @@ def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
 
 def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     draft_set_json = _fetch_mtg_json(draft_set_code)
-    booster_info = draft_set_json["data"]["booster"]
+    booster_info = draft_set_json["data"].get("booster")
 
-    booster_type = (
-        "play"
-        if "play" in booster_info
-        else "draft"
-        if "draft" in booster_info
-        else list(booster_info.keys())[0]
-    )
-    set_codes = booster_info[booster_type]["sourceSetCodes"]
-    set_codes.reverse()
+    if booster_info:
+        booster_type = (
+            "play"
+            if "play" in booster_info
+            else "draft"
+            if "draft" in booster_info
+            else list(booster_info.keys())[0]
+        )
+        set_codes = booster_info[booster_type]["sourceSetCodes"]
+        set_codes.reverse()
+    else:
+        # Some products (e.g. the OM1 pick-two set) have no booster info in
+        # MTGJSON; their cards come only from their own set list.
+        set_codes = [draft_set_code]
 
     card_data_map = {}
     for set_code in set_codes:
@@ -131,11 +136,16 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     )
 
 
-def write_card_file(draft_set_code: str, force_download=False) -> int:
+def write_card_file(
+    draft_set_code: str,
+    event_type: cache.EventType = cache.EventType.PREMIER,
+    force_download=False,
+) -> int:
     """
     Write a parquet file containing basic information about draftable cards,
     such as rarity, set symbol, color, mana cost, and type. Card names are
-    derived from the local public draft file.
+    derived from the local public draft file. The card file is set-level, but
+    the draft file it reads names from is event-type-specific.
     """
     mode = "refresh" if force_download else "add"
 
@@ -150,7 +160,7 @@ def write_card_file(draft_set_code: str, force_download=False) -> int:
         )
         return 1
 
-    draft_filepath = cache.data_file_path(draft_set_code, View.DRAFT)
+    draft_filepath = cache.data_file_path(draft_set_code, View.DRAFT, event_type)
 
     if not os.path.isfile(draft_filepath):
         cache.spells_print(mode, f"Error: No draft file for set {draft_set_code}")
