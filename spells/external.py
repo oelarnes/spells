@@ -134,16 +134,18 @@ def _add(
         set_code, View.GAME, event_type=event_type, force_download=force_download
     )
 
-    if event_type == cache.EventType.PREMIER:
-        get_set_context(set_code, force_download=force_download)
-    else:
-        # get_set_context is the only step driven by summon(), which still bakes
-        # in the one-pick-per-row assumption and can't aggregate multi-pick
-        # formats yet. The raw draft/game/card downloads are format-agnostic.
+    if event_type == cache.EventType.PICK_TWO:
+        # get_set_context is driven by summon(), which still bakes in the
+        # one-pick-per-row assumption and can't aggregate multi-pick formats yet.
+        # The raw draft/game/card downloads are format-agnostic.
         cache.spells_print(
             "add",
             f"Skipping set context for {event_type} "
             "(summon does not support multi-pick formats yet)",
+        )
+    else:
+        get_set_context(
+            set_code, event_type=event_type, force_download=force_download
         )
     return 0
 
@@ -317,9 +319,16 @@ def download_data_set(
     return 0
 
 
-def get_set_context(set_code: str, force_download=False) -> int:
+def get_set_context(
+    set_code: str,
+    event_type: cache.EventType = cache.EventType.PREMIER,
+    force_download=False,
+) -> int:
     mode = "refresh" if force_download else "add"
 
+    # Set context (release date, picks per pack) is a property of the draft
+    # environment and identical across Bo1/Bo3, so any single-pick event_type
+    # can produce it.
     context_fp = cache.data_file_path(set_code, "context")
     cache.spells_print(mode, "Calculating set context")
     if os.path.isfile(context_fp) and not force_download:
@@ -333,6 +342,7 @@ def get_set_context(set_code: str, force_download=False) -> int:
         set_code,
         columns=[ColName.NUM_TAKEN],
         group_by=[ColName.DRAFT_DATE, ColName.PICK_NUM],
+        event_type=event_type,
     )
 
     context_df = df.filter(pl.col(ColName.NUM_TAKEN) > 1000).select(

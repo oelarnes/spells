@@ -416,6 +416,7 @@ def _base_agg_df(
     set_code: str,
     m: manifest.Manifest,
     use_streaming: bool = True,
+    event_type: cache.EventType = cache.EventType.PREMIER,
 ) -> pl.DataFrame:
     join_dfs = []
     group_by = m.base_view_group_by
@@ -426,7 +427,7 @@ def _base_agg_df(
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
             continue
-        df_path = cache.data_file_path(set_code, view)
+        df_path = cache.data_file_path(set_code, view, event_type)
         base_view_df = pl.scan_parquet(df_path)
         base_df_prefilter = _view_select(
             base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
@@ -460,7 +461,7 @@ def _base_agg_df(
                 join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         for col in name_sum_cols:
-            names = get_names(set_code)
+            names = get_names(set_code, event_type)
             expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
 
             pre_agg_df = base_df.select(expr + nonname_gb)
@@ -514,6 +515,9 @@ def summon(
     card_context: pl.DataFrame | dict[str, Any] | None = None,
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     cdfs: CardDataFileSpec | None = None,
+    event_type: cache.EventType
+    | str
+    | list[cache.EventType | str] = cache.EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -534,11 +538,21 @@ def summon(
 
     assert codes, "Please ask for at least one set"
 
+    # event_type may be a scalar (broadcast to every set) or a list aligned with
+    # codes, so Premier and Trad can be aggregated the same way multiple sets are.
+    if isinstance(event_type, list):
+        assert len(event_type) == len(codes), (
+            "event_type list must align with set_code list"
+        )
+        event_types = [cache.EventType(et) for et in event_type]
+    else:
+        event_types = [cache.EventType(event_type)] * len(codes)
+
     m = None
 
     concat_dfs = []
-    for code in codes:
-        logging.info(f"Calculating agg df for {code}")
+    for code, code_event_type in zip(codes, event_types):
+        logging.info(f"Calculating agg df for {code} {code_event_type}")
         if isinstance(card_context, pl.DataFrame):
             set_card_context = card_context.filter(pl.col("expansion") == code)
         elif isinstance(card_context, dict):
@@ -575,16 +589,24 @@ def summon(
             this_set_context,
             card_only=cdfs is not None,
             names=cdfs_names,
+            event_type=code_event_type,
         )
         m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
         if cdfs is None:
-            calc_fn = functools.partial(_base_agg_df, code, m, use_streaming=use_streaming)
+            calc_fn = functools.partial(
+                _base_agg_df,
+                code,
+                m,
+                use_streaming=use_streaming,
+                event_type=code_event_type,
+            )
             agg_df = _fetch_or_cache(
                 calc_fn,
                 code,
                 (
                     code,
+                    code_event_type.value,
                     sorted(m.view_cols.get(View.DRAFT, set())),
                     sorted(m.view_cols.get(View.GAME, set())),
                     sorted(c.signature or "" for c in m.col_def_map.values()),

@@ -22,8 +22,8 @@ def record_io(monkeypatch: pytest.MonkeyPatch):
         calls["card"].append((set_code, event_type))
         return 0
 
-    def fake_context(set_code, **kw):
-        calls["context"].append(set_code)
+    def fake_context(set_code, event_type=cache.EventType.PREMIER, **kw):
+        calls["context"].append((set_code, event_type))
         return 0
 
     monkeypatch.setattr(external, "download_data_set", fake_download)
@@ -40,7 +40,20 @@ def test_add_premier_downloads_full_set(record_io):
         ("TST", View.GAME, cache.EventType.PREMIER),
     ]
     assert record_io["card"] == [("TST", cache.EventType.PREMIER)]
-    assert record_io["context"] == ["TST"]
+    assert record_io["context"] == [("TST", cache.EventType.PREMIER)]
+
+
+def test_add_traditional_downloads_full_set_with_context(record_io):
+    external._add("TST", event_type=cache.EventType.TRADITIONAL)
+
+    # Trad is single-pick like Premier, so set context is generated (not skipped)
+    # and threaded with the Trad event_type.
+    assert record_io["download"] == [
+        ("TST", View.DRAFT, cache.EventType.TRADITIONAL),
+        ("TST", View.GAME, cache.EventType.TRADITIONAL),
+    ]
+    assert record_io["card"] == [("TST", cache.EventType.TRADITIONAL)]
+    assert record_io["context"] == [("TST", cache.EventType.TRADITIONAL)]
 
 
 def test_add_pick_two_skips_only_set_context(record_io):

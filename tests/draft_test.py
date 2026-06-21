@@ -46,6 +46,34 @@ def test_filter_spec_pack_num(fake_draft_sets):
     assert df3["num_taken"].sum() == 2
 
 
+def test_summon_traditional_event_type(fake_trad_set):
+    # TRD Traditional has 3 pick rows; Premier has 2. Selecting the event_type
+    # reads the matching draft parquet.
+    trad = summon("TRD", ["num_taken"], event_type="TradDraft")
+    premier = summon("TRD", ["num_taken"])
+    assert trad["num_taken"].sum() == 3
+    assert premier["num_taken"].sum() == 2
+
+
+def test_summon_aggregates_premier_and_trad(fake_trad_set):
+    # A parallel event_type list aggregates the two formats like multiple sets;
+    # the cache key includes event_type so the two runs don't collide.
+    both = summon(
+        ["TRD", "TRD"],
+        ["num_taken"],
+        event_type=["PremierDraft", "TradDraft"],
+    )
+    assert both["num_taken"].sum() == 5
+
+
+def test_traditional_trophy_uses_three_match_wins(fake_trad_set):
+    # IS_TROPHY keys off the "TradDraft" event_type string; the trophy draft
+    # (event_match_wins=3) contributes both its picks. Would be 0 under the old
+    # "Traditional" comparison.
+    df = summon("TRD", ["is_trophy_sum"], event_type="TradDraft")
+    assert df["is_trophy_sum"].sum() == 2
+
+
 def test_p1p1_missing_sets_constant():
     assert "TLA" in P1P1_MISSING_SETS
     assert "TMT" in P1P1_MISSING_SETS
