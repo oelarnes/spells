@@ -25,7 +25,7 @@ import spells.filter as spells_filter
 from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.cards import write_card_file
-from spells.enums import View, ColName, ColType
+from spells.enums import View, ColName, ColType, EventType
 from spells.log import make_verbose
 from spells.card_data_files import base_ratings_df
 
@@ -50,7 +50,7 @@ def _cache_key(args) -> str:
 
 @functools.lru_cache(maxsize=None)
 def get_names(
-    set_code: str, event_type: cache.EventType = cache.EventType.PREMIER
+    set_code: str, event_type: EventType = EventType.PREMIER
 ) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
@@ -78,7 +78,8 @@ def _get_card_context(
     set_context: pl.DataFrame | dict[str, Any] | None,
     card_only: bool = False,
     names: list[str] | None = None,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    *,
+    event_type: EventType,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
@@ -296,7 +297,8 @@ def _hydrate_col_defs(
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     card_only: bool = False,
     names: list[str] | None = None,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    *,
+    event_type: EventType,
 ):
     if names is None:
         names = get_names(set_code, event_type)
@@ -416,7 +418,8 @@ def _base_agg_df(
     set_code: str,
     m: manifest.Manifest,
     use_streaming: bool = True,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    *,
+    event_type: EventType,
 ) -> pl.DataFrame:
     join_dfs = []
     group_by = m.base_view_group_by
@@ -515,7 +518,7 @@ def summon(
     card_context: pl.DataFrame | dict[str, Any] | None = None,
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     cdfs: CardDataFileSpec | None = None,
-    event_type: cache.EventType | list[cache.EventType] = cache.EventType.PREMIER,
+    event_type: EventType | list[EventType] = EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -537,7 +540,7 @@ def summon(
     assert codes, "Please ask for at least one set"
 
     event_types = event_type if isinstance(event_type, list) else [event_type]
-    event_types = [cache.EventType(et) for et in event_types]
+    event_types = [EventType(et) for et in event_types]
 
     m = None
 
@@ -577,6 +580,7 @@ def summon(
                     this_set_context,
                     card_only=True,
                     names=cdfs_names,
+                    event_type=event_types[0],
                 ),
                 columns,
                 group_by,
@@ -661,7 +665,7 @@ def view_select(
     set_code: str,
     view: View,
     columns: list[str],
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType = EventType.PREMIER,
     filter_spec: dict | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
     card_context: dict | pl.DataFrame | None = None,

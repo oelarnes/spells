@@ -19,7 +19,7 @@ from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
-from spells.enums import View, ColName
+from spells.enums import View, ColName, EventType
 from spells.schema import schema
 from spells.draft_data import summon
 
@@ -93,16 +93,16 @@ def cli() -> int:
 
     if len(sys.argv) == 4:
         try:
-            event_type = cache.EventType(sys.argv[3])
+            event_type = EventType(sys.argv[3])
         except ValueError:
             cache.spells_print(
                 "usage",
                 f"Unknown event type '{sys.argv[3]}'; expected one of "
-                f"{[e.value for e in cache.EventType]}",
+                f"{[e.value for e in EventType]}",
             )
             return 1
     else:
-        event_type = cache.EventType.PREMIER
+        event_type = EventType.PREMIER
 
     match mode:
         case "add":
@@ -120,7 +120,7 @@ def cli() -> int:
 
 def _add(
     set_code: str,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType = EventType.PREMIER,
     force_download: bool = False,
 ) -> int:
     mode = "refresh" if force_download else "add"
@@ -134,7 +134,7 @@ def _add(
         set_code, View.GAME, event_type=event_type, force_download=force_download
     )
 
-    if event_type == cache.EventType.PICK_TWO:
+    if event_type == EventType.PICK_TWO:
         cache.spells_print(
             "add",
             f"Skipping set context for {event_type} "
@@ -147,7 +147,7 @@ def _add(
     return 0
 
 
-def _refresh(set_code: str, event_type: cache.EventType = cache.EventType.PREMIER):
+def _refresh(set_code: str, event_type: EventType = EventType.PREMIER):
     return _add(set_code, event_type=event_type, force_download=True)
 
 
@@ -274,7 +274,7 @@ def _process_zipped_file(gzip_path, target_path):
 def download_data_set(
     set_code,
     dataset_type: View,
-    event_type=cache.EventType.PREMIER,
+    event_type=EventType.PREMIER,
     force_download=False,
     clear_set_cache=True,
 ):
@@ -318,7 +318,7 @@ def download_data_set(
 
 def get_set_context(
     set_code: str,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType = EventType.PREMIER,
     force_download=False,
 ) -> int:
     mode = "refresh" if force_download else "add"

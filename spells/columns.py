@@ -3,8 +3,7 @@ from collections.abc import Callable
 
 import polars as pl
 
-from spells import cache
-from spells.enums import View, ColName, ColType
+from spells.enums import View, ColName, ColType, EventType
 
 
 @dataclass(frozen=True)
@@ -151,7 +150,7 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.IS_TROPHY: ColSpec(
         col_type=ColType.GROUP_BY,
-        expr=pl.when(pl.col(ColName.EVENT_TYPE) == cache.EventType.TRADITIONAL.value)
+        expr=pl.when(pl.col(ColName.EVENT_TYPE) == EventType.TRADITIONAL)
         .then(pl.col(ColName.EVENT_MATCH_WINS) == 3)
         .otherwise(pl.col(ColName.EVENT_MATCH_WINS) == 7),
     ),

@@ -24,7 +24,7 @@ from spells import cache
 from spells.card_data_files import download_data_file
 from spells.cards import card_df, write_card_file
 from spells.draft_data import view_select
-from spells.enums import ColName, View
+from spells.enums import ColName, View, EventType
 
 DRAFT_DATA_TEMPLATE = "https://www.17lands.com/data/draft?draft_id={draft_id}"
 
@@ -363,7 +363,7 @@ def draft_from_public_data(
     set_code: str,
     draft_id: str | None = None,
     *,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType = EventType.PREMIER,
     filter_spec: dict[str, Any] | None = None,
     seed: int | None = None,
     card_data: bool = True,
@@ -385,7 +385,7 @@ def draft_from_public_data(
             ColName.PICK_NUMBER,
             ColName.PACK_CARD,
             ColName.PICK,
-            *([ColName.PICK_2] if event_type == cache.EventType.PICK_TWO else []),
+            *([ColName.PICK_2] if event_type == EventType.PICK_TWO else []),
             ColName.POOL,
             *DRAFT_META_FIELDS,
             ColName.PICK_MAINDECK_RATE,

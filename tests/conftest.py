@@ -6,8 +6,8 @@ from pathlib import Path
 import polars as pl
 import pytest
 
-from spells import cache
 from spells.draft_data import get_names
+from spells.enums import EventType
 
 
 FAKE_SET = "TST"
@@ -86,7 +86,7 @@ def _make_draft_row(
     user_game_win_rate_bucket=0.55,
     event_match_wins=0,
     event_match_losses=0,
-    event_type=cache.EventType.PREMIER,
+    event_type=EventType.PREMIER,
 ):
     """One pick row. All cards are present in the pack; one is picked."""
     row = {
@@ -137,7 +137,7 @@ def _make_game_row(
     opening_hand=None,
     sideboard=None,
     tutored=None,
-    event_type=cache.EventType.PREMIER,
+    event_type=EventType.PREMIER,
 ):
     """One game row. Per-card counts default to zero unless overridden."""
     deck = deck or {}
@@ -233,7 +233,7 @@ def _write_set_parquets(
     draft_rows,
     game_rows=None,
     release_date=None,
-    event_type=cache.EventType.PREMIER,
+    event_type=EventType.PREMIER,
 ):
     """Write card, context, draft, and (optionally) game parquets for a fake set.
 
@@ -446,15 +446,15 @@ def _trd_trad_draft_rows():
     return [
         _make_draft_row(
             "TRD", "t001", 0, 0, "Aether Sprite",
-            event_match_wins=3, event_type=cache.EventType.TRADITIONAL,
+            event_match_wins=3, event_type=EventType.TRADITIONAL,
         ),
         _make_draft_row(
             "TRD", "t001", 0, 1, "Blazing Howl",
-            event_match_wins=3, event_type=cache.EventType.TRADITIONAL,
+            event_match_wins=3, event_type=EventType.TRADITIONAL,
         ),
         _make_draft_row(
             "TRD", "t002", 0, 0, "Aether Sprite",
-            event_match_wins=1, event_type=cache.EventType.TRADITIONAL,
+            event_match_wins=1, event_type=EventType.TRADITIONAL,
         ),
     ]
 
@@ -471,7 +471,7 @@ def fake_trad_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[
 
     _write_set_parquets(ext, "TRD", _trd_premier_draft_rows())
     _write_set_parquets(
-        ext, "TRD", _trd_trad_draft_rows(), event_type=cache.EventType.TRADITIONAL
+        ext, "TRD", _trd_trad_draft_rows(), event_type=EventType.TRADITIONAL
     )
 
     yield tmp_path

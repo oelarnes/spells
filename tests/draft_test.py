@@ -1,7 +1,8 @@
 import polars as pl
 
-from spells import cache, summon
+from spells import summon
 from spells.columns import P1P1_MISSING_SETS
+from spells.enums import EventType
 
 
 def test_summon_returns_dataframe(fake_draft_sets):
@@ -49,7 +50,7 @@ def test_filter_spec_pack_num(fake_draft_sets):
 def test_summon_traditional_event_type(fake_trad_set):
     # TRD Traditional has 3 pick rows; Premier has 2. Selecting the event_type
     # reads the matching draft parquet.
-    trad = summon("TRD", ["num_taken"], event_type=cache.EventType.TRADITIONAL)
+    trad = summon("TRD", ["num_taken"], event_type=EventType.TRADITIONAL)
     premier = summon("TRD", ["num_taken"])
     assert trad["num_taken"].sum() == 3
     assert premier["num_taken"].sum() == 2
@@ -61,7 +62,7 @@ def test_summon_aggregates_premier_and_trad(fake_trad_set):
     both = summon(
         "TRD",
         ["num_taken"],
-        event_type=[cache.EventType.PREMIER, cache.EventType.TRADITIONAL],
+        event_type=[EventType.PREMIER, EventType.TRADITIONAL],
     )
     assert both["num_taken"].sum() == 5
 
@@ -70,7 +71,7 @@ def test_traditional_trophy_uses_three_match_wins(fake_trad_set):
     # IS_TROPHY keys off the "TradDraft" event_type string; the trophy draft
     # (event_match_wins=3) contributes both its picks. Would be 0 under the old
     # "Traditional" comparison.
-    df = summon("TRD", ["is_trophy_sum"], event_type=cache.EventType.TRADITIONAL)
+    df = summon("TRD", ["is_trophy_sum"], event_type=EventType.TRADITIONAL)
     assert df["is_trophy_sum"].sum() == 2
 
 

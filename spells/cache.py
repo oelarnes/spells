@@ -15,6 +15,8 @@ import sys
 
 import polars as pl
 
+from spells.enums import EventType
+
 
 class Env(StrEnum):
     PROD = "prod"
@@ -22,12 +24,6 @@ class Env(StrEnum):
 
 
 env = Env.PROD
-
-
-class EventType(StrEnum):
-    PREMIER = "PremierDraft"
-    TRADITIONAL = "TradDraft"
-    PICK_TWO = "PickTwoDraft"
 
 
 class DataDir(StrEnum):
