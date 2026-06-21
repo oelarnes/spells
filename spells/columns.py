@@ -3,6 +3,7 @@ from collections.abc import Callable
 
 import polars as pl
 
+from spells import cache
 from spells.enums import View, ColName, ColType
 
 
@@ -150,9 +151,7 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.IS_TROPHY: ColSpec(
         col_type=ColType.GROUP_BY,
-        # EVENT_TYPE holds the 17Lands event string; Trad (Bo3) trophies are
-        # 3 match wins, Premier (Bo1) trophies are 7 game/match wins.
-        expr=pl.when(pl.col(ColName.EVENT_TYPE) == "TradDraft")
+        expr=pl.when(pl.col(ColName.EVENT_TYPE) == cache.EventType.TRADITIONAL.value)
         .then(pl.col(ColName.EVENT_MATCH_WINS) == 3)
         .otherwise(pl.col(ColName.EVENT_MATCH_WINS) == 7),
     ),

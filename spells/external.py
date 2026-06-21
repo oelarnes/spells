@@ -135,9 +135,6 @@ def _add(
     )
 
     if event_type == cache.EventType.PICK_TWO:
-        # get_set_context is driven by summon(), which still bakes in the
-        # one-pick-per-row assumption and can't aggregate multi-pick formats yet.
-        # The raw draft/game/card downloads are format-agnostic.
         cache.spells_print(
             "add",
             f"Skipping set context for {event_type} "
@@ -326,9 +323,6 @@ def get_set_context(
 ) -> int:
     mode = "refresh" if force_download else "add"
 
-    # Set context (release date, picks per pack) is a property of the draft
-    # environment and identical across Bo1/Bo3, so any single-pick event_type
-    # can produce it.
     context_fp = cache.data_file_path(set_code, "context")
     cache.spells_print(mode, "Calculating set context")
     if os.path.isfile(context_fp) and not force_download:

@@ -515,9 +515,7 @@ def summon(
     card_context: pl.DataFrame | dict[str, Any] | None = None,
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     cdfs: CardDataFileSpec | None = None,
-    event_type: cache.EventType
-    | str
-    | list[cache.EventType | str] = cache.EventType.PREMIER,
+    event_type: cache.EventType | list[cache.EventType] = cache.EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -538,21 +536,13 @@ def summon(
 
     assert codes, "Please ask for at least one set"
 
-    # event_type may be a scalar (broadcast to every set) or a list aligned with
-    # codes, so Premier and Trad can be aggregated the same way multiple sets are.
-    if isinstance(event_type, list):
-        assert len(event_type) == len(codes), (
-            "event_type list must align with set_code list"
-        )
-        event_types = [cache.EventType(et) for et in event_type]
-    else:
-        event_types = [cache.EventType(event_type)] * len(codes)
+    event_types = event_type if isinstance(event_type, list) else [event_type]
+    event_types = [cache.EventType(et) for et in event_types]
 
     m = None
 
     concat_dfs = []
-    for code, code_event_type in zip(codes, event_types):
-        logging.info(f"Calculating agg df for {code} {code_event_type}")
+    for code in codes:
         if isinstance(card_context, pl.DataFrame):
             set_card_context = card_context.filter(pl.col("expansion") == code)
         elif isinstance(card_context, dict):
@@ -579,21 +569,33 @@ def summon(
                 end_date=cdfs.end_date,
             )
             cdfs_names = agg_df[ColName.NAME].to_list()
-        else:
-            cdfs_names = None
+            m = manifest.create(
+                _hydrate_col_defs(
+                    code,
+                    specs,
+                    set_card_context,
+                    this_set_context,
+                    card_only=True,
+                    names=cdfs_names,
+                ),
+                columns,
+                group_by,
+                filter_spec,
+            )
+            concat_dfs.append(agg_df)
+            continue
 
-        col_def_map = _hydrate_col_defs(
-            code,
-            specs,
-            set_card_context,
-            this_set_context,
-            card_only=cdfs is not None,
-            names=cdfs_names,
-            event_type=code_event_type,
-        )
-        m = manifest.create(col_def_map, columns, group_by, filter_spec)
+        for code_event_type in event_types:
+            logging.info(f"Calculating agg df for {code} {code_event_type}")
+            col_def_map = _hydrate_col_defs(
+                code,
+                specs,
+                set_card_context,
+                this_set_context,
+                event_type=code_event_type,
+            )
+            m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
-        if cdfs is None:
             calc_fn = functools.partial(
                 _base_agg_df,
                 code,
@@ -625,7 +627,7 @@ def summon(
                 )
                 agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
 
-        concat_dfs.append(agg_df)
+            concat_dfs.append(agg_df)
 
     full_agg_df = pl.concat(concat_dfs, how="vertical")
 
