@@ -103,7 +103,7 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
     picks_per_pack = context_df["picks_per_pack"][0]
 
     draft_df = (
-        pl.scan_parquet(data_file_path(set_code, "draft"))
+        pl.scan_parquet(data_file_path(set_code, "draft", EventType.PREMIER))
         .head(50 * (test_num_drafts + 2))
         .collect()
     )
@@ -116,7 +116,7 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
 
     draft_sample_df = draft_df.filter(pl.col("draft_id").is_in(sample_draft_ids))
     game_sample_df = (
-        pl.scan_parquet(data_file_path(set_code, "game"))
+        pl.scan_parquet(data_file_path(set_code, "game", EventType.PREMIER))
         .filter(pl.col("draft_id").is_in(sample_draft_ids))
         .collect()
     )
@@ -126,8 +126,8 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
     if not os.path.isdir(set_dir := external_set_path(set_code)):
         os.makedirs(set_dir)
     context_df.write_parquet(data_file_path(set_code, "context"))
-    draft_sample_df.write_parquet(data_file_path(set_code, "draft"))
-    game_sample_df.write_parquet(data_file_path(set_code, "game"))
+    draft_sample_df.write_parquet(data_file_path(set_code, "draft", EventType.PREMIER))
+    game_sample_df.write_parquet(data_file_path(set_code, "game", EventType.PREMIER))
     card_df.write_parquet(data_file_path(set_code, "card"))
     set_prod_env()
 
@@ -155,13 +155,18 @@ def external_set_path(set_code):
     return os.path.join(data_dir_path(DataDir.EXTERNAL), set_code)
 
 
-def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
-    if dataset_type == "set_context":
-        return os.path.join(external_set_path(set_code), f"{set_code}_context.parquet")
-
+def data_file_path(set_code, dataset_type: str, event_type: EventType | None = None):
+    # card and context are set-level (one per set, shared across formats); draft
+    # and game are format-specific and require an event_type.
     if dataset_type == "card":
         return os.path.join(external_set_path(set_code), f"{set_code}_card.parquet")
 
+    if dataset_type == "context":
+        return os.path.join(external_set_path(set_code), f"{set_code}_context.parquet")
+
+    assert event_type is not None, (
+        f"event_type is required to locate {dataset_type} files"
+    )
     return os.path.join(
         external_set_path(set_code), f"{set_code}_{event_type}_{dataset_type}.parquet"
     )

@@ -248,14 +248,12 @@ def _write_set_parquets(
         card_rows = [{**r, "set_code": set_code} for r in FAKE_CARD_ATTR_ROWS]
         pl.DataFrame(card_rows).write_parquet(set_dir / f"{set_code}_card.parquet")
 
-        # Context is read from the PremierDraft-named file regardless of the
-        # event_type summon is called with (see _get_set_context).
         pl.DataFrame(
             {
                 "release_date": [release_date or datetime.date(2026, 1, 1)],
                 "picks_per_pack": [14],
             }
-        ).write_parquet(set_dir / f"{set_code}_PremierDraft_context.parquet")
+        ).write_parquet(set_dir / f"{set_code}_context.parquet")
 
     pl.DataFrame(draft_rows, schema=_draft_schema()).write_parquet(
         set_dir / f"{set_code}_{event_type}_draft.parquet"

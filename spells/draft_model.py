@@ -122,7 +122,7 @@ def _card_attr_map(expansion: str, names: list[str]) -> dict[str, dict]:
     file_path = cache.data_file_path(expansion, View.CARD)
 
     if not os.path.isfile(file_path) and os.path.isfile(
-        cache.data_file_path(expansion, View.DRAFT)
+        cache.data_file_path(expansion, View.DRAFT, EventType.PREMIER)
     ):
         write_card_file(expansion)
 
@@ -461,7 +461,7 @@ def draft_view_df(draft: Draft) -> pl.DataFrame:
     Fields the model doesn't carry come out null; the view's pool ordering
     (counts) loses the model's pick-order pool.
     """
-    file_path = cache.data_file_path(draft.expansion, View.DRAFT)
+    file_path = cache.data_file_path(draft.expansion, View.DRAFT, EventType.PREMIER)
     if os.path.isfile(file_path):
         target_schema = pl.scan_parquet(file_path).collect_schema()
     else:

@@ -338,7 +338,7 @@ def fake_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
         ),
     ]
     df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
-    fp = cache.data_file_path("TST", View.DRAFT)
+    fp = cache.data_file_path("TST", View.DRAFT, EventType.PREMIER)
     os.makedirs(os.path.dirname(fp), exist_ok=True)
     df.write_parquet(fp)
     return df
@@ -447,7 +447,7 @@ def fake_view_missing_p1p1(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.Data
         view_row("d1", 0, 2, {}, {"Aether Sprite": 1, "Blazing Howl": 1}, None),
     ]
     df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
-    fp = cache.data_file_path("TST", View.DRAFT)
+    fp = cache.data_file_path("TST", View.DRAFT, EventType.PREMIER)
     os.makedirs(os.path.dirname(fp), exist_ok=True)
     df.write_parquet(fp)
     return df
