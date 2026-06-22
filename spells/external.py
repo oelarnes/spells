@@ -120,7 +120,7 @@ def cli() -> int:
 
 def _add(
     set_code: str,
-    event_type: EventType = EventType.PREMIER,
+    event_type: EventType,
     force_download: bool = False,
 ) -> int:
     mode = "refresh" if force_download else "add"
@@ -147,7 +147,7 @@ def _add(
     return 0
 
 
-def _refresh(set_code: str, event_type: EventType = EventType.PREMIER):
+def _refresh(set_code: str, event_type: EventType):
     return _add(set_code, event_type=event_type, force_download=True)
 
 
@@ -274,7 +274,7 @@ def _process_zipped_file(gzip_path, target_path):
 def download_data_set(
     set_code,
     dataset_type: View,
-    event_type=EventType.PREMIER,
+    event_type: EventType,
     force_download=False,
     clear_set_cache=True,
 ):
@@ -318,7 +318,7 @@ def download_data_set(
 
 def get_set_context(
     set_code: str,
-    event_type: EventType = EventType.PREMIER,
+    event_type: EventType,
     force_download=False,
 ) -> int:
     mode = "refresh" if force_download else "add"

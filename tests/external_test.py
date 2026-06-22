@@ -33,7 +33,7 @@ def record_io(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_add_premier_downloads_full_set(record_io):
-    external._add("TST")
+    external._add("TST", event_type=EventType.PREMIER)
 
     assert record_io["download"] == [
         ("TST", View.DRAFT, EventType.PREMIER),
