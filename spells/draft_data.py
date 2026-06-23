@@ -35,10 +35,14 @@ DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 class CardDataFileSpec():
     set_code: str
     start_date: datetime.date
-    format: str = "PremierDraft"
+    format: EventType = EventType.PREMIER
     player_cohort: str = "all"
     deck_colors: str | list[str] = "any"
     end_date: datetime.date | None = None
+
+    def __post_init__(self):
+        # `format` is the cdfs event_type; accept a plain 17Lands string too.
+        self.format = EventType(self.format)
 
 
 def _cache_key(args) -> str:
@@ -580,7 +584,7 @@ def summon(
                     this_set_context,
                     card_only=True,
                     names=cdfs_names,
-                    event_type=event_types[0],
+                    event_type=cdfs.format,
                 ),
                 columns,
                 group_by,

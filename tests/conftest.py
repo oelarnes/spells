@@ -545,12 +545,14 @@ def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Genera
     ratings_dir = tmp_path / "ratings" / FAKE_SET
     ratings_dir.mkdir(parents=True)
 
-    filename = (
-        f"PremierDraft_all_any"
-        f"_{FAKE_START.strftime('%Y-%m-%d')}"
-        f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
-    )
-    (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
+    # Write a ratings file per format so the cdfs event_type path is exercisable.
+    for fmt in (EventType.PREMIER, EventType.TRADITIONAL):
+        filename = (
+            f"{fmt}_all_any"
+            f"_{FAKE_START.strftime('%Y-%m-%d')}"
+            f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
+        )
+        (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
 
     yield tmp_path
 
