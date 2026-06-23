@@ -21,6 +21,12 @@ class ColType(StrEnum):
     CARD_ATTR = "card_attr"
 
 
+class EventType(StrEnum):
+    PREMIER = "PremierDraft"
+    TRADITIONAL = "TradDraft"
+    PICK_TWO = "PickTwoDraft"
+
+
 class ColName(StrEnum):
     """
     A list of all available columns, including built-in extensions.

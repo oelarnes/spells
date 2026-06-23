@@ -20,7 +20,7 @@ from spells.draft_model import (
     draft_from_public_data,
 )
 from spells.draft_data import view_select
-from spells.enums import View, ColName
+from spells.enums import View, ColName, EventType
 
 
 def card(name: str) -> dict:
@@ -338,7 +338,7 @@ def fake_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
         ),
     ]
     df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
-    fp = cache.data_file_path("TST", View.DRAFT)
+    fp = cache.data_file_path("TST", View.DRAFT, EventType.PREMIER)
     os.makedirs(os.path.dirname(fp), exist_ok=True)
     df.write_parquet(fp)
     return df
@@ -447,7 +447,7 @@ def fake_view_missing_p1p1(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.Data
         view_row("d1", 0, 2, {}, {"Aether Sprite": 1, "Blazing Howl": 1}, None),
     ]
     df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
-    fp = cache.data_file_path("TST", View.DRAFT)
+    fp = cache.data_file_path("TST", View.DRAFT, EventType.PREMIER)
     os.makedirs(os.path.dirname(fp), exist_ok=True)
     df.write_parquet(fp)
     return df
@@ -515,7 +515,7 @@ def fake_pick_two_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFram
     rows[0]["pick_2"] = "Crystal Idol"  # two copies of the same card
     rows[1]["pick_2"] = "Blazing Howl"
     df = pl.DataFrame(rows, schema=PICK_TWO_SCHEMA)
-    fp = cache.data_file_path("TS2", View.DRAFT, cache.EventType.PICK_TWO)
+    fp = cache.data_file_path("TS2", View.DRAFT, EventType.PICK_TWO)
     os.makedirs(os.path.dirname(fp), exist_ok=True)
     df.write_parquet(fp)
     return df
@@ -523,7 +523,7 @@ def fake_pick_two_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFram
 
 def test_draft_from_public_data_pick_two(fake_pick_two_view):
     draft = draft_from_public_data(
-        "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
+        "TS2", "d1", event_type=EventType.PICK_TWO, card_data=False
     )
 
     first = draft.picks[0]
@@ -545,7 +545,7 @@ def test_draft_from_public_data_pick_two(fake_pick_two_view):
 
 def test_pick_two_round_trip(fake_pick_two_view):
     draft = draft_from_public_data(
-        "TS2", "d1", event_type=cache.EventType.PICK_TWO, card_data=False
+        "TS2", "d1", event_type=EventType.PICK_TWO, card_data=False
     )
     df = draft_view_df(draft)
 

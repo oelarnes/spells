@@ -7,7 +7,7 @@ from enum import StrEnum
 import polars as pl
 
 from spells import cache
-from spells.enums import ColName, View
+from spells.enums import ColName, View, EventType
 
 
 class CardAttr(StrEnum):
@@ -138,7 +138,7 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
 
 def write_card_file(
     draft_set_code: str,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType = EventType.PREMIER,
     force_download=False,
 ) -> int:
     """

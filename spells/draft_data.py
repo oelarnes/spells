@@ -25,7 +25,7 @@ import spells.filter as spells_filter
 from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.cards import write_card_file
-from spells.enums import View, ColName, ColType
+from spells.enums import View, ColName, ColType, EventType
 from spells.log import make_verbose
 from spells.card_data_files import base_ratings_df
 
@@ -35,10 +35,14 @@ DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 class CardDataFileSpec():
     set_code: str
     start_date: datetime.date
-    format: str = "PremierDraft"
+    event_type: EventType = EventType.PREMIER
     player_cohort: str = "all"
     deck_colors: str | list[str] = "any"
     end_date: datetime.date | None = None
+
+    def __post_init__(self):
+        # accept a plain 17Lands event-type string too (e.g. "PremierDraft")
+        self.event_type = EventType(self.event_type)
 
 
 def _cache_key(args) -> str:
@@ -50,7 +54,7 @@ def _cache_key(args) -> str:
 
 @functools.lru_cache(maxsize=None)
 def get_names(
-    set_code: str, event_type: cache.EventType = cache.EventType.PREMIER
+    set_code: str, event_type: EventType = EventType.PREMIER
 ) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
@@ -78,7 +82,8 @@ def _get_card_context(
     set_context: pl.DataFrame | dict[str, Any] | None,
     card_only: bool = False,
     names: list[str] | None = None,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    *,
+    event_type: EventType,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
@@ -296,7 +301,8 @@ def _hydrate_col_defs(
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     card_only: bool = False,
     names: list[str] | None = None,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    *,
+    event_type: EventType,
 ):
     if names is None:
         names = get_names(set_code, event_type)
@@ -416,6 +422,8 @@ def _base_agg_df(
     set_code: str,
     m: manifest.Manifest,
     use_streaming: bool = True,
+    *,
+    event_type: EventType,
 ) -> pl.DataFrame:
     join_dfs = []
     group_by = m.base_view_group_by
@@ -426,7 +434,7 @@ def _base_agg_df(
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
             continue
-        df_path = cache.data_file_path(set_code, view)
+        df_path = cache.data_file_path(set_code, view, event_type)
         base_view_df = pl.scan_parquet(df_path)
         base_df_prefilter = _view_select(
             base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
@@ -460,7 +468,7 @@ def _base_agg_df(
                 join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         for col in name_sum_cols:
-            names = get_names(set_code)
+            names = get_names(set_code, event_type)
             expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
 
             pre_agg_df = base_df.select(expr + nonname_gb)
@@ -514,6 +522,7 @@ def summon(
     card_context: pl.DataFrame | dict[str, Any] | None = None,
     set_context: pl.DataFrame | dict[str, Any] | None = None,
     cdfs: CardDataFileSpec | None = None,
+    event_type: EventType | list[EventType] = EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -534,11 +543,13 @@ def summon(
 
     assert codes, "Please ask for at least one set"
 
+    event_types = event_type if isinstance(event_type, list) else [event_type]
+    event_types = [EventType(et) for et in event_types]
+
     m = None
 
     concat_dfs = []
     for code in codes:
-        logging.info(f"Calculating agg df for {code}")
         if isinstance(card_context, pl.DataFrame):
             set_card_context = card_context.filter(pl.col("expansion") == code)
         elif isinstance(card_context, dict):
@@ -558,33 +569,54 @@ def summon(
             assert codes[0] == cdfs.set_code, "Wrong set file specified"
             agg_df = base_ratings_df(
                 set_code=cdfs.set_code,
-                format=cdfs.format,
+                event_type=cdfs.event_type,
                 player_cohort=cdfs.player_cohort,
                 deck_colors=cdfs.deck_colors,
                 start_date=cdfs.start_date,
                 end_date=cdfs.end_date,
             )
             cdfs_names = agg_df[ColName.NAME].to_list()
-        else:
-            cdfs_names = None
+            m = manifest.create(
+                _hydrate_col_defs(
+                    code,
+                    specs,
+                    set_card_context,
+                    this_set_context,
+                    card_only=True,
+                    names=cdfs_names,
+                    event_type=cdfs.event_type,
+                ),
+                columns,
+                group_by,
+                filter_spec,
+            )
+            concat_dfs.append(agg_df)
+            continue
 
-        col_def_map = _hydrate_col_defs(
-            code,
-            specs,
-            set_card_context,
-            this_set_context,
-            card_only=cdfs is not None,
-            names=cdfs_names,
-        )
-        m = manifest.create(col_def_map, columns, group_by, filter_spec)
+        for code_event_type in event_types:
+            logging.info(f"Calculating agg df for {code} {code_event_type}")
+            col_def_map = _hydrate_col_defs(
+                code,
+                specs,
+                set_card_context,
+                this_set_context,
+                event_type=code_event_type,
+            )
+            m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
-        if cdfs is None:
-            calc_fn = functools.partial(_base_agg_df, code, m, use_streaming=use_streaming)
+            calc_fn = functools.partial(
+                _base_agg_df,
+                code,
+                m,
+                use_streaming=use_streaming,
+                event_type=code_event_type,
+            )
             agg_df = _fetch_or_cache(
                 calc_fn,
                 code,
                 (
                     code,
+                    code_event_type.value,
                     sorted(m.view_cols.get(View.DRAFT, set())),
                     sorted(m.view_cols.get(View.GAME, set())),
                     sorted(c.signature or "" for c in m.col_def_map.values()),
@@ -603,7 +635,7 @@ def summon(
                 )
                 agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
 
-        concat_dfs.append(agg_df)
+            concat_dfs.append(agg_df)
 
     full_agg_df = pl.concat(concat_dfs, how="vertical")
 
@@ -637,7 +669,7 @@ def view_select(
     set_code: str,
     view: View,
     columns: list[str],
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType = EventType.PREMIER,
     filter_spec: dict | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
     card_context: dict | pl.DataFrame | None = None,

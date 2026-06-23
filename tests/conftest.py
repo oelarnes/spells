@@ -7,6 +7,7 @@ import polars as pl
 import pytest
 
 from spells.draft_data import get_names
+from spells.enums import EventType
 
 
 FAKE_SET = "TST"
@@ -85,11 +86,12 @@ def _make_draft_row(
     user_game_win_rate_bucket=0.55,
     event_match_wins=0,
     event_match_losses=0,
+    event_type=EventType.PREMIER,
 ):
     """One pick row. All cards are present in the pack; one is picked."""
     row = {
         "expansion": set_code,
-        "event_type": "PremierDraft",
+        "event_type": event_type,
         "draft_id": draft_id,
         "draft_time": draft_time,
         "rank": rank,
@@ -135,6 +137,7 @@ def _make_game_row(
     opening_hand=None,
     sideboard=None,
     tutored=None,
+    event_type=EventType.PREMIER,
 ):
     """One game row. Per-card counts default to zero unless overridden."""
     deck = deck or {}
@@ -144,7 +147,7 @@ def _make_game_row(
     tutored = tutored or {}
     row = {
         "expansion": set_code,
-        "event_type": "PremierDraft",
+        "event_type": event_type,
         "draft_id": draft_id,
         "draft_time": draft_time,
         "game_time": game_time,
@@ -224,28 +227,41 @@ def _game_schema():
     }
 
 
-def _write_set_parquets(external_dir, set_code, draft_rows, game_rows=None, release_date=None):
-    """Write card, context, draft, and (optionally) game parquets for a fake set."""
+def _write_set_parquets(
+    external_dir,
+    set_code,
+    draft_rows,
+    game_rows=None,
+    release_date=None,
+    event_type=EventType.PREMIER,
+):
+    """Write card, context, draft, and (optionally) game parquets for a fake set.
+
+    The card and context files are set-level (shared across event types), so a
+    second call for the same set with a different event_type only adds the
+    event-type-specific draft/game parquets.
+    """
     set_dir = external_dir / set_code
-    set_dir.mkdir(parents=True)
+    if not set_dir.is_dir():
+        set_dir.mkdir(parents=True)
 
-    card_rows = [{**r, "set_code": set_code} for r in FAKE_CARD_ATTR_ROWS]
-    pl.DataFrame(card_rows).write_parquet(set_dir / f"{set_code}_card.parquet")
+        card_rows = [{**r, "set_code": set_code} for r in FAKE_CARD_ATTR_ROWS]
+        pl.DataFrame(card_rows).write_parquet(set_dir / f"{set_code}_card.parquet")
 
-    pl.DataFrame(
-        {
-            "release_date": [release_date or datetime.date(2026, 1, 1)],
-            "picks_per_pack": [14],
-        }
-    ).write_parquet(set_dir / f"{set_code}_PremierDraft_context.parquet")
+        pl.DataFrame(
+            {
+                "release_date": [release_date or datetime.date(2026, 1, 1)],
+                "picks_per_pack": [14],
+            }
+        ).write_parquet(set_dir / f"{set_code}_context.parquet")
 
     pl.DataFrame(draft_rows, schema=_draft_schema()).write_parquet(
-        set_dir / f"{set_code}_PremierDraft_draft.parquet"
+        set_dir / f"{set_code}_{event_type}_draft.parquet"
     )
 
     if game_rows is not None:
         pl.DataFrame(game_rows, schema=_game_schema()).write_parquet(
-            set_dir / f"{set_code}_PremierDraft_game.parquet"
+            set_dir / f"{set_code}_{event_type}_game.parquet"
         )
 
 
@@ -409,6 +425,56 @@ def _tla_draft_rows():
     ]
 
 
+def _trd_premier_draft_rows():
+    """TRD Premier: 1 draft, 2 picks. event_match_wins=5 (not a Bo1 trophy)."""
+    return [
+        _make_draft_row("TRD", "p001", 0, 0, "Aether Sprite", event_match_wins=5),
+        _make_draft_row("TRD", "p001", 0, 1, "Blazing Howl", event_match_wins=5),
+    ]
+
+
+def _trd_trad_draft_rows():
+    """TRD Traditional: 3 picks across 2 drafts.
+
+    t001 is a Bo3 trophy (event_match_wins == 3), contributing both its picks to
+    IS_TROPHY_SUM; t002 is not. Verified counts: num_taken=3, is_trophy_sum=2.
+    Under the old `== "Traditional"` bug IS_TROPHY would use the Bo1 `== 7`
+    branch and sum to 0, so this pins the fix.
+    """
+    return [
+        _make_draft_row(
+            "TRD", "t001", 0, 0, "Aether Sprite",
+            event_match_wins=3, event_type=EventType.TRADITIONAL,
+        ),
+        _make_draft_row(
+            "TRD", "t001", 0, 1, "Blazing Howl",
+            event_match_wins=3, event_type=EventType.TRADITIONAL,
+        ),
+        _make_draft_row(
+            "TRD", "t002", 0, 0, "Aether Sprite",
+            event_match_wins=1, event_type=EventType.TRADITIONAL,
+        ),
+    ]
+
+
+@pytest.fixture()
+def fake_trad_set(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
+    """Writes set TRD with both Premier and Traditional draft parquets.
+
+    Premier has 2 picks (num_taken=2); Traditional has 3 picks (num_taken=3)
+    including a trophy draft (is_trophy_sum=2). Shared card/context written once.
+    """
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    ext = tmp_path / "external"
+
+    _write_set_parquets(ext, "TRD", _trd_premier_draft_rows())
+    _write_set_parquets(
+        ext, "TRD", _trd_trad_draft_rows(), event_type=EventType.TRADITIONAL
+    )
+
+    yield tmp_path
+
+
 @pytest.fixture()
 def fake_draft_sets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
     """
@@ -479,12 +545,14 @@ def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Genera
     ratings_dir = tmp_path / "ratings" / FAKE_SET
     ratings_dir.mkdir(parents=True)
 
-    filename = (
-        f"PremierDraft_all_any"
-        f"_{FAKE_START.strftime('%Y-%m-%d')}"
-        f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
-    )
-    (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
+    # Write a ratings file per format so the cdfs event_type path is exercisable.
+    for fmt in (EventType.PREMIER, EventType.TRADITIONAL):
+        filename = (
+            f"{fmt}_all_any"
+            f"_{FAKE_START.strftime('%Y-%m-%d')}"
+            f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
+        )
+        (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
 
     yield tmp_path
 
