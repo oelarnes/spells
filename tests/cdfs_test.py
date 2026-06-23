@@ -130,19 +130,19 @@ def test_cdfs_summon_with_extension_column(fake_ratings_file):
 # ---------------------------------------------------------------------------
 
 
-def test_cdfs_format_coerced_to_event_type():
+def test_cdfs_event_type_coerced_from_string():
     # A plain 17Lands string (as deq passes) is coerced to the enum.
-    assert make_cdfs(format="TradDraft").format is EventType.TRADITIONAL
-    assert make_cdfs().format is EventType.PREMIER
+    assert make_cdfs(event_type="TradDraft").event_type is EventType.TRADITIONAL
+    assert make_cdfs().event_type is EventType.PREMIER
 
 
-def test_cdfs_event_type_column_reflects_format(fake_ratings_file):
+def test_cdfs_event_type_column_reflects_event_type(fake_ratings_file):
     premier = summon(FAKE_SET, ["num_gih"], group_by=["name", "event_type"], cdfs=make_cdfs())
     trad = summon(
         FAKE_SET,
         ["num_gih"],
         group_by=["name", "event_type"],
-        cdfs=make_cdfs(format=EventType.TRADITIONAL),
+        cdfs=make_cdfs(event_type=EventType.TRADITIONAL),
     )
     assert set(premier["event_type"].to_list()) == {"PremierDraft"}
     assert set(trad["event_type"].to_list()) == {"TradDraft"}

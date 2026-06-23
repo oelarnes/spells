@@ -35,14 +35,14 @@ DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 class CardDataFileSpec():
     set_code: str
     start_date: datetime.date
-    format: EventType = EventType.PREMIER
+    event_type: EventType = EventType.PREMIER
     player_cohort: str = "all"
     deck_colors: str | list[str] = "any"
     end_date: datetime.date | None = None
 
     def __post_init__(self):
-        # `format` is the cdfs event_type; accept a plain 17Lands string too.
-        self.format = EventType(self.format)
+        # accept a plain 17Lands event-type string too (e.g. "PremierDraft")
+        self.event_type = EventType(self.event_type)
 
 
 def _cache_key(args) -> str:
@@ -569,7 +569,7 @@ def summon(
             assert codes[0] == cdfs.set_code, "Wrong set file specified"
             agg_df = base_ratings_df(
                 set_code=cdfs.set_code,
-                format=cdfs.format,
+                event_type=cdfs.event_type,
                 player_cohort=cdfs.player_cohort,
                 deck_colors=cdfs.deck_colors,
                 start_date=cdfs.start_date,
@@ -584,7 +584,7 @@ def summon(
                     this_set_context,
                     card_only=True,
                     names=cdfs_names,
-                    event_type=cdfs.format,
+                    event_type=cdfs.event_type,
                 ),
                 columns,
                 group_by,

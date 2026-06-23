@@ -174,7 +174,7 @@ def data_file_path(set_code, dataset_type: str, event_type: EventType | None = N
 
 def card_ratings_file_path(
     set_code: str,
-    format: str,
+    event_type: EventType,
     user_group: str,
     deck_color: str,
     start_date: dt.date,
@@ -184,7 +184,7 @@ def card_ratings_file_path(
         data_dir_path(DataDir.RATINGS),
         set_code,
     ), (
-        f"{format}_{user_group}_{deck_color}_{start_date.strftime('%Y-%m-%d')}"
+        f"{event_type}_{user_group}_{deck_color}_{start_date.strftime('%Y-%m-%d')}"
         f"_{end_date.strftime('%Y-%m-%d')}.json"
     )
 
@@ -196,7 +196,7 @@ def draft_file_path(draft_id: str) -> tuple[str, str]:
 
 def deck_color_file_path(
     set_code: str,
-    format: str,
+    event_type: EventType,
     user_group: str,
     start_date: dt.date,
     end_date: dt.date,
@@ -205,7 +205,7 @@ def deck_color_file_path(
         data_dir_path(DataDir.DECK_COLOR),
         set_code,
     ), (
-        f"{format}_{user_group}_{start_date.strftime('%Y-%m-%d')}"
+        f"{event_type}_{user_group}_{start_date.strftime('%Y-%m-%d')}"
         f"_{end_date.strftime('%Y-%m-%d')}.json"
     )
 
