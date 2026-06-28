@@ -130,10 +130,16 @@ def test_cdfs_summon_with_extension_column(fake_ratings_file):
 # ---------------------------------------------------------------------------
 
 
-def test_cdfs_event_type_coerced_from_string():
-    # A plain 17Lands string (as deq passes) is coerced to the enum.
-    assert make_cdfs(event_type="TradDraft").event_type is EventType.TRADITIONAL
+def test_cdfs_accepts_plain_string_event_type(fake_ratings_file):
+    # No coercion happens. EventType is a StrEnum, so a plain 17Lands string
+    # (as deq passes) compares equal to the enum and flows through summon
+    # unchanged — it "passes interactively" without being cast in __post_init__.
+    cdfs = make_cdfs(event_type="TradDraft")
+    assert cdfs.event_type == EventType.TRADITIONAL
     assert make_cdfs().event_type is EventType.PREMIER
+
+    trad = summon(FAKE_SET, ["num_gih"], group_by=["name", "event_type"], cdfs=cdfs)
+    assert set(trad["event_type"].to_list()) == {"TradDraft"}
 
 
 def test_cdfs_event_type_column_reflects_event_type(fake_ratings_file):

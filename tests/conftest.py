@@ -237,9 +237,9 @@ def _write_set_parquets(
 ):
     """Write card, context, draft, and (optionally) game parquets for a fake set.
 
-    The card and context files are set-level (shared across event types), so a
-    second call for the same set with a different event_type only adds the
-    event-type-specific draft/game parquets.
+    The card file is set-level (shared across event types), so a second call for
+    the same set with a different event_type only adds the event-type-specific
+    context, draft, and game parquets.
     """
     set_dir = external_dir / set_code
     if not set_dir.is_dir():
@@ -248,12 +248,12 @@ def _write_set_parquets(
         card_rows = [{**r, "set_code": set_code} for r in FAKE_CARD_ATTR_ROWS]
         pl.DataFrame(card_rows).write_parquet(set_dir / f"{set_code}_card.parquet")
 
-        pl.DataFrame(
-            {
-                "release_date": [release_date or datetime.date(2026, 1, 1)],
-                "picks_per_pack": [14],
-            }
-        ).write_parquet(set_dir / f"{set_code}_context.parquet")
+    pl.DataFrame(
+        {
+            "release_date": [release_date or datetime.date(2026, 1, 1)],
+            "picks_per_pack": [14],
+        }
+    ).write_parquet(set_dir / f"{set_code}_{event_type}_context.parquet")
 
     pl.DataFrame(draft_rows, schema=_draft_schema()).write_parquet(
         set_dir / f"{set_code}_{event_type}_draft.parquet"

@@ -99,7 +99,9 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
     to run from the test environment
     """
 
-    context_df = pl.scan_parquet(data_file_path(set_code, "context")).collect()
+    context_df = pl.scan_parquet(
+        data_file_path(set_code, "context", EventType.PREMIER)
+    ).collect()
     picks_per_pack = context_df["picks_per_pack"][0]
 
     draft_df = (
@@ -125,7 +127,7 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
     set_test_env()
     if not os.path.isdir(set_dir := external_set_path(set_code)):
         os.makedirs(set_dir)
-    context_df.write_parquet(data_file_path(set_code, "context"))
+    context_df.write_parquet(data_file_path(set_code, "context", EventType.PREMIER))
     draft_sample_df.write_parquet(data_file_path(set_code, "draft", EventType.PREMIER))
     game_sample_df.write_parquet(data_file_path(set_code, "game", EventType.PREMIER))
     card_df.write_parquet(data_file_path(set_code, "card"))
@@ -156,13 +158,11 @@ def external_set_path(set_code):
 
 
 def data_file_path(set_code, dataset_type: str, event_type: EventType | None = None):
-    # card and context are set-level (one per set, shared across formats); draft
-    # and game are format-specific and require an event_type.
+    # card attributes come from MTGJSON and are set-level (one per set, shared
+    # across formats). draft, game, and context are all format-specific and
+    # require an event_type.
     if dataset_type == "card":
         return os.path.join(external_set_path(set_code), f"{set_code}_card.parquet")
-
-    if dataset_type == "context":
-        return os.path.join(external_set_path(set_code), f"{set_code}_context.parquet")
 
     assert event_type is not None, (
         f"event_type is required to locate {dataset_type} files"

@@ -323,7 +323,7 @@ def get_set_context(
 ) -> int:
     mode = "refresh" if force_download else "add"
 
-    context_fp = cache.data_file_path(set_code, "context")
+    context_fp = cache.data_file_path(set_code, "context", event_type)
     cache.spells_print(mode, "Calculating set context")
     if os.path.isfile(context_fp) and not force_download:
         cache.spells_print(
