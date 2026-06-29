@@ -22,7 +22,7 @@ import polars as pl
 
 from spells import cache
 from spells.card_data_files import download_data_file
-from spells.cards import card_df, write_card_file
+from spells.cards import card_df, write_card_file, names_from_parquet
 from spells.draft_data import view_select
 from spells.enums import ColName, View, EventType
 
@@ -124,7 +124,7 @@ def _card_attr_map(expansion: str, names: list[str]) -> dict[str, dict]:
     if not os.path.isfile(file_path) and os.path.isfile(
         cache.data_file_path(expansion, View.DRAFT, EventType.PREMIER)
     ):
-        write_card_file(expansion)
+        write_card_file(expansion, names_from_parquet(expansion, EventType.PREMIER))
 
     if os.path.isfile(file_path):
         df = pl.read_parquet(file_path)

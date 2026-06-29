@@ -129,7 +129,8 @@ def _add(
     download_data_set(
         set_code, View.DRAFT, event_type=event_type, force_download=force_download
     )
-    cards.write_card_file(set_code, event_type=event_type, force_download=force_download)
+    draft_names = cards.names_from_parquet(set_code, event_type)
+    cards.write_card_file(set_code, draft_names, force_download=force_download)
     download_data_set(
         set_code, View.GAME, event_type=event_type, force_download=force_download
     )
