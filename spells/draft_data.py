@@ -490,13 +490,11 @@ def _base_agg_df(
     return joined_df
 
 
-def _context_for(
+def _normalize_context(
     context: pl.DataFrame | dict | None,
-    code: str,
-    event_type: EventType,
-    codes: list[str],
-) -> pl.DataFrame | dict | None:
-    """Resolve a user-provided context down to a single (set_code, event_type) cell.
+    cells: list[tuple[str, EventType]],
+) -> dict[tuple[str, EventType], pl.DataFrame | dict | None]:
+    """Normalize a user-provided context into the canonical (set_code, event_type)-keyed dict.
 
     The canonical index for card and set context is (set_code, event_type), matching
     the data files — these contexts are the hook for looping aggregations back into
@@ -508,27 +506,37 @@ def _context_for(
       - a bare context (set_context fields, or {name: {...}} card context) — broadcast
         across every set and event type
       - a DataFrame — filtered by `expansion` and, when present, `event_type`
+
+    `cells` is the full set of (set_code, event_type) pairs the caller is about to
+    process; the returned dict has exactly those keys.
     """
     if context is None:
-        return None
+        return {cell: None for cell in cells}
 
     if isinstance(context, pl.DataFrame):
-        if ColName.EXPANSION in context.columns:
-            context = context.filter(pl.col(ColName.EXPANSION) == code)
-        if ColName.EVENT_TYPE in context.columns:
-            context = context.filter(
-                pl.col(ColName.EVENT_TYPE) == EventType(event_type)
-            )
-        return context
+        result = {}
+        for code, event_type in cells:
+            cell_df = context
+            if ColName.EXPANSION in cell_df.columns:
+                cell_df = cell_df.filter(pl.col(ColName.EXPANSION) == code)
+            if ColName.EVENT_TYPE in cell_df.columns:
+                cell_df = cell_df.filter(
+                    pl.col(ColName.EVENT_TYPE) == EventType(event_type)
+                )
+            result[(code, event_type)] = cell_df
+        return result
 
     if isinstance(context, dict):
         if any(isinstance(k, tuple) for k in context):
-            return context.get((code, EventType(event_type)))
+            return {
+                cell: context.get((cell[0], EventType(cell[1]))) for cell in cells
+            }
+        codes = {code for code, _ in cells}
         if context and all(k in codes for k in context):
-            return context.get(code)
-        return context  # bare context, broadcast to every cell
+            return {cell: context.get(cell[0]) for cell in cells}
+        return {cell: context for cell in cells}  # bare context, broadcast to every cell
 
-    return context
+    return {cell: context for cell in cells}
 
 
 @make_verbose()
@@ -561,6 +569,12 @@ def summon(
     event_types = event_type if isinstance(event_type, list) else [event_type]
     event_types = [EventType(et) for et in event_types]
 
+    cells = [(code, et) for code in codes for et in event_types]
+    if cdfs is not None:
+        cells = cells + [(cdfs.set_code, cdfs.event_type)]
+    card_context_by_cell = _normalize_context(card_context, cells)
+    set_context_by_cell = _normalize_context(set_context, cells)
+
     m = None
 
     concat_dfs = []
@@ -587,8 +601,8 @@ def summon(
                 _hydrate_col_defs(
                     code,
                     specs,
-                    _context_for(card_context, code, cdfs.event_type, codes),
-                    _context_for(set_context, code, cdfs.event_type, codes),
+                    card_context_by_cell[(code, cdfs.event_type)],
+                    set_context_by_cell[(code, cdfs.event_type)],
                     cdfs.event_type,
                     card_only=True,
                     names=cdfs_names,
@@ -605,8 +619,8 @@ def summon(
             col_def_map = _hydrate_col_defs(
                 code,
                 specs,
-                _context_for(card_context, code, code_event_type, codes),
-                _context_for(set_context, code, code_event_type, codes),
+                card_context_by_cell[(code, code_event_type)],
+                set_context_by_cell[(code, code_event_type)],
                 code_event_type,
             )
             m = manifest.create(col_def_map, columns, group_by, filter_spec)
@@ -690,11 +704,13 @@ def view_select(
         for ext in extensions:
             specs.update(ext)
 
+    event_type = EventType(event_type)
+    cell = (set_code, event_type)
     col_def_map = _hydrate_col_defs(
         set_code,
         specs,
-        _context_for(card_context, set_code, event_type, [set_code]),
-        _context_for(set_context, set_code, event_type, [set_code]),
+        _normalize_context(card_context, [cell])[cell],
+        _normalize_context(set_context, [cell])[cell],
         event_type,
     )
 
