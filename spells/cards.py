@@ -7,7 +7,7 @@ from enum import StrEnum
 import polars as pl
 
 from spells import cache
-from spells.enums import ColName, View
+from spells.enums import ColName, View, EventType
 
 
 class CardAttr(StrEnum):
@@ -136,48 +136,48 @@ def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     )
 
 
+def names_from_parquet(draft_set_code: str, event_type: EventType) -> list[str]:
+    """Extract card names from pack_card_* columns of a draft parquet."""
+    draft_filepath = cache.data_file_path(draft_set_code, View.DRAFT, event_type)
+    if not os.path.isfile(draft_filepath):
+        raise FileNotFoundError(f"No {event_type} draft file for {draft_set_code}")
+    columns = pl.scan_parquet(draft_filepath).collect_schema().names()
+    prefix = "pack_card_"
+    return [col[len(prefix):] for col in columns if col.startswith(prefix)]
+
+
 def write_card_file(
     draft_set_code: str,
-    event_type: cache.EventType = cache.EventType.PREMIER,
-    force_download=False,
+    names: list[str],
+    force_download: bool = False,
 ) -> int:
-    """
-    Write a parquet file containing basic information about draftable cards,
-    such as rarity, set symbol, color, mana cost, and type. Card names are
-    derived from the local public draft file. The card file is set-level, but
-    the draft file it reads names from is event-type-specific.
+    """Write (or validate) the set-level card attribute parquet.
+
+    On first call: fetches MTGJSON and writes the card file from `names`.
+    On subsequent calls with the same names: validates and returns 1.
+    On subsequent calls with different names: raises ValueError — run
+    `spells refresh {set_code}` to regenerate.
+    With force_download=True: always overwrites.
     """
     mode = "refresh" if force_download else "add"
-
-    cache.spells_print(
-        mode, "Fetching card data from mtgjson.com and writing card file"
-    )
     card_filepath = cache.data_file_path(draft_set_code, View.CARD)
+
     if os.path.isfile(card_filepath) and not force_download:
-        cache.spells_print(
-            mode,
-            f"File {card_filepath} already exists, use `spells refresh {draft_set_code}` to overwrite",
-        )
+        existing = frozenset(pl.read_parquet(card_filepath)["name"].to_list())
+        incoming = frozenset(names)
+        if existing != incoming:
+            added = sorted(incoming - existing)
+            removed = sorted(existing - incoming)
+            raise ValueError(
+                f"Card list for {draft_set_code} is inconsistent with existing file "
+                f"(added={added}, removed={removed}). "
+                f"Run `spells refresh {draft_set_code}` to regenerate."
+            )
+        cache.spells_print(mode, f"Card file validated ({len(names)} cards match)")
         return 1
 
-    draft_filepath = cache.data_file_path(draft_set_code, View.DRAFT, event_type)
-
-    if not os.path.isfile(draft_filepath):
-        cache.spells_print(mode, f"Error: No draft file for set {draft_set_code}")
-        return 1
-
-    columns = pl.scan_parquet(draft_filepath).collect_schema().names()
-
-    pattern = "^pack_card_"
-    names = [
-        re.split(pattern, name)[1]
-        for name in columns
-        if re.search(pattern, name) is not None
-    ]
-
+    cache.spells_print(mode, "Fetching card data from mtgjson.com and writing card file")
     df = card_df(draft_set_code, names)
-
     df.write_parquet(card_filepath)
-
     cache.spells_print(mode, f"Wrote file {card_filepath}")
     return 0

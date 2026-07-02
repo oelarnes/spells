@@ -24,8 +24,8 @@ from spells import cache
 import spells.filter as spells_filter
 from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
-from spells.cards import write_card_file
-from spells.enums import View, ColName, ColType
+from spells.cards import write_card_file, names_from_parquet
+from spells.enums import View, ColName, ColType, EventType
 from spells.log import make_verbose
 from spells.card_data_files import base_ratings_df
 
@@ -35,7 +35,7 @@ DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 class CardDataFileSpec():
     set_code: str
     start_date: datetime.date
-    format: str = "PremierDraft"
+    event_type: EventType = EventType.PREMIER
     player_cohort: str = "all"
     deck_colors: str | list[str] = "any"
     end_date: datetime.date | None = None
@@ -50,25 +50,11 @@ def _cache_key(args) -> str:
 
 @functools.lru_cache(maxsize=None)
 def get_names(
-    set_code: str, event_type: cache.EventType = cache.EventType.PREMIER
+    set_code: str, event_type: EventType = EventType.PREMIER
 ) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
-    card_names_set = frozenset(card_view.get_column("name").to_list())
-
-    draft_fp = cache.data_file_path(set_code, View.DRAFT, event_type)
-    draft_view = pl.scan_parquet(draft_fp)
-    cols = draft_view.collect_schema().names()
-
-    prefix = "pack_card_"
-    names = [col[len(prefix) :] for col in cols if col.startswith(prefix)]
-    draft_names_set = frozenset(names)
-
-    assert (
-        draft_names_set == card_names_set
-    ), "names mismatch between card and draft file"
-
-    return names
+    return card_view.get_column("name").to_list()
 
 
 def _get_card_context(
@@ -76,9 +62,9 @@ def _get_card_context(
     specs: dict[str, ColSpec],
     card_context: pl.DataFrame | dict[str, dict[str, Any]] | None,
     set_context: pl.DataFrame | dict[str, Any] | None,
+    event_type: EventType,
     card_only: bool = False,
     names: list[str] | None = None,
-    event_type: cache.EventType = cache.EventType.PREMIER,
 ) -> dict[str, dict[str, Any]]:
     card_attr_specs = {
         col: spec
@@ -90,17 +76,17 @@ def _get_card_context(
         col_def_map = _hydrate_col_defs(
             set_code,
             card_attr_specs,
-            set_context=set_context,
-            card_context=card_context,
+            card_context,
+            set_context,
+            event_type,
             card_only=True,
-            event_type=event_type,
         )
 
         columns = list(col_def_map.keys())
 
         fp = cache.data_file_path(set_code, View.CARD)
         if not os.path.isfile(fp):
-            write_card_file(set_code, event_type)
+            write_card_file(set_code, names_from_parquet(set_code, event_type))
         card_df = pl.read_parquet(fp)
         select_rows = _view_select(
             card_df, frozenset(columns), col_def_map, is_agg_view=False
@@ -270,9 +256,11 @@ def _infer_dependencies(
 
 
 def _get_set_context(
-    set_code: str, set_context: pl.DataFrame | dict[str, Any] | None
+    set_code: str,
+    set_context: pl.DataFrame | dict[str, Any] | None,
+    event_type: EventType,
 ) -> dict[str, Any]:
-    context_fp = cache.data_file_path(set_code, "context")
+    context_fp = cache.data_file_path(set_code, "context", event_type)
 
     context = {}
     if os.path.isfile(context_fp):
@@ -292,25 +280,25 @@ def _get_set_context(
 def _hydrate_col_defs(
     set_code: str,
     specs: dict[str, ColSpec],
-    card_context: pl.DataFrame | dict[str, dict] | None = None,
-    set_context: pl.DataFrame | dict[str, Any] | None = None,
+    card_context: pl.DataFrame | dict[str, dict] | None,
+    set_context: pl.DataFrame | dict[str, Any] | None,
+    event_type: EventType,
     card_only: bool = False,
     names: list[str] | None = None,
-    event_type: cache.EventType = cache.EventType.PREMIER,
 ):
     if names is None:
         names = get_names(set_code, event_type)
 
-    set_context = _get_set_context(set_code, set_context)
+    set_context = _get_set_context(set_code, set_context, event_type)
 
     card_context = _get_card_context(
         set_code,
         specs,
         card_context,
         set_context,
+        event_type,
         card_only=card_only,
         names=names,
-        event_type=event_type,
     )
 
     assert len(names) > 0, "there should be names"
@@ -415,6 +403,7 @@ def _fetch_or_cache(
 def _base_agg_df(
     set_code: str,
     m: manifest.Manifest,
+    event_type: EventType,
     use_streaming: bool = True,
 ) -> pl.DataFrame:
     join_dfs = []
@@ -426,7 +415,7 @@ def _base_agg_df(
     for view, cols_for_view in m.view_cols.items():
         if view == View.CARD:
             continue
-        df_path = cache.data_file_path(set_code, view)
+        df_path = cache.data_file_path(set_code, view, event_type)
         base_view_df = pl.scan_parquet(df_path)
         base_df_prefilter = _view_select(
             base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
@@ -460,7 +449,7 @@ def _base_agg_df(
                 join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         for col in name_sum_cols:
-            names = get_names(set_code)
+            names = get_names(set_code, event_type)
             expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
 
             pre_agg_df = base_df.select(expr + nonname_gb)
@@ -501,6 +490,55 @@ def _base_agg_df(
     return joined_df
 
 
+def _normalize_context(
+    context: pl.DataFrame | dict | None,
+    cells: list[tuple[str, EventType]],
+) -> dict[tuple[str, EventType], pl.DataFrame | dict | None]:
+    """Normalize a user-provided context into the canonical (set_code, event_type)-keyed dict.
+
+    The canonical index for card and set context is (set_code, event_type), matching
+    the data files — these contexts are the hook for looping aggregations back into
+    row-level selectors (e.g. joining card win rates in as card_context). Context may
+    be supplied at that full index or in a broadcast form for convenience:
+
+      - dict keyed by (set_code, event_type) tuples — the canonical index
+      - dict keyed by set_code — broadcast across event types
+      - a bare context (set_context fields, or {name: {...}} card context) — broadcast
+        across every set and event type
+      - a DataFrame — filtered by `expansion` and, when present, `event_type`
+
+    `cells` is the full set of (set_code, event_type) pairs the caller is about to
+    process; the returned dict has exactly those keys.
+    """
+    if context is None:
+        return {cell: None for cell in cells}
+
+    if isinstance(context, pl.DataFrame):
+        result = {}
+        for code, event_type in cells:
+            cell_df = context
+            if ColName.EXPANSION in cell_df.columns:
+                cell_df = cell_df.filter(pl.col(ColName.EXPANSION) == code)
+            if ColName.EVENT_TYPE in cell_df.columns:
+                cell_df = cell_df.filter(
+                    pl.col(ColName.EVENT_TYPE) == EventType(event_type)
+                )
+            result[(code, event_type)] = cell_df
+        return result
+
+    if isinstance(context, dict):
+        if any(isinstance(k, tuple) for k in context):
+            return {
+                cell: context.get((cell[0], EventType(cell[1]))) for cell in cells
+            }
+        codes = {code for code, _ in cells}
+        if context and all(k in codes for k in context):
+            return {cell: context.get(cell[0]) for cell in cells}
+        return {cell: context for cell in cells}  # bare context, broadcast to every cell
+
+    return {cell: context for cell in cells}
+
+
 @make_verbose()
 def summon(
     set_code: str | list[str],
@@ -511,9 +549,10 @@ def summon(
     use_streaming: bool = True,
     read_cache: bool = True,
     write_cache: bool = True,
-    card_context: pl.DataFrame | dict[str, Any] | None = None,
-    set_context: pl.DataFrame | dict[str, Any] | None = None,
+    card_context: pl.DataFrame | dict | None = None,
+    set_context: pl.DataFrame | dict | None = None,
     cdfs: CardDataFileSpec | None = None,
+    event_type: EventType | list[EventType] = EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -523,68 +562,82 @@ def summon(
         for ext in extensions:
             specs.update(ext)
 
-    if isinstance(set_code, str):
-        if not (isinstance(card_context, dict) and set_code in card_context):
-            card_context = {set_code: card_context}
-        if not (isinstance(set_context, dict) and set_code in set_context):
-            set_context = {set_code: set_context}
-        codes = [set_code]
-    else:
-        codes = set_code
+    codes = [set_code] if isinstance(set_code, str) else set_code
 
     assert codes, "Please ask for at least one set"
+
+    event_types = event_type if isinstance(event_type, list) else [event_type]
+    event_types = [EventType(et) for et in event_types]
+
+    cells = [(code, et) for code in codes for et in event_types]
+    if cdfs is not None:
+        cells = cells + [(cdfs.set_code, cdfs.event_type)]
+    card_context_by_cell = _normalize_context(card_context, cells)
+    set_context_by_cell = _normalize_context(set_context, cells)
 
     m = None
 
     concat_dfs = []
     for code in codes:
-        logging.info(f"Calculating agg df for {code}")
-        if isinstance(card_context, pl.DataFrame):
-            set_card_context = card_context.filter(pl.col("expansion") == code)
-        elif isinstance(card_context, dict):
-            set_card_context = card_context[code]
-        else:
-            set_card_context = None
-
-        if isinstance(set_context, pl.DataFrame):
-            this_set_context = set_context.filter(pl.col("expansion") == code)
-        elif isinstance(set_context, dict):
-            this_set_context = set_context[code]
-        else:
-            this_set_context = None
-
         if cdfs is not None:
             assert len(codes) == 1, "Only one set supported for loading from card data file"
             assert codes[0] == cdfs.set_code, "Wrong set file specified"
             agg_df = base_ratings_df(
                 set_code=cdfs.set_code,
-                format=cdfs.format,
+                event_type=cdfs.event_type,
                 player_cohort=cdfs.player_cohort,
                 deck_colors=cdfs.deck_colors,
                 start_date=cdfs.start_date,
                 end_date=cdfs.end_date,
             )
             cdfs_names = agg_df[ColName.NAME].to_list()
-        else:
-            cdfs_names = None
+            try:
+                write_card_file(code, cdfs_names)
+            except ValueError:
+                raise  # card list inconsistency — propagate
+            except Exception:
+                pass  # MTGJSON unavailable (e.g. new set on release day)
+            m = manifest.create(
+                _hydrate_col_defs(
+                    code,
+                    specs,
+                    card_context_by_cell[(code, cdfs.event_type)],
+                    set_context_by_cell[(code, cdfs.event_type)],
+                    cdfs.event_type,
+                    card_only=True,
+                    names=cdfs_names,
+                ),
+                columns,
+                group_by,
+                filter_spec,
+            )
+            concat_dfs.append(agg_df)
+            continue
 
-        col_def_map = _hydrate_col_defs(
-            code,
-            specs,
-            set_card_context,
-            this_set_context,
-            card_only=cdfs is not None,
-            names=cdfs_names,
-        )
-        m = manifest.create(col_def_map, columns, group_by, filter_spec)
+        for code_event_type in event_types:
+            logging.info(f"Calculating agg df for {code} {code_event_type}")
+            col_def_map = _hydrate_col_defs(
+                code,
+                specs,
+                card_context_by_cell[(code, code_event_type)],
+                set_context_by_cell[(code, code_event_type)],
+                code_event_type,
+            )
+            m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
-        if cdfs is None:
-            calc_fn = functools.partial(_base_agg_df, code, m, use_streaming=use_streaming)
+            calc_fn = functools.partial(
+                _base_agg_df,
+                code,
+                m,
+                code_event_type,
+                use_streaming=use_streaming,
+            )
             agg_df = _fetch_or_cache(
                 calc_fn,
                 code,
                 (
                     code,
+                    code_event_type.value,
                     sorted(m.view_cols.get(View.DRAFT, set())),
                     sorted(m.view_cols.get(View.GAME, set())),
                     sorted(c.signature or "" for c in m.col_def_map.values()),
@@ -603,7 +656,7 @@ def summon(
                 )
                 agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
 
-        concat_dfs.append(agg_df)
+            concat_dfs.append(agg_df)
 
     full_agg_df = pl.concat(concat_dfs, how="vertical")
 
@@ -637,7 +690,7 @@ def view_select(
     set_code: str,
     view: View,
     columns: list[str],
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType = EventType.PREMIER,
     filter_spec: dict | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
     card_context: dict | pl.DataFrame | None = None,
@@ -651,8 +704,14 @@ def view_select(
         for ext in extensions:
             specs.update(ext)
 
+    event_type = EventType(event_type)
+    cell = (set_code, event_type)
     col_def_map = _hydrate_col_defs(
-        set_code, specs, card_context, set_context, event_type=event_type
+        set_code,
+        specs,
+        _normalize_context(card_context, [cell])[cell],
+        _normalize_context(set_context, [cell])[cell],
+        event_type,
     )
 
     df_path = cache.data_file_path(set_code, view, event_type)

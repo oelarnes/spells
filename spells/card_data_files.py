@@ -6,7 +6,7 @@ from time import sleep
 import polars as pl
 
 from spells import cache
-from spells.enums import ColName
+from spells.enums import ColName, EventType
 
 RATINGS_TEMPLATE = (
     "https://www.17lands.com/card_ratings/data?expansion={set_code}&format={format}"
@@ -67,7 +67,7 @@ def download_data_file(url: str, target_dir: str, filename: str) -> str:
 
 def deck_color_df(
     set_code: str,
-    format: str = "PremierDraft",
+    event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
     *,
     start_date: dt.date,
@@ -78,7 +78,7 @@ def deck_color_df(
 
     target_dir, filename = cache.deck_color_file_path(
         set_code,
-        format,
+        event_type,
         player_cohort,
         start_date,
         end_date,
@@ -90,7 +90,7 @@ def deck_color_df(
 
     url = DECK_COLOR_DATA_TEMPLATE.format(
         set_code=set_code,
-        format=format,
+        format=event_type,
         user_group_param=user_group_param,
         start_date_str=start_date.strftime("%Y-%m-%d"),
         end_date_str=end_date.strftime("%Y-%m-%d"),
@@ -104,7 +104,7 @@ def deck_color_df(
         .select(
             [
                 pl.lit(set_code).alias(ColName.EXPANSION),
-                pl.lit(format).alias(ColName.EVENT_TYPE),
+                pl.lit(event_type).alias(ColName.EVENT_TYPE),
                 (pl.lit("Top") if player_cohort == "top" else pl.lit(None))
                 .alias(ColName.PLAYER_COHORT)
                 .cast(pl.String),
@@ -118,7 +118,7 @@ def deck_color_df(
 
 def base_ratings_df(
     set_code: str,
-    format: str = "PremierDraft",
+    event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
     *,
@@ -135,7 +135,7 @@ def base_ratings_df(
     for i, deck_color in enumerate(deck_colors):
         ratings_dir, filename = cache.card_ratings_file_path(
             set_code,
-            format,
+            event_type,
             player_cohort,
             deck_color,
             start_date,
@@ -153,7 +153,7 @@ def base_ratings_df(
 
         url = RATINGS_TEMPLATE.format(
             set_code=set_code,
-            format=format,
+            format=event_type,
             user_group_param=user_group_param,
             deck_color_param=deck_color_param,
             start_date_str=start_date.strftime("%Y-%m-%d"),
@@ -172,7 +172,7 @@ def base_ratings_df(
             .select(
                 [
                     pl.lit(set_code).alias(ColName.EXPANSION),
-                    pl.lit(format).alias(ColName.EVENT_TYPE),
+                    pl.lit(event_type).alias(ColName.EVENT_TYPE),
                     (pl.lit("Top") if player_cohort == "top" else pl.lit(None))
                     .alias(ColName.PLAYER_COHORT)
                     .cast(pl.String),

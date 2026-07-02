@@ -12,7 +12,7 @@ import pytest
 
 from spells.draft_data import CardDataFileSpec, summon
 from spells.columns import ColSpec
-from spells.enums import ColType
+from spells.enums import ColType, EventType
 
 from tests.conftest import FAKE_SET, FAKE_START, FAKE_END, FAKE_CARD_RATINGS
 
@@ -123,6 +123,35 @@ def test_cdfs_summon_with_extension_column(fake_ratings_file):
     for row in merged.iter_rows(named=True):
         if row["gih_wr"] is not None and row["custom_rate"] is not None:
             assert abs(row["custom_rate"] - row["gih_wr"]) < 1e-9
+
+
+# ---------------------------------------------------------------------------
+# event_type / format
+# ---------------------------------------------------------------------------
+
+
+def test_cdfs_accepts_plain_string_event_type(fake_ratings_file):
+    # No coercion happens. EventType is a StrEnum, so a plain 17Lands string
+    # (as deq passes) compares equal to the enum and flows through summon
+    # unchanged — it "passes interactively" without being cast in __post_init__.
+    cdfs = make_cdfs(event_type="TradDraft")
+    assert cdfs.event_type == EventType.TRADITIONAL
+    assert make_cdfs().event_type is EventType.PREMIER
+
+    trad = summon(FAKE_SET, ["num_gih"], group_by=["name", "event_type"], cdfs=cdfs)
+    assert set(trad["event_type"].to_list()) == {"TradDraft"}
+
+
+def test_cdfs_event_type_column_reflects_event_type(fake_ratings_file):
+    premier = summon(FAKE_SET, ["num_gih"], group_by=["name", "event_type"], cdfs=make_cdfs())
+    trad = summon(
+        FAKE_SET,
+        ["num_gih"],
+        group_by=["name", "event_type"],
+        cdfs=make_cdfs(event_type=EventType.TRADITIONAL),
+    )
+    assert set(premier["event_type"].to_list()) == {"PremierDraft"}
+    assert set(trad["event_type"].to_list()) == {"TradDraft"}
 
 
 # ---------------------------------------------------------------------------

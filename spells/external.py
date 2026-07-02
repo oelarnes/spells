@@ -19,7 +19,7 @@ from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
-from spells.enums import View, ColName
+from spells.enums import View, ColName, EventType
 from spells.schema import schema
 from spells.draft_data import summon
 
@@ -93,16 +93,16 @@ def cli() -> int:
 
     if len(sys.argv) == 4:
         try:
-            event_type = cache.EventType(sys.argv[3])
+            event_type = EventType(sys.argv[3])
         except ValueError:
             cache.spells_print(
                 "usage",
                 f"Unknown event type '{sys.argv[3]}'; expected one of "
-                f"{[e.value for e in cache.EventType]}",
+                f"{[e.value for e in EventType]}",
             )
             return 1
     else:
-        event_type = cache.EventType.PREMIER
+        event_type = EventType.PREMIER
 
     match mode:
         case "add":
@@ -120,7 +120,7 @@ def cli() -> int:
 
 def _add(
     set_code: str,
-    event_type: cache.EventType = cache.EventType.PREMIER,
+    event_type: EventType,
     force_download: bool = False,
 ) -> int:
     mode = "refresh" if force_download else "add"
@@ -129,26 +129,26 @@ def _add(
     download_data_set(
         set_code, View.DRAFT, event_type=event_type, force_download=force_download
     )
-    cards.write_card_file(set_code, event_type=event_type, force_download=force_download)
+    draft_names = cards.names_from_parquet(set_code, event_type)
+    cards.write_card_file(set_code, draft_names, force_download=force_download)
     download_data_set(
         set_code, View.GAME, event_type=event_type, force_download=force_download
     )
 
-    if event_type == cache.EventType.PREMIER:
-        get_set_context(set_code, force_download=force_download)
-    else:
-        # get_set_context is the only step driven by summon(), which still bakes
-        # in the one-pick-per-row assumption and can't aggregate multi-pick
-        # formats yet. The raw draft/game/card downloads are format-agnostic.
+    if event_type == EventType.PICK_TWO:
         cache.spells_print(
             "add",
             f"Skipping set context for {event_type} "
             "(summon does not support multi-pick formats yet)",
         )
+    else:
+        get_set_context(
+            set_code, event_type=event_type, force_download=force_download
+        )
     return 0
 
 
-def _refresh(set_code: str, event_type: cache.EventType = cache.EventType.PREMIER):
+def _refresh(set_code: str, event_type: EventType):
     return _add(set_code, event_type=event_type, force_download=True)
 
 
@@ -275,7 +275,7 @@ def _process_zipped_file(gzip_path, target_path):
 def download_data_set(
     set_code,
     dataset_type: View,
-    event_type=cache.EventType.PREMIER,
+    event_type: EventType,
     force_download=False,
     clear_set_cache=True,
 ):
@@ -317,10 +317,14 @@ def download_data_set(
     return 0
 
 
-def get_set_context(set_code: str, force_download=False) -> int:
+def get_set_context(
+    set_code: str,
+    event_type: EventType,
+    force_download=False,
+) -> int:
     mode = "refresh" if force_download else "add"
 
-    context_fp = cache.data_file_path(set_code, "context")
+    context_fp = cache.data_file_path(set_code, "context", event_type)
     cache.spells_print(mode, "Calculating set context")
     if os.path.isfile(context_fp) and not force_download:
         cache.spells_print(
@@ -333,6 +337,7 @@ def get_set_context(set_code: str, force_download=False) -> int:
         set_code,
         columns=[ColName.NUM_TAKEN],
         group_by=[ColName.DRAFT_DATE, ColName.PICK_NUM],
+        event_type=event_type,
     )
 
     context_df = df.filter(pl.col(ColName.NUM_TAKEN) > 1000).select(

@@ -15,6 +15,8 @@ import sys
 
 import polars as pl
 
+from spells.enums import EventType
+
 
 class Env(StrEnum):
     PROD = "prod"
@@ -22,12 +24,6 @@ class Env(StrEnum):
 
 
 env = Env.PROD
-
-
-class EventType(StrEnum):
-    PREMIER = "PremierDraft"
-    TRADITIONAL = "TradDraft"
-    PICK_TWO = "PickTwoDraft"
 
 
 class DataDir(StrEnum):
@@ -103,11 +99,13 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
     to run from the test environment
     """
 
-    context_df = pl.scan_parquet(data_file_path(set_code, "context")).collect()
+    context_df = pl.scan_parquet(
+        data_file_path(set_code, "context", EventType.PREMIER)
+    ).collect()
     picks_per_pack = context_df["picks_per_pack"][0]
 
     draft_df = (
-        pl.scan_parquet(data_file_path(set_code, "draft"))
+        pl.scan_parquet(data_file_path(set_code, "draft", EventType.PREMIER))
         .head(50 * (test_num_drafts + 2))
         .collect()
     )
@@ -120,7 +118,7 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
 
     draft_sample_df = draft_df.filter(pl.col("draft_id").is_in(sample_draft_ids))
     game_sample_df = (
-        pl.scan_parquet(data_file_path(set_code, "game"))
+        pl.scan_parquet(data_file_path(set_code, "game", EventType.PREMIER))
         .filter(pl.col("draft_id").is_in(sample_draft_ids))
         .collect()
     )
@@ -129,9 +127,9 @@ def create_test_data(set_code: str, test_num_drafts: int = 100):
     set_test_env()
     if not os.path.isdir(set_dir := external_set_path(set_code)):
         os.makedirs(set_dir)
-    context_df.write_parquet(data_file_path(set_code, "context"))
-    draft_sample_df.write_parquet(data_file_path(set_code, "draft"))
-    game_sample_df.write_parquet(data_file_path(set_code, "game"))
+    context_df.write_parquet(data_file_path(set_code, "context", EventType.PREMIER))
+    draft_sample_df.write_parquet(data_file_path(set_code, "draft", EventType.PREMIER))
+    game_sample_df.write_parquet(data_file_path(set_code, "game", EventType.PREMIER))
     card_df.write_parquet(data_file_path(set_code, "card"))
     set_prod_env()
 
@@ -159,13 +157,16 @@ def external_set_path(set_code):
     return os.path.join(data_dir_path(DataDir.EXTERNAL), set_code)
 
 
-def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
-    if dataset_type == "set_context":
-        return os.path.join(external_set_path(set_code), f"{set_code}_context.parquet")
-
+def data_file_path(set_code, dataset_type: str, event_type: EventType | None = None):
+    # card attributes come from MTGJSON and are set-level (one per set, shared
+    # across formats). draft, game, and context are all format-specific and
+    # require an event_type.
     if dataset_type == "card":
         return os.path.join(external_set_path(set_code), f"{set_code}_card.parquet")
 
+    assert event_type is not None, (
+        f"event_type is required to locate {dataset_type} files"
+    )
     return os.path.join(
         external_set_path(set_code), f"{set_code}_{event_type}_{dataset_type}.parquet"
     )
@@ -173,7 +174,7 @@ def data_file_path(set_code, dataset_type: str, event_type=EventType.PREMIER):
 
 def card_ratings_file_path(
     set_code: str,
-    format: str,
+    event_type: EventType,
     user_group: str,
     deck_color: str,
     start_date: dt.date,
@@ -183,7 +184,7 @@ def card_ratings_file_path(
         data_dir_path(DataDir.RATINGS),
         set_code,
     ), (
-        f"{format}_{user_group}_{deck_color}_{start_date.strftime('%Y-%m-%d')}"
+        f"{event_type}_{user_group}_{deck_color}_{start_date.strftime('%Y-%m-%d')}"
         f"_{end_date.strftime('%Y-%m-%d')}.json"
     )
 
@@ -195,7 +196,7 @@ def draft_file_path(draft_id: str) -> tuple[str, str]:
 
 def deck_color_file_path(
     set_code: str,
-    format: str,
+    event_type: EventType,
     user_group: str,
     start_date: dt.date,
     end_date: dt.date,
@@ -204,7 +205,7 @@ def deck_color_file_path(
         data_dir_path(DataDir.DECK_COLOR),
         set_code,
     ), (
-        f"{format}_{user_group}_{start_date.strftime('%Y-%m-%d')}"
+        f"{event_type}_{user_group}_{start_date.strftime('%Y-%m-%d')}"
         f"_{end_date.strftime('%Y-%m-%d')}.json"
     )
 
