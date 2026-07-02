@@ -27,18 +27,65 @@ from spells.columns import ColDef, ColSpec, get_specs
 from spells.cards import write_card_file, names_from_parquet
 from spells.enums import View, ColName, ColType, EventType
 from spells.log import make_verbose
-from spells.card_data_files import base_ratings_df
+from spells.card_data_files import base_ratings_df, expansion_start_date
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 
 @dataclass
 class CardDataFileSpec():
-    set_code: str
-    start_date: datetime.date
-    event_type: EventType = EventType.PREMIER
+    """How to pull one (or, via broadcast through `summon()`'s `cdfs` argument,
+    every) set/event_type cell from 17lands' daily ratings API. `set_code` and
+    `event_type` are deliberately not fields here — `summon()` already carries
+    both, so a spec only ever describes the date window and cohort/color filter.
+
+    The date window is given in exactly one of two forms:
+      - `start_date` (+ optional `end_date`, default yesterday): a literal window,
+        applied identically to every set/event_type this spec is broadcast to.
+        Useful for cross-set comparisons over the same calendar range (e.g. a
+        single week, to compare formats' day-of-week effects).
+      - `format_day` + `num_days`: a window relative to each set's own release
+        date (day 1 = release day, matching the `FORMAT_DAY` column), resolved
+        independently per set via `expansion_start_date()`. Useful for "first N
+        days of the format" comparisons across sets with different release dates.
+    """
+
+    start_date: datetime.date | None = None
+    end_date: datetime.date | None = None
+    format_day: int | None = None
+    num_days: int | None = None
     player_cohort: str = "all"
     deck_colors: str | list[str] = "any"
-    end_date: datetime.date | None = None
+
+    def __post_init__(self):
+        literal = self.start_date is not None
+        relative = self.format_day is not None
+        assert literal != relative, (
+            "CardDataFileSpec requires exactly one of `start_date` (a literal "
+            "date, shared across every set/event_type it's applied to) or "
+            "`format_day` (a window relative to each set's own release date) "
+            "— not both, not neither."
+        )
+        if relative:
+            assert self.num_days is not None and self.num_days > 0, (
+                "num_days (a positive int) is required when using format_day"
+            )
+        else:
+            assert self.num_days is None, (
+                "num_days is only meaningful together with format_day"
+            )
+
+
+def _resolve_cdfs_window(
+    spec: CardDataFileSpec, set_code: str
+) -> tuple[datetime.date, datetime.date]:
+    if spec.start_date is not None:
+        end_date = spec.end_date or (datetime.date.today() - datetime.timedelta(days=1))
+        return spec.start_date, end_date
+
+    release_date = expansion_start_date(set_code)
+    start_date = release_date + datetime.timedelta(days=spec.format_day - 1)
+    end_date = start_date + datetime.timedelta(days=spec.num_days - 1)
+    return start_date, end_date
 
 
 def _cache_key(args) -> str:
@@ -491,21 +538,21 @@ def _base_agg_df(
 
 
 def _normalize_context(
-    context: pl.DataFrame | dict | None,
+    context: pl.DataFrame | dict | Any | None,
     cells: list[tuple[str, EventType]],
-) -> dict[tuple[str, EventType], pl.DataFrame | dict | None]:
-    """Normalize a user-provided context into the canonical (set_code, event_type)-keyed dict.
-
-    The canonical index for card and set context is (set_code, event_type), matching
-    the data files — these contexts are the hook for looping aggregations back into
-    row-level selectors (e.g. joining card win rates in as card_context). Context may
-    be supplied at that full index or in a broadcast form for convenience:
+) -> dict[tuple[str, EventType], Any]:
+    """Normalize a user-provided per-cell value into the canonical (set_code,
+    event_type)-keyed dict. Used for `card_context`, `set_context`, and `cdfs` —
+    anything keyed at the (set_code, event_type) granularity — since all three
+    accept the same broadcast forms:
 
       - dict keyed by (set_code, event_type) tuples — the canonical index
       - dict keyed by set_code — broadcast across event types
-      - a bare context (set_context fields, or {name: {...}} card context) — broadcast
-        across every set and event type
+      - a bare value (set_context fields, {name: {...}} card context, or a single
+        CardDataFileSpec) — broadcast across every set and event type
       - a DataFrame — filtered by `expansion` and, when present, `event_type`
+        (card_context/set_context only; cdfs values are never DataFrames, so they
+        always fall through to the bare-broadcast case)
 
     `cells` is the full set of (set_code, event_type) pairs the caller is about to
     process; the returned dict has exactly those keys.
@@ -551,7 +598,7 @@ def summon(
     write_cache: bool = True,
     card_context: pl.DataFrame | dict | None = None,
     set_context: pl.DataFrame | dict | None = None,
-    cdfs: CardDataFileSpec | None = None,
+    cdfs: CardDataFileSpec | dict[str, CardDataFileSpec] | dict[tuple[str, EventType], CardDataFileSpec] | None = None,
     event_type: EventType | list[EventType] = EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
@@ -570,57 +617,58 @@ def summon(
     event_types = [EventType(et) for et in event_types]
 
     cells = [(code, et) for code in codes for et in event_types]
-    if cdfs is not None:
-        cells = cells + [(cdfs.set_code, cdfs.event_type)]
     card_context_by_cell = _normalize_context(card_context, cells)
     set_context_by_cell = _normalize_context(set_context, cells)
+    cdfs_by_cell = _normalize_context(cdfs, cells)
 
     m = None
 
     concat_dfs = []
     for code in codes:
-        if cdfs is not None:
-            assert len(codes) == 1, "Only one set supported for loading from card data file"
-            assert codes[0] == cdfs.set_code, "Wrong set file specified"
-            agg_df = base_ratings_df(
-                set_code=cdfs.set_code,
-                event_type=cdfs.event_type,
-                player_cohort=cdfs.player_cohort,
-                deck_colors=cdfs.deck_colors,
-                start_date=cdfs.start_date,
-                end_date=cdfs.end_date,
-            )
-            cdfs_names = agg_df[ColName.NAME].to_list()
-            try:
-                write_card_file(code, cdfs_names)
-            except ValueError:
-                raise  # card list inconsistency — propagate
-            except Exception:
-                pass  # MTGJSON unavailable (e.g. new set on release day)
-            m = manifest.create(
-                _hydrate_col_defs(
-                    code,
-                    specs,
-                    card_context_by_cell[(code, cdfs.event_type)],
-                    set_context_by_cell[(code, cdfs.event_type)],
-                    cdfs.event_type,
-                    card_only=True,
-                    names=cdfs_names,
-                ),
-                columns,
-                group_by,
-                filter_spec,
-            )
-            concat_dfs.append(agg_df)
-            continue
-
         for code_event_type in event_types:
+            cell = (code, code_event_type)
+            cell_cdfs = cdfs_by_cell[cell]
+
+            if cell_cdfs is not None:
+                start_date, end_date = _resolve_cdfs_window(cell_cdfs, code)
+                agg_df = base_ratings_df(
+                    set_code=code,
+                    event_type=code_event_type,
+                    player_cohort=cell_cdfs.player_cohort,
+                    deck_colors=cell_cdfs.deck_colors,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
+                cdfs_names = agg_df[ColName.NAME].to_list()
+                try:
+                    write_card_file(code, cdfs_names)
+                except ValueError:
+                    raise  # card list inconsistency — propagate
+                except Exception:
+                    pass  # MTGJSON unavailable (e.g. new set on release day)
+                m = manifest.create(
+                    _hydrate_col_defs(
+                        code,
+                        specs,
+                        card_context_by_cell[cell],
+                        set_context_by_cell[cell],
+                        code_event_type,
+                        card_only=True,
+                        names=cdfs_names,
+                    ),
+                    columns,
+                    group_by,
+                    filter_spec,
+                )
+                concat_dfs.append(agg_df)
+                continue
+
             logging.info(f"Calculating agg df for {code} {code_event_type}")
             col_def_map = _hydrate_col_defs(
                 code,
                 specs,
-                card_context_by_cell[(code, code_event_type)],
-                set_context_by_cell[(code, code_event_type)],
+                card_context_by_cell[cell],
+                set_context_by_cell[cell],
                 code_event_type,
             )
             m = manifest.create(col_def_map, columns, group_by, filter_spec)

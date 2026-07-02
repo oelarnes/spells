@@ -32,6 +32,7 @@ class DataDir(StrEnum):
     RATINGS = "ratings"
     DECK_COLOR = "deck_color"
     DRAFT = "draft"
+    FILTERS = "filters"
 
 
 def spells_print(mode, content):
@@ -147,6 +148,7 @@ def data_dir_path(cache_dir: DataDir) -> str:
         DataDir.RATINGS: "Ratings" if is_win else "ratings",
         DataDir.DECK_COLOR: "DeckColor" if is_win else "deck_color",
         DataDir.DRAFT: "Draft" if is_win else "draft",
+        DataDir.FILTERS: "Filters" if is_win else "filters",
     }[cache_dir]
 
     data_dir = os.path.join(data_home(), ext)
@@ -192,6 +194,14 @@ def card_ratings_file_path(
 def draft_file_path(draft_id: str) -> tuple[str, str]:
     """Completed drafts are immutable, so files are cached indefinitely by id."""
     return data_dir_path(DataDir.DRAFT), f"{draft_id}.json"
+
+
+def filters_file_path(fetch_date: dt.date) -> tuple[str, str]:
+    """One file per calendar day, so the 17lands /data/filters endpoint (expansion
+    list, format list, and each expansion's start_date) is fetched at most once a
+    day. Older dated files are left in place on disk as an offline/stale fallback.
+    """
+    return data_dir_path(DataDir.FILTERS), f"filters_{fetch_date.strftime('%Y-%m-%d')}.json"
 
 
 def deck_color_file_path(

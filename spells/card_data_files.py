@@ -1,5 +1,8 @@
 import datetime as dt
+import json
+import logging
 import os
+from pathlib import Path
 import wget
 from time import sleep
 
@@ -17,6 +20,8 @@ DECK_COLOR_DATA_TEMPLATE = (
     "https://www.17lands.com/color_ratings/data?expansion={set_code}&event_type={format}"
     "{user_group_param}&start_date={start_date_str}&end_date={end_date_str}&combine_splash=true"
 )
+
+FILTERS_URL = "https://www.17lands.com/data/filters"
 
 
 ratings_col_defs = {
@@ -63,6 +68,54 @@ def download_data_file(url: str, target_dir: str, filename: str) -> str:
         wget.download(url, out=file_path)
 
     return file_path
+
+
+def _fetch_filters() -> dict:
+    """Fetch 17lands' /data/filters endpoint (expansion list, format list, and each
+    expansion's `start_date`), cached to one file per calendar day so it's fetched
+    at most once a day. Falls back to the most recently cached file if the network
+    is unavailable — since the endpoint always returns the full set of expansions,
+    a stale cache still answers correctly for any expansion whose start_date isn't
+    still changing (i.e. everything except a set that released within the gap since
+    the last successful fetch).
+    """
+    target_dir, filename = cache.filters_file_path(dt.date.today())
+    file_path = os.path.join(target_dir, filename)
+
+    if os.path.isfile(file_path):
+        return json.loads(Path(file_path).read_text())
+
+    if not os.path.isdir(target_dir):
+        os.makedirs(target_dir)
+
+    try:
+        wget.download(FILTERS_URL, out=file_path)
+        return json.loads(Path(file_path).read_text())
+    except Exception as e:
+        cached = sorted(Path(target_dir).glob("filters_*.json"))
+        if not cached:
+            raise RuntimeError(
+                f"Could not fetch {FILTERS_URL} and no cached filters file exists"
+            ) from e
+        logging.warning(
+            f"Fetching {FILTERS_URL} failed ({e}); using stale cache {cached[-1].name}"
+        )
+        return json.loads(cached[-1].read_text())
+
+
+def expansion_start_date(set_code: str) -> dt.date:
+    """The date 17lands considers a format to have started for `set_code`, per the
+    same endpoint that defaults the date range on 17lands.com/card_data. Used to
+    resolve a `CardDataFileSpec`'s `format_day`-relative window without requiring
+    the caller to know or maintain each set's release date.
+    """
+    filters = _fetch_filters()
+    start_dates = filters.get("start_dates", {})
+    if set_code not in start_dates:
+        raise ValueError(
+            f"No known start date for set '{set_code}' from {FILTERS_URL}"
+        )
+    return dt.datetime.fromisoformat(start_dates[set_code]).date()
 
 
 def deck_color_df(

@@ -537,6 +537,37 @@ FAKE_CARD_RATINGS = [
     },
 ]
 
+# A second fake set, on its own date window, so multi-set cdfs broadcast forms
+# (bare vs. set-code-keyed vs. tuple-keyed) have something real to disambiguate.
+FAKE_SET_2 = "TS2"
+FAKE_START_2 = datetime.date(2026, 2, 1)
+FAKE_END_2 = datetime.date(2026, 2, 2)
+
+FAKE_CARD_RATINGS_2 = [
+    {
+        "name": "Ember Scout", "color": "R", "rarity": "common",
+        "url": "https://example.com/ember_scout.jpg",
+        "seen_count": 500, "avg_seen": 6.0,
+        "pick_count": 300, "avg_pick": 4.4,
+        "game_count": 200, "win_rate": 0.51, "pool_count": 260,
+        "opening_hand_game_count": 40, "opening_hand_win_rate": 0.50,
+        "drawn_game_count": 60, "drawn_win_rate": 0.49,
+        "ever_drawn_game_count": 100, "ever_drawn_win_rate": 0.50,
+        "never_drawn_game_count": 100, "never_drawn_win_rate": 0.52,
+    },
+    {
+        "name": "Tidal Warden", "color": "U", "rarity": "uncommon",
+        "url": "https://example.com/tidal_warden.jpg",
+        "seen_count": 450, "avg_seen": 5.2,
+        "pick_count": 320, "avg_pick": 3.6,
+        "game_count": 220, "win_rate": 0.58, "pool_count": 280,
+        "opening_hand_game_count": 45, "opening_hand_win_rate": 0.60,
+        "drawn_game_count": 65, "drawn_win_rate": 0.57,
+        "ever_drawn_game_count": 110, "ever_drawn_win_rate": 0.59,
+        "never_drawn_game_count": 110, "never_drawn_win_rate": 0.57,
+    },
+]
+
 
 @pytest.fixture()
 def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
@@ -553,6 +584,15 @@ def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Genera
             f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
         )
         (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
+
+    ratings_dir_2 = tmp_path / "ratings" / FAKE_SET_2
+    ratings_dir_2.mkdir(parents=True)
+    filename_2 = (
+        f"{EventType.PREMIER}_all_any"
+        f"_{FAKE_START_2.strftime('%Y-%m-%d')}"
+        f"_{FAKE_END_2.strftime('%Y-%m-%d')}.json"
+    )
+    (ratings_dir_2 / filename_2).write_text(json.dumps(FAKE_CARD_RATINGS_2))
 
     yield tmp_path
 
