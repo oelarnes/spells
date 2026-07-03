@@ -524,7 +524,7 @@ FAKE_CARD_RATINGS = [
     },
     {
         # Distinct from the parquet-path "Crystal Idol" — FAKE_CARD_RATINGS feeds the
-        # cdfs/ratings-JSON fixture, which is independent of the card parquet.
+        # card_ratings_view/ratings-JSON fixture, which is independent of the card parquet.
         "name": "Crystal Warden", "color": "W", "rarity": "rare",
         "url": "https://example.com/crystal_warden.jpg",
         "seen_count": 700, "avg_seen": 5.1,
@@ -537,7 +537,7 @@ FAKE_CARD_RATINGS = [
     },
 ]
 
-# A second fake set, on its own date window, so multi-set cdfs broadcast forms
+# A second fake set, on its own date window, so multi-set card_ratings_view broadcast forms
 # (bare vs. set-code-keyed vs. tuple-keyed) have something real to disambiguate.
 FAKE_SET_2 = "TS2"
 FAKE_START_2 = datetime.date(2026, 2, 1)
@@ -576,7 +576,7 @@ def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Genera
     ratings_dir = tmp_path / "ratings" / FAKE_SET
     ratings_dir.mkdir(parents=True)
 
-    # Write a ratings file per format so the cdfs event_type path is exercisable.
+    # Write a ratings file per format so the card_ratings_view event_type path is exercisable.
     for fmt in (EventType.PREMIER, EventType.TRADITIONAL):
         filename = (
             f"{fmt}_all_any"

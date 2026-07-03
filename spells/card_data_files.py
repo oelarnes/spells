@@ -106,7 +106,7 @@ def _fetch_filters() -> dict:
 def expansion_start_date(set_code: str) -> dt.date:
     """The date 17lands considers a format to have started for `set_code`, per the
     same endpoint that defaults the date range on 17lands.com/card_data. Used to
-    resolve a `CardDataFileSpec`'s `format_day`-relative window without requiring
+    resolve a `DateSpec`'s `format_day`-relative window without requiring
     the caller to know or maintain each set's release date.
     """
     filters = _fetch_filters()
