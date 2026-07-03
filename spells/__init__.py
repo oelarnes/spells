@@ -2,7 +2,7 @@ import logging
 
 from spells.columns import ColSpec
 from spells.enums import ColType, ColName
-from spells.draft_data import summon, view_select, get_names
+from spells.draft_data import summon, view_select, get_names, card_ratings_view, DateSpec
 from spells.draft_model import (
     Draft,
     DraftCard,
@@ -19,6 +19,8 @@ __all__ = [
     "summon",
     "view_select",
     "get_names",
+    "card_ratings_view",
+    "DateSpec",
     "fetch_draft",
     "draft_from_public_data",
     "draft_view_df",
