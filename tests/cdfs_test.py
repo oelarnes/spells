@@ -16,7 +16,7 @@ import datetime
 import polars as pl
 import pytest
 
-from spells.draft_data import CardDataFileSpec, summon
+from spells.draft_data import CardDataFileSpec, _resolve_cdfs_window, summon
 from spells.columns import ColSpec
 from spells.enums import ColType, EventType
 
@@ -262,6 +262,19 @@ def test_cdfs_format_day_resolves_relative_window(fake_ratings_file, monkeypatch
     assert len(result) == len(FAKE_CARD_RATINGS)
 
 
+def test_cdfs_format_day_without_num_days_defaults_to_yesterday(monkeypatch):
+    # num_days is optional: omitting it means "from format_day through yesterday",
+    # matching the same default base_ratings_df already uses for a bare start_date.
+    release_date = datetime.date(2026, 1, 1)
+    monkeypatch.setattr(
+        "spells.draft_data.expansion_start_date", lambda set_code: release_date
+    )
+
+    start, end = _resolve_cdfs_window(CardDataFileSpec(format_day=3), "TST")
+    assert start == release_date + datetime.timedelta(days=2)
+    assert end == datetime.date.today() - datetime.timedelta(days=1)
+
+
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
@@ -277,9 +290,13 @@ def test_cdfs_rejects_both_start_date_and_format_day():
         CardDataFileSpec(start_date=FAKE_START, format_day=1, num_days=1)
 
 
-def test_cdfs_format_day_requires_num_days():
+def test_cdfs_format_day_without_num_days_is_valid():
+    CardDataFileSpec(format_day=1)  # should not raise
+
+
+def test_cdfs_format_day_rejects_non_positive_num_days():
     with pytest.raises(AssertionError):
-        CardDataFileSpec(format_day=1)
+        CardDataFileSpec(format_day=1, num_days=0)
 
 
 def test_cdfs_num_days_requires_format_day():

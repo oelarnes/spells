@@ -43,10 +43,11 @@ class CardDataFileSpec():
         applied identically to every set/event_type this spec is broadcast to.
         Useful for cross-set comparisons over the same calendar range (e.g. a
         single week, to compare formats' day-of-week effects).
-      - `format_day` + `num_days`: a window relative to each set's own release
-        date (day 1 = release day, matching the `FORMAT_DAY` column), resolved
-        independently per set via `expansion_start_date()`. Useful for "first N
-        days of the format" comparisons across sets with different release dates.
+      - `format_day` (+ optional `num_days`, default: through yesterday): a
+        window relative to each set's own release date (day 1 = release day,
+        matching the `FORMAT_DAY` column), resolved independently per set via
+        `expansion_start_date()`. Useful for "starting on day N of the format"
+        comparisons across sets with different release dates.
     """
 
     start_date: datetime.date | None = None
@@ -66,8 +67,8 @@ class CardDataFileSpec():
             "— not both, not neither."
         )
         if relative:
-            assert self.num_days is not None and self.num_days > 0, (
-                "num_days (a positive int) is required when using format_day"
+            assert self.num_days is None or self.num_days > 0, (
+                "num_days must be a positive int when given"
             )
         else:
             assert self.num_days is None, (
@@ -78,13 +79,18 @@ class CardDataFileSpec():
 def _resolve_cdfs_window(
     spec: CardDataFileSpec, set_code: str
 ) -> tuple[datetime.date, datetime.date]:
+    yesterday = datetime.date.today() - datetime.timedelta(days=1)
+
     if spec.start_date is not None:
-        end_date = spec.end_date or (datetime.date.today() - datetime.timedelta(days=1))
-        return spec.start_date, end_date
+        return spec.start_date, spec.end_date or yesterday
 
     release_date = expansion_start_date(set_code)
     start_date = release_date + datetime.timedelta(days=spec.format_day - 1)
-    end_date = start_date + datetime.timedelta(days=spec.num_days - 1)
+    end_date = (
+        start_date + datetime.timedelta(days=spec.num_days - 1)
+        if spec.num_days is not None
+        else yesterday
+    )
     return start_date, end_date
 
 
