@@ -139,7 +139,7 @@ def _get_card_context(
         if not os.path.isfile(fp):
             write_card_file(set_code, names_from_parquet(set_code, event_type))
         card_df = pl.read_parquet(fp)
-        select_rows = lazy_select(
+        select_rows = _view_select(
             card_df, frozenset(columns), col_def_map, is_agg_view=False
         ).to_dicts()
 
@@ -391,7 +391,7 @@ def _hydrate_col_defs(
     return hydrated
 
 
-def lazy_select(
+def _view_select(
     df: DF,
     view_cols: frozenset[str],
     col_def_map: dict[str, ColDef],
@@ -422,7 +422,7 @@ def lazy_select(
                 select.append(cdef.expr)
 
     if base_cols != view_cols:
-        df = lazy_select(df, base_cols, col_def_map, is_agg_view)
+        df = _view_select(df, base_cols, col_def_map, is_agg_view)
 
     return df.select(select)
 
@@ -468,7 +468,7 @@ def _base_agg_df(
             continue
         df_path = cache.data_file_path(set_code, view, event_type)
         base_view_df = pl.scan_parquet(df_path)
-        base_df_prefilter = lazy_select(
+        base_df_prefilter = _view_select(
             base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
         )
 
@@ -611,7 +611,7 @@ def _finalize_agg(concat_dfs: list[pl.DataFrame], m: manifest.Manifest) -> pl.Da
 
     ret_cols = m.group_by + m.columns
     return (
-        lazy_select(full_agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True)
+        _view_select(full_agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True)
         .select(ret_cols)
         .sort(m.group_by)
     )
@@ -693,7 +693,7 @@ def summon(
                 card_cols = m.view_cols[View.CARD].union({ColName.NAME})
                 fp = cache.data_file_path(code, View.CARD)
                 card_df = pl.read_parquet(fp)
-                select_df = lazy_select(
+                select_df = _view_select(
                     card_df, card_cols, m.col_def_map, is_agg_view=False
                 )
                 agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
@@ -789,7 +789,7 @@ def card_ratings_view(
     return _finalize_agg(concat_dfs, m)
 
 
-def view_select(
+def lazy_select(
     set_code: str,
     view: View,
     columns: list[str],
@@ -826,7 +826,7 @@ def view_select(
     if filter_ is not None:
         select_cols = select_cols.union(filter_.lhs)
 
-    base_df_prefilter = lazy_select(
+    base_df_prefilter = _view_select(
         base_view_df,
         select_cols,
         col_def_map,
