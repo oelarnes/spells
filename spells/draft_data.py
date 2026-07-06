@@ -6,7 +6,6 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
-from dataclasses import dataclass, field
 import datetime
 import functools
 import hashlib
@@ -30,20 +29,6 @@ from spells.log import make_verbose
 from spells.card_data_files import base_ratings_df
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
-
-@dataclass
-class DateSpec():
-    """17lands serves card data for named time periods only, resolved server-side
-    against its own current date. `as_of` keys the local snapshot cache: today's
-    snapshot is fetched on a cache miss, while a past `as_of` only reads snapshots
-    already on disk (a missed day cannot be refetched).
-    """
-
-    time_period: TimePeriod = TimePeriod.ALL_TIME
-    as_of: datetime.date = field(default_factory=datetime.date.today)
-
-    def __post_init__(self):
-        self.time_period = TimePeriod(self.time_period)
 
 
 def _cache_key(args) -> str:
@@ -652,7 +637,8 @@ def card_ratings_view(
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
-    date_spec: DateSpec | dict[str, DateSpec] | dict[tuple[str, EventType], DateSpec] | None = None,
+    time_period: TimePeriod = TimePeriod.ALL_TIME,
+    as_of: datetime.date | None = None,
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
 ) -> pl.DataFrame:
@@ -663,6 +649,11 @@ def card_ratings_view(
     `set_context` (CARD_ATTR columns come directly from the API response; join in
     anything else with a plain DataFrame `.join()` after the call, the same way
     every existing caller of this path already does).
+
+    17lands serves card data for named time periods only, resolved server-side
+    against its own current date. `as_of` keys the local snapshot cache: today's
+    snapshot (the default) is fetched on a cache miss, while a past `as_of` only
+    reads a snapshot already on disk (a missed day cannot be refetched).
     """
     specs = get_specs()
 
@@ -679,24 +670,20 @@ def card_ratings_view(
     event_types = event_type if isinstance(event_type, list) else [event_type]
     event_types = [EventType(et) for et in event_types]
 
-    cells = [(code, et) for code in codes for et in event_types]
-    date_spec_by_cell = _normalize_context_keys(date_spec, cells)
+    time_period = TimePeriod(time_period)
 
     m = None
 
     concat_dfs = []
     for code in codes:
         for code_event_type in event_types:
-            cell = (code, code_event_type)
-            cell_spec = date_spec_by_cell[cell] or DateSpec()
-
             agg_df = base_ratings_df(
                 set_code=code,
                 event_type=code_event_type,
                 player_cohort=player_cohort,
                 deck_colors=deck_colors,
-                time_period=cell_spec.time_period,
-                as_of=cell_spec.as_of,
+                time_period=time_period,
+                as_of=as_of,
             )
             names = agg_df[ColName.NAME].to_list()
             try:
