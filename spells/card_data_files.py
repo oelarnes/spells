@@ -1,6 +1,5 @@
 import datetime as dt
 import json
-import logging
 import os
 from pathlib import Path
 import wget
@@ -9,19 +8,17 @@ from time import sleep
 import polars as pl
 
 from spells import cache
-from spells.enums import ColName, EventType
+from spells.enums import ColName, EventType, TimePeriod
 
 RATINGS_TEMPLATE = (
-    "https://www.17lands.com/card_ratings/data?expansion={set_code}&format={format}"
-    "{user_group_param}{deck_color_param}&start_date={start_date_str}&end_date={end_date_str}"
+    "https://www.17lands.com/api/card_data?expansion={set_code}&event_type={event_type}"
+    "&time_period={time_period}{user_group_param}{deck_color_param}"
 )
 
 DECK_COLOR_DATA_TEMPLATE = (
-    "https://www.17lands.com/color_ratings/data?expansion={set_code}&event_type={format}"
-    "{user_group_param}&start_date={start_date_str}&end_date={end_date_str}&combine_splash=true"
+    "https://www.17lands.com/color_ratings/data?expansion={set_code}&event_type={event_type}"
+    "&time_period={time_period}{user_group_param}&combine_splash=true"
 )
-
-FILTERS_URL = "https://www.17lands.com/data/filters"
 
 
 ratings_col_defs = {
@@ -70,52 +67,38 @@ def download_data_file(url: str, target_dir: str, filename: str) -> str:
     return file_path
 
 
-def _fetch_filters() -> dict:
-    """Fetch 17lands' /data/filters endpoint (expansion list, format list, and each
-    expansion's `start_date`), cached to one file per calendar day so it's fetched
-    at most once a day. Falls back to the most recently cached file if the network
-    is unavailable — since the endpoint always returns the full set of expansions,
-    a stale cache still answers correctly for any expansion whose start_date isn't
-    still changing (i.e. everything except a set that released within the gap since
-    the last successful fetch).
+def _validated_as_of(as_of: dt.date | None) -> dt.date:
+    today = dt.date.today()
+    if as_of is None:
+        return today
+    if as_of > today:
+        raise ValueError(f"as_of={as_of} is in the future")
+    return as_of
+
+
+def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) -> list:
+    """Return the cached JSON payload for an `as_of` snapshot, downloading it only
+    when `as_of` is today. 17lands resolves `time_period` relative to its own
+    current date, so a missed snapshot for a past `as_of` cannot be reconstructed.
+    An empty payload is not cached: it indicates an unsupported query (bad
+    set/event_type, or a filter combination the 17lands precompute doesn't cover).
     """
-    target_dir, filename = cache.filters_file_path(dt.date.today())
     file_path = os.path.join(target_dir, filename)
 
     if os.path.isfile(file_path):
         return json.loads(Path(file_path).read_text())
 
-    if not os.path.isdir(target_dir):
-        os.makedirs(target_dir)
-
-    try:
-        wget.download(FILTERS_URL, out=file_path)
-        return json.loads(Path(file_path).read_text())
-    except Exception as e:
-        cached = sorted(Path(target_dir).glob("filters_*.json"))
-        if not cached:
-            raise RuntimeError(
-                f"Could not fetch {FILTERS_URL} and no cached filters file exists"
-            ) from e
-        logging.warning(
-            f"Fetching {FILTERS_URL} failed ({e}); using stale cache {cached[-1].name}"
-        )
-        return json.loads(cached[-1].read_text())
-
-
-def expansion_start_date(set_code: str) -> dt.date:
-    """The date 17lands considers a format to have started for `set_code`, per the
-    same endpoint that defaults the date range on 17lands.com/card_data. Used to
-    resolve a `DateSpec`'s `format_day`-relative window without requiring
-    the caller to know or maintain each set's release date.
-    """
-    filters = _fetch_filters()
-    start_dates = filters.get("start_dates", {})
-    if set_code not in start_dates:
+    if as_of < dt.date.today():
         raise ValueError(
-            f"No known start date for set '{set_code}' from {FILTERS_URL}"
+            f"No cached snapshot {filename} for as_of={as_of}, and past snapshots "
+            "cannot be fetched"
         )
-    return dt.datetime.fromisoformat(start_dates[set_code]).date()
+
+    download_data_file(url, target_dir, filename)
+    payload = json.loads(Path(file_path).read_text())
+    if not payload:
+        os.remove(file_path)
+    return payload
 
 
 def deck_color_df(
@@ -123,18 +106,18 @@ def deck_color_df(
     event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
     *,
-    start_date: dt.date,
-    end_date: dt.date | None = None,
+    time_period: TimePeriod = TimePeriod.ALL_TIME,
+    as_of: dt.date | None = None,
 ):
-    if end_date is None:
-        end_date = dt.date.today() - dt.timedelta(days=1)
+    time_period = TimePeriod(time_period)
+    as_of = _validated_as_of(as_of)
 
     target_dir, filename = cache.deck_color_file_path(
         set_code,
         event_type,
         player_cohort,
-        start_date,
-        end_date,
+        time_period,
+        as_of,
     )
 
     user_group_param = (
@@ -143,16 +126,20 @@ def deck_color_df(
 
     url = DECK_COLOR_DATA_TEMPLATE.format(
         set_code=set_code,
-        format=event_type,
+        event_type=event_type,
+        time_period=time_period,
         user_group_param=user_group_param,
-        start_date_str=start_date.strftime("%Y-%m-%d"),
-        end_date_str=end_date.strftime("%Y-%m-%d"),
     )
 
-    deck_color_file_path = download_data_file(url, target_dir, filename)
+    payload = _fetch_snapshot(url, target_dir, filename, as_of)
+    if not payload:
+        raise ValueError(
+            f"Empty color ratings response for {set_code} {event_type} "
+            f"time_period={time_period} player_cohort={player_cohort}"
+        )
 
     df = (
-        pl.read_json(deck_color_file_path)
+        pl.from_dicts(payload)
         .filter(~pl.col("is_summary"))
         .select(
             [
@@ -175,11 +162,11 @@ def base_ratings_df(
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
     *,
-    start_date: dt.date,
-    end_date: dt.date | None = None,
+    time_period: TimePeriod = TimePeriod.ALL_TIME,
+    as_of: dt.date | None = None,
 ) -> pl.DataFrame:
-    if end_date is None:
-        end_date = dt.date.today() - dt.timedelta(days=1)
+    time_period = TimePeriod(time_period)
+    as_of = _validated_as_of(as_of)
 
     if isinstance(deck_colors, str):
         deck_colors = [deck_colors]
@@ -191,8 +178,8 @@ def base_ratings_df(
             event_type,
             player_cohort,
             deck_color,
-            start_date,
-            end_date,
+            time_period,
+            as_of,
         )
 
         # rate-limit consecutive downloads, but not cache hits
@@ -206,17 +193,27 @@ def base_ratings_df(
 
         url = RATINGS_TEMPLATE.format(
             set_code=set_code,
-            format=event_type,
+            event_type=event_type,
+            time_period=time_period,
             user_group_param=user_group_param,
             deck_color_param=deck_color_param,
-            start_date_str=start_date.strftime("%Y-%m-%d"),
-            end_date_str=end_date.strftime("%Y-%m-%d"),
         )
 
-        ratings_file_path = download_data_file(url, ratings_dir, filename)
+        payload = _fetch_snapshot(url, ratings_dir, filename, as_of)
+        if not payload:
+            gap_hint = (
+                " (17lands does not precompute user_group and colors together)"
+                if player_cohort != "all" and deck_color != "any"
+                else ""
+            )
+            raise ValueError(
+                f"Empty card ratings response for {set_code} {event_type} "
+                f"time_period={time_period} player_cohort={player_cohort} "
+                f"colors={deck_color}{gap_hint}"
+            )
 
         concat_list.append(
-            pl.read_json(ratings_file_path, infer_schema_length=1000)
+            pl.from_dicts(payload, infer_schema_length=1000)
             .with_columns(
                 (pl.lit(deck_color) if deck_color != "any" else pl.lit(None))
                 .alias(ColName.MAIN_COLORS)

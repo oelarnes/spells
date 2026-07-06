@@ -27,6 +27,16 @@ class EventType(StrEnum):
     PICK_TWO = "PickTwoDraft"
 
 
+class TimePeriod(StrEnum):
+    ALL_TIME = "ALL_TIME"
+    ALL_EXCEPT_FIRST_WEEK = "ALL_EXCEPT_FIRST_WEEK"
+    LATEST_EVENT = "LATEST_EVENT"
+    LAST_TWO_WEEKS = "LAST_TWO_WEEKS"
+    LAST_WEEK = "LAST_WEEK"
+    LAST_DAY = "LAST_DAY"
+    FIRST_WEEK = "FIRST_WEEK"
+
+
 class ColName(StrEnum):
     """
     A list of all available columns, including built-in extensions.

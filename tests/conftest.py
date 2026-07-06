@@ -7,12 +7,11 @@ import polars as pl
 import pytest
 
 from spells.draft_data import get_names
-from spells.enums import EventType
+from spells.enums import EventType, TimePeriod
 
 
 FAKE_SET = "TST"
-FAKE_START = datetime.date(2026, 1, 1)
-FAKE_END = datetime.date(2026, 1, 2)
+FAKE_AS_OF = datetime.date(2026, 1, 2)
 
 # 6 cards: 2 U, 2 R, 1 UR multicolor, 1 colorless. Supports group_by/filter on
 # color with 4 distinct groups (U, R, UR, "") and main_colors permutations
@@ -537,11 +536,12 @@ FAKE_CARD_RATINGS = [
     },
 ]
 
-# A second fake set, on its own date window, so multi-set card_ratings_view broadcast forms
-# (bare vs. set-code-keyed vs. tuple-keyed) have something real to disambiguate.
+# A second fake set, seeded at its own as-of date, so multi-set card_ratings_view
+# broadcast forms (bare vs. set-code-keyed vs. tuple-keyed) have something real to
+# disambiguate. Both as-of dates are in the past, so a cache miss raises instead of
+# reaching the network.
 FAKE_SET_2 = "TS2"
-FAKE_START_2 = datetime.date(2026, 2, 1)
-FAKE_END_2 = datetime.date(2026, 2, 2)
+FAKE_AS_OF_2 = datetime.date(2026, 2, 2)
 
 FAKE_CARD_RATINGS_2 = [
     {
@@ -579,18 +579,16 @@ def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Genera
     # Write a ratings file per format so the card_ratings_view event_type path is exercisable.
     for fmt in (EventType.PREMIER, EventType.TRADITIONAL):
         filename = (
-            f"{fmt}_all_any"
-            f"_{FAKE_START.strftime('%Y-%m-%d')}"
-            f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
+            f"{fmt}_all_any_{TimePeriod.ALL_TIME}"
+            f"_{FAKE_AS_OF.strftime('%Y-%m-%d')}.json"
         )
         (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
 
     ratings_dir_2 = tmp_path / "ratings" / FAKE_SET_2
     ratings_dir_2.mkdir(parents=True)
     filename_2 = (
-        f"{EventType.PREMIER}_all_any"
-        f"_{FAKE_START_2.strftime('%Y-%m-%d')}"
-        f"_{FAKE_END_2.strftime('%Y-%m-%d')}.json"
+        f"{EventType.PREMIER}_all_any_{TimePeriod.ALL_TIME}"
+        f"_{FAKE_AS_OF_2.strftime('%Y-%m-%d')}.json"
     )
     (ratings_dir_2 / filename_2).write_text(json.dumps(FAKE_CARD_RATINGS_2))
 

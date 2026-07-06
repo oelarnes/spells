@@ -15,7 +15,7 @@ import sys
 
 import polars as pl
 
-from spells.enums import EventType
+from spells.enums import EventType, TimePeriod
 
 
 class Env(StrEnum):
@@ -32,7 +32,6 @@ class DataDir(StrEnum):
     RATINGS = "ratings"
     DECK_COLOR = "deck_color"
     DRAFT = "draft"
-    FILTERS = "filters"
 
 
 def spells_print(mode, content):
@@ -148,7 +147,6 @@ def data_dir_path(cache_dir: DataDir) -> str:
         DataDir.RATINGS: "Ratings" if is_win else "ratings",
         DataDir.DECK_COLOR: "DeckColor" if is_win else "deck_color",
         DataDir.DRAFT: "Draft" if is_win else "draft",
-        DataDir.FILTERS: "Filters" if is_win else "filters",
     }[cache_dir]
 
     data_dir = os.path.join(data_home(), ext)
@@ -179,15 +177,15 @@ def card_ratings_file_path(
     event_type: EventType,
     user_group: str,
     deck_color: str,
-    start_date: dt.date,
-    end_date: dt.date,
+    time_period: TimePeriod,
+    as_of: dt.date,
 ) -> tuple[str, str]:
     return os.path.join(
         data_dir_path(DataDir.RATINGS),
         set_code,
     ), (
-        f"{event_type}_{user_group}_{deck_color}_{start_date.strftime('%Y-%m-%d')}"
-        f"_{end_date.strftime('%Y-%m-%d')}.json"
+        f"{event_type}_{user_group}_{deck_color}_{time_period}"
+        f"_{as_of.strftime('%Y-%m-%d')}.json"
     )
 
 
@@ -196,27 +194,19 @@ def draft_file_path(draft_id: str) -> tuple[str, str]:
     return data_dir_path(DataDir.DRAFT), f"{draft_id}.json"
 
 
-def filters_file_path(fetch_date: dt.date) -> tuple[str, str]:
-    """One file per calendar day, so the 17lands /data/filters endpoint (expansion
-    list, format list, and each expansion's start_date) is fetched at most once a
-    day. Older dated files are left in place on disk as an offline/stale fallback.
-    """
-    return data_dir_path(DataDir.FILTERS), f"filters_{fetch_date.strftime('%Y-%m-%d')}.json"
-
-
 def deck_color_file_path(
     set_code: str,
     event_type: EventType,
     user_group: str,
-    start_date: dt.date,
-    end_date: dt.date,
+    time_period: TimePeriod,
+    as_of: dt.date,
 ) -> tuple[str, str]:
     return os.path.join(
         data_dir_path(DataDir.DECK_COLOR),
         set_code,
     ), (
-        f"{event_type}_{user_group}_{start_date.strftime('%Y-%m-%d')}"
-        f"_{end_date.strftime('%Y-%m-%d')}.json"
+        f"{event_type}_{user_group}_{time_period}"
+        f"_{as_of.strftime('%Y-%m-%d')}.json"
     )
 
 

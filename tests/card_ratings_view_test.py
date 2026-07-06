@@ -1,11 +1,12 @@
 """
-Tests for card_ratings_view() — the live-fetch (17lands daily API) counterpart
-to summon(). This is the DEq workflow.
+Tests for card_ratings_view() — the live-fetch (17lands /api/card_data)
+counterpart to summon(). This is the DEq workflow.
 
-All tests use fake set codes ("TST", "TS2") with no local parquet files. Ratings
-JSON is pre-seeded in a temp directory so no network calls are made. This also
-serves as a regression suite for the new-set KeyError that occurred when a set
-code was absent from the (now-removed) START_DATE_MAP.
+All tests use fake set codes ("TST", "TS2") with no local parquet files.
+Ratings JSON is pre-seeded as snapshots at past as-of dates, so a cache miss
+raises instead of reaching the network (past snapshots cannot be refetched —
+17lands resolves time periods against its own current date). Tests that
+exercise the fetch path itself monkeypatch wget.download.
 
 card_ratings_view() takes no filter_spec/card_context/set_context: the ratings
 API already returns one aggregated row per card, so there's nothing to
@@ -15,28 +16,29 @@ cross-referencing with a plain DataFrame .join() after the call.
 """
 
 import datetime
+import json
+from pathlib import Path
 
 import polars as pl
 import pytest
 
-from spells.draft_data import DateSpec, _resolve_date_window, card_ratings_view
+from spells.card_data_files import base_ratings_df
+from spells.draft_data import DateSpec, card_ratings_view
 from spells.columns import ColSpec
-from spells.enums import ColType, EventType
+from spells.enums import ColType, EventType, TimePeriod
 
 from tests.conftest import (
     FAKE_SET,
-    FAKE_START,
-    FAKE_END,
+    FAKE_AS_OF,
     FAKE_CARD_RATINGS,
     FAKE_SET_2,
-    FAKE_START_2,
-    FAKE_END_2,
+    FAKE_AS_OF_2,
     FAKE_CARD_RATINGS_2,
 )
 
 
 def make_date_spec(**kwargs) -> DateSpec:
-    return DateSpec(start_date=FAKE_START, end_date=FAKE_END, **kwargs)
+    return DateSpec(as_of=FAKE_AS_OF, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -174,30 +176,24 @@ def test_bare_date_spec_broadcasts_across_event_types(fake_ratings_file):
 # ---------------------------------------------------------------------------
 
 
-def test_bare_date_spec_broadcasts_same_literal_window_to_every_set(fake_ratings_file, monkeypatch):
-    # A bare spec broadcasts the *same* literal window to every set — by design,
-    # for cross-set comparisons over one calendar range (day-of-week/seasonal
-    # analysis). FAKE_SET_2's ratings are only seeded at FAKE_START_2/FAKE_END_2,
-    # so broadcasting FAKE_START/FAKE_END finds no cached file for TS2 and must
-    # not silently succeed by reaching the real network.
-    def _no_network(*args, **kwargs):
-        raise AssertionError("must not hit the network for an unseeded window")
-
-    monkeypatch.setattr("spells.card_data_files.wget.download", _no_network)
-
-    with pytest.raises(AssertionError, match="must not hit the network"):
+def test_bare_date_spec_broadcasts_same_snapshot_to_every_set(fake_ratings_file):
+    # A bare spec broadcasts the *same* (time_period, as_of) to every set — by
+    # design, for comparing snapshots taken on the same day. FAKE_SET_2's ratings
+    # are only seeded at FAKE_AS_OF_2, and a past as_of cannot be refetched, so
+    # broadcasting FAKE_AS_OF raises instead of silently reaching the network.
+    with pytest.raises(ValueError, match="cannot be fetched"):
         card_ratings_view(
             [FAKE_SET, FAKE_SET_2],
             columns=["num_gih"],
             group_by=["expansion", "name"],
-            date_spec=make_date_spec(),  # literal FAKE_START/FAKE_END, wrong window for TS2
+            date_spec=make_date_spec(),
         )
 
 
-def test_set_code_keyed_dict_uses_per_set_window(fake_ratings_file):
+def test_set_code_keyed_dict_uses_per_set_snapshot(fake_ratings_file):
     date_spec = {
-        FAKE_SET: DateSpec(start_date=FAKE_START, end_date=FAKE_END),
-        FAKE_SET_2: DateSpec(start_date=FAKE_START_2, end_date=FAKE_END_2),
+        FAKE_SET: DateSpec(as_of=FAKE_AS_OF),
+        FAKE_SET_2: DateSpec(as_of=FAKE_AS_OF_2),
     }
     result = card_ratings_view(
         [FAKE_SET, FAKE_SET_2],
@@ -209,12 +205,10 @@ def test_set_code_keyed_dict_uses_per_set_window(fake_ratings_file):
     assert len(result) == len(FAKE_CARD_RATINGS) + len(FAKE_CARD_RATINGS_2)
 
 
-def test_tuple_keyed_dict_uses_per_cell_window(fake_ratings_file):
+def test_tuple_keyed_dict_uses_per_cell_snapshot(fake_ratings_file):
     date_spec = {
-        (FAKE_SET, EventType.PREMIER): DateSpec(start_date=FAKE_START, end_date=FAKE_END),
-        (FAKE_SET_2, EventType.PREMIER): DateSpec(
-            start_date=FAKE_START_2, end_date=FAKE_END_2
-        ),
+        (FAKE_SET, EventType.PREMIER): DateSpec(as_of=FAKE_AS_OF),
+        (FAKE_SET_2, EventType.PREMIER): DateSpec(as_of=FAKE_AS_OF_2),
     }
     result = card_ratings_view(
         [FAKE_SET, FAKE_SET_2],
@@ -226,9 +220,22 @@ def test_tuple_keyed_dict_uses_per_cell_window(fake_ratings_file):
     assert len(result) == len(FAKE_CARD_RATINGS) + len(FAKE_CARD_RATINGS_2)
 
 
-def test_date_spec_required(fake_ratings_file):
-    with pytest.raises(AssertionError, match="No date_spec resolved"):
-        card_ratings_view(FAKE_SET, columns=["num_gih"], group_by=["name"])
+def test_omitted_date_spec_defaults_to_all_time_as_of_today(fake_ratings_file, monkeypatch):
+    # No date_spec means DateSpec(): ALL_TIME as of today. Today's snapshot isn't
+    # seeded, so the fetch path runs — the fake download asserts the new /api/card_data
+    # query format and writes the payload where the cache expects it.
+    def _fake_download(url, out):
+        assert "https://www.17lands.com/api/card_data?" in url
+        assert f"expansion={FAKE_SET}" in url
+        assert "event_type=PremierDraft" in url
+        assert "time_period=ALL_TIME" in url
+        assert "start_date" not in url
+        Path(out).write_text(json.dumps(FAKE_CARD_RATINGS))
+
+    monkeypatch.setattr("spells.card_data_files.wget.download", _fake_download)
+
+    result = card_ratings_view(FAKE_SET, columns=["num_gih"], group_by=["name"])
+    assert len(result) == len(FAKE_CARD_RATINGS)
 
 
 # ---------------------------------------------------------------------------
@@ -249,71 +256,63 @@ def test_player_cohort_is_top_level_param(fake_ratings_file):
     assert len(result) == len(FAKE_CARD_RATINGS)
 
 
-# ---------------------------------------------------------------------------
-# format_day / num_days: window relative to each set's own release date
-# ---------------------------------------------------------------------------
-
-
-def test_format_day_resolves_relative_window(fake_ratings_file, monkeypatch):
-    # release_date + 7 days (format_day=8) == FAKE_START; + 1 more day (num_days=2)
-    # == FAKE_END. The pre-seeded ratings file only exists at that exact window,
-    # so this only passes if resolution computed the right dates.
-    release_date = FAKE_START - datetime.timedelta(days=7)
-    monkeypatch.setattr(
-        "spells.draft_data.expansion_start_date", lambda set_code: release_date
+def test_cohort_with_colors_empty_response_names_the_gap(fake_ratings_file):
+    # 17lands' precompute covers user_group and colors separately but not
+    # together; the API answers such queries with an empty list. Seed an empty
+    # snapshot to exercise the descriptive error without any network.
+    ratings_dir = fake_ratings_file / "ratings" / FAKE_SET
+    empty = (
+        f"{EventType.PREMIER}_top_WU_{TimePeriod.ALL_TIME}"
+        f"_{FAKE_AS_OF.strftime('%Y-%m-%d')}.json"
     )
+    (ratings_dir / empty).write_text("[]")
 
-    def _no_network(*args, **kwargs):
-        raise AssertionError("must not hit the network — resolved window is wrong")
-
-    monkeypatch.setattr("spells.card_data_files.wget.download", _no_network)
-
-    result = card_ratings_view(
-        FAKE_SET,
-        columns=["num_gih"],
-        group_by=["name"],
-        date_spec=DateSpec(format_day=8, num_days=2),
-    )
-    assert len(result) == len(FAKE_CARD_RATINGS)
-
-
-def test_format_day_without_num_days_defaults_to_yesterday(monkeypatch):
-    # num_days is optional: omitting it means "from format_day through yesterday",
-    # matching the same default base_ratings_df already uses for a bare start_date.
-    release_date = datetime.date(2026, 1, 1)
-    monkeypatch.setattr(
-        "spells.draft_data.expansion_start_date", lambda set_code: release_date
-    )
-
-    start, end = _resolve_date_window(DateSpec(format_day=3), "TST")
-    assert start == release_date + datetime.timedelta(days=2)
-    assert end == datetime.date.today() - datetime.timedelta(days=1)
+    with pytest.raises(ValueError, match="does not precompute user_group and colors"):
+        base_ratings_df(
+            FAKE_SET,
+            player_cohort="top",
+            deck_colors="WU",
+            time_period=TimePeriod.ALL_TIME,
+            as_of=FAKE_AS_OF,
+        )
 
 
 # ---------------------------------------------------------------------------
-# DateSpec validation
+# DateSpec / as_of validation
 # ---------------------------------------------------------------------------
 
 
-def test_requires_start_date_or_format_day():
-    with pytest.raises(AssertionError):
-        DateSpec()
+def test_time_period_accepts_plain_string():
+    assert DateSpec(time_period="LAST_WEEK").time_period == TimePeriod.LAST_WEEK
 
 
-def test_rejects_both_start_date_and_format_day():
-    with pytest.raises(AssertionError):
-        DateSpec(start_date=FAKE_START, format_day=1, num_days=1)
+def test_rejects_unknown_time_period():
+    with pytest.raises(ValueError):
+        DateSpec(time_period="LAST_FORTNIGHT")
 
 
-def test_format_day_without_num_days_is_valid():
-    DateSpec(format_day=1)  # should not raise
+def test_defaults_to_all_time_as_of_today():
+    spec = DateSpec()
+    assert spec.time_period == TimePeriod.ALL_TIME
+    assert spec.as_of == datetime.date.today()
 
 
-def test_format_day_rejects_non_positive_num_days():
-    with pytest.raises(AssertionError):
-        DateSpec(format_day=1, num_days=0)
+def test_future_as_of_rejected(fake_ratings_file):
+    tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+    with pytest.raises(ValueError, match="in the future"):
+        card_ratings_view(
+            FAKE_SET,
+            columns=["num_gih"],
+            group_by=["name"],
+            date_spec=DateSpec(as_of=tomorrow),
+        )
 
 
-def test_num_days_requires_format_day():
-    with pytest.raises(AssertionError):
-        DateSpec(start_date=FAKE_START, num_days=3)
+def test_past_as_of_cache_miss_cannot_refetch(fake_ratings_file):
+    with pytest.raises(ValueError, match="cannot be fetched"):
+        card_ratings_view(
+            FAKE_SET,
+            columns=["num_gih"],
+            group_by=["name"],
+            date_spec=DateSpec(time_period=TimePeriod.LAST_WEEK, as_of=FAKE_AS_OF),
+        )

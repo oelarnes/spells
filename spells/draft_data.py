@@ -6,7 +6,7 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import datetime
 import functools
 import hashlib
@@ -25,71 +25,25 @@ import spells.filter as spells_filter
 from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.cards import write_card_file, names_from_parquet
-from spells.enums import View, ColName, ColType, EventType
+from spells.enums import View, ColName, ColType, EventType, TimePeriod
 from spells.log import make_verbose
-from spells.card_data_files import base_ratings_df, expansion_start_date
+from spells.card_data_files import base_ratings_df
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 
 @dataclass
 class DateSpec():
-    """A date window for `card_ratings_view()`, in exactly one of two forms:
-
-      - `start_date` (+ optional `end_date`, default yesterday): a literal window,
-        applied identically to every set/event_type this spec is broadcast to.
-        Useful for cross-set comparisons over the same calendar range (e.g. a
-        single week, to compare formats' day-of-week effects).
-      - `format_day` (+ optional `num_days`, default: through yesterday): a
-        window relative to each set's own release date (day 1 = release day,
-        matching the `FORMAT_DAY` column), resolved independently per set via
-        `expansion_start_date()`. Useful for "starting on day N of the format"
-        comparisons across sets with different release dates.
-
-    Broadcast across sets/event_types the same way `card_context`/`set_context`
-    are: a bare `DateSpec`, a dict keyed by set_code, or a dict keyed by
-    (set_code, event_type) — see `_normalize_context`.
+    """17lands serves card data for named time periods only, resolved server-side
+    against its own current date. `as_of` keys the local snapshot cache: today's
+    snapshot is fetched on a cache miss, while a past `as_of` only reads snapshots
+    already on disk (a missed day cannot be refetched).
     """
 
-    start_date: datetime.date | None = None
-    end_date: datetime.date | None = None
-    format_day: int | None = None
-    num_days: int | None = None
+    time_period: TimePeriod = TimePeriod.ALL_TIME
+    as_of: datetime.date = field(default_factory=datetime.date.today)
 
     def __post_init__(self):
-        literal = self.start_date is not None
-        relative = self.format_day is not None
-        assert literal != relative, (
-            "DateSpec requires exactly one of `start_date` (a literal date, "
-            "shared across every set/event_type it's applied to) or "
-            "`format_day` (a window relative to each set's own release date) "
-            "— not both, not neither."
-        )
-        if relative:
-            assert self.num_days is None or self.num_days > 0, (
-                "num_days must be a positive int when given"
-            )
-        else:
-            assert self.num_days is None, (
-                "num_days is only meaningful together with format_day"
-            )
-
-
-def _resolve_date_window(
-    spec: DateSpec, set_code: str
-) -> tuple[datetime.date, datetime.date]:
-    yesterday = datetime.date.today() - datetime.timedelta(days=1)
-
-    if spec.start_date is not None:
-        return spec.start_date, spec.end_date or yesterday
-
-    release_date = expansion_start_date(set_code)
-    start_date = release_date + datetime.timedelta(days=spec.format_day - 1)
-    end_date = (
-        start_date + datetime.timedelta(days=spec.num_days - 1)
-        if spec.num_days is not None
-        else yesterday
-    )
-    return start_date, end_date
+        self.time_period = TimePeriod(self.time_period)
 
 
 def _cache_key(args) -> str:
@@ -101,7 +55,7 @@ def _cache_key(args) -> str:
 
 @functools.lru_cache(maxsize=None)
 def get_names(
-    set_code: str, event_type: EventType = EventType.PREMIER
+    set_code: str
 ) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
@@ -143,14 +97,14 @@ def _get_card_context(
             card_df, frozenset(columns), col_def_map, is_agg_view=False
         ).to_dicts()
 
-        names = get_names(set_code, event_type)
+        names = get_names(set_code)
         loaded_context = {row[ColName.NAME]: row for row in select_rows}
 
         for name in names:
             loaded_context[name] = loaded_context.get(name, {})
     else:
         if names is None:
-            names = get_names(set_code, event_type)
+            names = get_names(set_code)
         loaded_context = {name: {} for name in names}
 
     if card_context is not None:
@@ -338,7 +292,7 @@ def _hydrate_col_defs(
     names: list[str] | None = None,
 ):
     if names is None:
-        names = get_names(set_code, event_type)
+        names = get_names(set_code)
 
     set_context = _get_set_context(set_code, set_context, event_type)
 
@@ -500,7 +454,7 @@ def _base_agg_df(
                 join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         for col in name_sum_cols:
-            names = get_names(set_code, event_type)
+            names = get_names(set_code)
             expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
 
             pre_agg_df = base_df.select(expr + nonname_gb)
@@ -541,26 +495,10 @@ def _base_agg_df(
     return joined_df
 
 
-def _normalize_context(
+def _normalize_context_keys(
     context: pl.DataFrame | dict | Any | None,
     cells: list[tuple[str, EventType]],
 ) -> dict[tuple[str, EventType], Any]:
-    """Normalize a user-provided per-cell value into the canonical (set_code,
-    event_type)-keyed dict. Used for `card_context`, `set_context`, and
-    `card_ratings_view`'s `date_spec` — anything keyed at the (set_code,
-    event_type) granularity — since all three accept the same broadcast forms:
-
-      - dict keyed by (set_code, event_type) tuples — the canonical index
-      - dict keyed by set_code — broadcast across event types
-      - a bare value (set_context fields, {name: {...}} card context, or a single
-        DateSpec) — broadcast across every set and event type
-      - a DataFrame — filtered by `expansion` and, when present, `event_type`
-        (card_context/set_context only; DateSpec values are never DataFrames, so
-        they always fall through to the bare-broadcast case)
-
-    `cells` is the full set of (set_code, event_type) pairs the caller is about to
-    process; the returned dict has exactly those keys.
-    """
     if context is None:
         return {cell: None for cell in cells}
 
@@ -585,7 +523,7 @@ def _normalize_context(
         codes = {code for code, _ in cells}
         if context and all(k in codes for k in context):
             return {cell: context.get(cell[0]) for cell in cells}
-        return {cell: context for cell in cells}  # bare context, broadcast to every cell
+        return {cell: context for cell in cells}
 
     return {cell: context for cell in cells}
 
@@ -647,8 +585,8 @@ def summon(
     event_types = [EventType(et) for et in event_types]
 
     cells = [(code, et) for code in codes for et in event_types]
-    card_context_by_cell = _normalize_context(card_context, cells)
-    set_context_by_cell = _normalize_context(set_context, cells)
+    card_context_by_cell = _normalize_context_keys(card_context, cells)
+    set_context_by_cell = _normalize_context_keys(set_context, cells)
 
     m = None
 
@@ -742,7 +680,7 @@ def card_ratings_view(
     event_types = [EventType(et) for et in event_types]
 
     cells = [(code, et) for code in codes for et in event_types]
-    date_spec_by_cell = _normalize_context(date_spec, cells)
+    date_spec_by_cell = _normalize_context_keys(date_spec, cells)
 
     m = None
 
@@ -750,17 +688,15 @@ def card_ratings_view(
     for code in codes:
         for code_event_type in event_types:
             cell = (code, code_event_type)
-            cell_spec = date_spec_by_cell[cell]
-            assert cell_spec is not None, f"No date_spec resolved for {cell}"
+            cell_spec = date_spec_by_cell[cell] or DateSpec()
 
-            start_date, end_date = _resolve_date_window(cell_spec, code)
             agg_df = base_ratings_df(
                 set_code=code,
                 event_type=code_event_type,
                 player_cohort=player_cohort,
                 deck_colors=deck_colors,
-                start_date=start_date,
-                end_date=end_date,
+                time_period=cell_spec.time_period,
+                as_of=cell_spec.as_of,
             )
             names = agg_df[ColName.NAME].to_list()
             try:
@@ -812,8 +748,8 @@ def lazy_select(
     col_def_map = _hydrate_col_defs(
         set_code,
         specs,
-        _normalize_context(card_context, [cell])[cell],
-        _normalize_context(set_context, [cell])[cell],
+        _normalize_context_keys(card_context, [cell])[cell],
+        _normalize_context_keys(set_context, [cell])[cell],
         event_type,
     )
 
