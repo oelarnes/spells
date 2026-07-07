@@ -19,7 +19,7 @@ from spells.draft_model import (
     fetch_draft,
     draft_from_public_data,
 )
-from spells.draft_data import view_select
+from spells.draft_data import lazy_select
 from spells.enums import View, ColName, EventType
 
 
@@ -286,7 +286,7 @@ def view_row(draft_id, pack_number, pick_number, pack, pool, pick, rank="gold"):
     return row
 
 
-# A minimal card file for the VIEW_NAMES cards. view_select hydrates column
+# A minimal card file for the VIEW_NAMES cards. lazy_select hydrates column
 # defs, which requires a card parquet alongside the draft view (get_names
 # cross-checks the two, and CARD_ATTR columns read from here). One row per
 # VIEW_NAMES card, carrying every CARD_ATTR column.
@@ -406,7 +406,7 @@ def test_view_pool_promo_cards(fake_view):
 def test_pool_count_builtin(fake_view):
     """pool_count sums the pool_ columns horizontally for each pick row."""
     df = (
-        view_select(
+        lazy_select(
             "TST",
             View.DRAFT,
             [ColName.DRAFT_ID, ColName.PICK_NUMBER, ColName.POOL_COUNT],

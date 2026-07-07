@@ -7,12 +7,11 @@ import polars as pl
 import pytest
 
 from spells.draft_data import get_names
-from spells.enums import EventType
+from spells.enums import EventType, TimePeriod
 
 
 FAKE_SET = "TST"
-FAKE_START = datetime.date(2026, 1, 1)
-FAKE_END = datetime.date(2026, 1, 2)
+FAKE_AS_OF = datetime.date(2026, 1, 2)
 
 # 6 cards: 2 U, 2 R, 1 UR multicolor, 1 colorless. Supports group_by/filter on
 # color with 4 distinct groups (U, R, UR, "") and main_colors permutations
@@ -524,7 +523,7 @@ FAKE_CARD_RATINGS = [
     },
     {
         # Distinct from the parquet-path "Crystal Idol" — FAKE_CARD_RATINGS feeds the
-        # cdfs/ratings-JSON fixture, which is independent of the card parquet.
+        # card_ratings_view/ratings-JSON fixture, which is independent of the card parquet.
         "name": "Crystal Warden", "color": "W", "rarity": "rare",
         "url": "https://example.com/crystal_warden.jpg",
         "seen_count": 700, "avg_seen": 5.1,
@@ -537,6 +536,38 @@ FAKE_CARD_RATINGS = [
     },
 ]
 
+# A second fake set, seeded at its own as-of date, so multi-set card_ratings_view
+# broadcast forms (bare vs. set-code-keyed vs. tuple-keyed) have something real to
+# disambiguate. Both as-of dates are in the past, so a cache miss raises instead of
+# reaching the network.
+FAKE_SET_2 = "TS2"
+FAKE_AS_OF_2 = datetime.date(2026, 2, 2)
+
+FAKE_CARD_RATINGS_2 = [
+    {
+        "name": "Ember Scout", "color": "R", "rarity": "common",
+        "url": "https://example.com/ember_scout.jpg",
+        "seen_count": 500, "avg_seen": 6.0,
+        "pick_count": 300, "avg_pick": 4.4,
+        "game_count": 200, "win_rate": 0.51, "pool_count": 260,
+        "opening_hand_game_count": 40, "opening_hand_win_rate": 0.50,
+        "drawn_game_count": 60, "drawn_win_rate": 0.49,
+        "ever_drawn_game_count": 100, "ever_drawn_win_rate": 0.50,
+        "never_drawn_game_count": 100, "never_drawn_win_rate": 0.52,
+    },
+    {
+        "name": "Tidal Warden", "color": "U", "rarity": "uncommon",
+        "url": "https://example.com/tidal_warden.jpg",
+        "seen_count": 450, "avg_seen": 5.2,
+        "pick_count": 320, "avg_pick": 3.6,
+        "game_count": 220, "win_rate": 0.58, "pool_count": 280,
+        "opening_hand_game_count": 45, "opening_hand_win_rate": 0.60,
+        "drawn_game_count": 65, "drawn_win_rate": 0.57,
+        "ever_drawn_game_count": 110, "ever_drawn_win_rate": 0.59,
+        "never_drawn_game_count": 110, "never_drawn_win_rate": 0.57,
+    },
+]
+
 
 @pytest.fixture()
 def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Path, None, None]:
@@ -545,14 +576,21 @@ def fake_ratings_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Genera
     ratings_dir = tmp_path / "ratings" / FAKE_SET
     ratings_dir.mkdir(parents=True)
 
-    # Write a ratings file per format so the cdfs event_type path is exercisable.
+    # Write a ratings file per format so the card_ratings_view event_type path is exercisable.
     for fmt in (EventType.PREMIER, EventType.TRADITIONAL):
         filename = (
-            f"{fmt}_all_any"
-            f"_{FAKE_START.strftime('%Y-%m-%d')}"
-            f"_{FAKE_END.strftime('%Y-%m-%d')}.json"
+            f"{fmt}_all_any_{TimePeriod.ALL_TIME}"
+            f"_{FAKE_AS_OF.strftime('%Y-%m-%d')}.json"
         )
         (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
+
+    ratings_dir_2 = tmp_path / "ratings" / FAKE_SET_2
+    ratings_dir_2.mkdir(parents=True)
+    filename_2 = (
+        f"{EventType.PREMIER}_all_any_{TimePeriod.ALL_TIME}"
+        f"_{FAKE_AS_OF_2.strftime('%Y-%m-%d')}.json"
+    )
+    (ratings_dir_2 / filename_2).write_text(json.dumps(FAKE_CARD_RATINGS_2))
 
     yield tmp_path
 

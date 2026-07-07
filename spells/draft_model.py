@@ -23,7 +23,7 @@ import polars as pl
 from spells import cache
 from spells.card_data_files import download_data_file
 from spells.cards import card_df, write_card_file, names_from_parquet
-from spells.draft_data import view_select
+from spells.draft_data import lazy_select
 from spells.enums import ColName, View, EventType
 
 DRAFT_DATA_TEMPLATE = "https://www.17lands.com/data/draft?draft_id={draft_id}"
@@ -375,7 +375,7 @@ def draft_from_public_data(
     two-pass and streaming: first collect just the matching draft ids, then
     the ~45 rows of the chosen draft -- the full view is never materialized.
     """
-    lf = view_select(
+    lf = lazy_select(
         set_code=set_code,
         view=View.DRAFT,
         columns=[

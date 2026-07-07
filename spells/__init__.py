@@ -1,8 +1,8 @@
 import logging
 
 from spells.columns import ColSpec
-from spells.enums import ColType, ColName
-from spells.draft_data import summon, view_select, get_names
+from spells.enums import ColType, ColName, EventType, TimePeriod
+from spells.draft_data import summon, lazy_select, get_names, card_ratings_view
 from spells.draft_model import (
     Draft,
     DraftCard,
@@ -17,8 +17,9 @@ setup_logging()
 
 __all__ = [
     "summon",
-    "view_select",
+    "lazy_select",
     "get_names",
+    "card_ratings_view",
     "fetch_draft",
     "draft_from_public_data",
     "draft_view_df",
@@ -28,5 +29,7 @@ __all__ = [
     "ColSpec",
     "ColType",
     "ColName",
+    "EventType",
+    "TimePeriod",
     "logging",
 ]

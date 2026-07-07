@@ -1,22 +1,40 @@
 import datetime as dt
+from enum import StrEnum
+import json
 import os
+from pathlib import Path
 import wget
 from time import sleep
 
 import polars as pl
 
 from spells import cache
-from spells.enums import ColName, EventType
+from spells.enums import ColName, EventType, TimePeriod
 
 RATINGS_TEMPLATE = (
-    "https://www.17lands.com/card_ratings/data?expansion={set_code}&format={format}"
-    "{user_group_param}{deck_color_param}&start_date={start_date_str}&end_date={end_date_str}"
+    "https://www.17lands.com/api/card_data?expansion={set_code}&event_type={event_type}"
+    "&time_period={time_period}{user_group_param}{deck_color_param}"
 )
 
 DECK_COLOR_DATA_TEMPLATE = (
-    "https://www.17lands.com/color_ratings/data?expansion={set_code}&event_type={format}"
-    "{user_group_param}&start_date={start_date_str}&end_date={end_date_str}&combine_splash=true"
+    "https://www.17lands.com/color_ratings/data?expansion={set_code}&event_type={event_type}"
+    "&time_period={time_period}{user_group_param}&combine_splash=true"
 )
+
+
+class CacheUsage(StrEnum):
+    """Non-date values for `card_ratings_view`'s/`base_ratings_df`'s/
+    `deck_color_df`'s `cache_usage` param (a concrete `date` is also valid,
+    meaning that exact day's snapshot).
+
+    `NONE` (the default) means today: read today's cached snapshot if present,
+    otherwise fetch it live. `LAST` means whatever snapshot is most recently
+    cached on disk for this exact query, however old, falling back to a live
+    fetch (as of today) only when nothing is cached yet.
+    """
+
+    LAST = "LAST_CACHED"
+    NONE = "NONE"
 
 
 ratings_col_defs = {
@@ -65,23 +83,69 @@ def download_data_file(url: str, target_dir: str, filename: str) -> str:
     return file_path
 
 
+def _resolve_as_of(
+    as_of: dt.date | CacheUsage, target_dir: str, filename_stub: str
+) -> dt.date:
+    """Resolve cache_usage to concrete as-of date"""
+    today = dt.date.today()
+    if as_of == CacheUsage.NONE:
+        return today
+    if as_of != CacheUsage.LAST:
+        if as_of > today:
+            raise ValueError(f"as_of={as_of} is in the future")
+        return as_of
+
+    cached_dates = sorted(
+        dt.datetime.strptime(path.stem[len(filename_stub) + 1 :], "%Y-%m-%d").date()
+        for path in Path(target_dir).glob(f"{filename_stub}_*.json")
+    )
+    return cached_dates[-1] if cached_dates else today
+
+
+def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) -> list:
+    """Return the cached JSON payload for a resolved (concrete-date) `as_of`
+    snapshot, downloading it only when `as_of` is today. 17lands resolves
+    `time_period` relative to its own current date, so a missed snapshot for
+    a past `as_of` cannot be reconstructed. An empty payload is not cached: it
+    indicates an unsupported query (bad set/event_type, or a filter
+    combination the 17lands precompute doesn't cover).
+    """
+    file_path = os.path.join(target_dir, filename)
+
+    if os.path.isfile(file_path):
+        return json.loads(Path(file_path).read_text())
+
+    if as_of < dt.date.today():
+        raise ValueError(
+            f"No cached snapshot {filename} for as_of={as_of}, and past snapshots "
+            "cannot be fetched"
+        )
+
+    download_data_file(url, target_dir, filename)
+    payload = json.loads(Path(file_path).read_text())
+    if not payload:
+        os.remove(file_path)
+    return payload
+
+
 def deck_color_df(
     set_code: str,
     event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
-    *,
-    start_date: dt.date,
-    end_date: dt.date | None = None,
+    time_period: TimePeriod = TimePeriod.ALL_TIME,
+    cache_usage: dt.date | CacheUsage = CacheUsage.NONE,
 ):
-    if end_date is None:
-        end_date = dt.date.today() - dt.timedelta(days=1)
+    target_dir, stub = cache.deck_color_file_stub(
+        set_code, event_type, player_cohort, time_period
+    )
+    as_of = _resolve_as_of(cache_usage, target_dir, stub)
 
-    target_dir, filename = cache.deck_color_file_path(
+    _, filename = cache.deck_color_file_path(
         set_code,
         event_type,
         player_cohort,
-        start_date,
-        end_date,
+        time_period,
+        as_of,
     )
 
     user_group_param = (
@@ -90,16 +154,20 @@ def deck_color_df(
 
     url = DECK_COLOR_DATA_TEMPLATE.format(
         set_code=set_code,
-        format=event_type,
+        event_type=event_type,
+        time_period=time_period,
         user_group_param=user_group_param,
-        start_date_str=start_date.strftime("%Y-%m-%d"),
-        end_date_str=end_date.strftime("%Y-%m-%d"),
     )
 
-    deck_color_file_path = download_data_file(url, target_dir, filename)
+    payload = _fetch_snapshot(url, target_dir, filename, as_of)
+    if not payload:
+        raise ValueError(
+            f"Empty color ratings response for {set_code} {event_type} "
+            f"time_period={time_period} player_cohort={player_cohort}"
+        )
 
     df = (
-        pl.read_json(deck_color_file_path)
+        pl.from_dicts(payload)
         .filter(~pl.col("is_summary"))
         .select(
             [
@@ -121,15 +189,16 @@ def base_ratings_df(
     event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
-    *,
-    start_date: dt.date,
-    end_date: dt.date | None = None,
+    time_period: TimePeriod = TimePeriod.ALL_TIME,
+    cache_usage: dt.date | CacheUsage = CacheUsage.NONE,
 ) -> pl.DataFrame:
-    if end_date is None:
-        end_date = dt.date.today() - dt.timedelta(days=1)
-
     if isinstance(deck_colors, str):
         deck_colors = [deck_colors]
+
+    primary_dir, primary_stub = cache.card_ratings_file_stub(
+        set_code, event_type, player_cohort, deck_colors[0], time_period
+    )
+    as_of = _resolve_as_of(cache_usage, primary_dir, primary_stub)
 
     concat_list = []
     for i, deck_color in enumerate(deck_colors):
@@ -138,8 +207,8 @@ def base_ratings_df(
             event_type,
             player_cohort,
             deck_color,
-            start_date,
-            end_date,
+            time_period,
+            as_of,
         )
 
         # rate-limit consecutive downloads, but not cache hits
@@ -153,17 +222,27 @@ def base_ratings_df(
 
         url = RATINGS_TEMPLATE.format(
             set_code=set_code,
-            format=event_type,
+            event_type=event_type,
+            time_period=time_period,
             user_group_param=user_group_param,
             deck_color_param=deck_color_param,
-            start_date_str=start_date.strftime("%Y-%m-%d"),
-            end_date_str=end_date.strftime("%Y-%m-%d"),
         )
 
-        ratings_file_path = download_data_file(url, ratings_dir, filename)
+        payload = _fetch_snapshot(url, ratings_dir, filename, as_of)
+        if not payload:
+            gap_hint = (
+                " (17lands does not precompute user_group and colors together)"
+                if player_cohort != "all" and deck_color != "any"
+                else ""
+            )
+            raise ValueError(
+                f"Empty card ratings response for {set_code} {event_type} "
+                f"time_period={time_period} player_cohort={player_cohort} "
+                f"colors={deck_color}{gap_hint}"
+            )
 
         concat_list.append(
-            pl.read_json(ratings_file_path, infer_schema_length=1000)
+            pl.from_dicts(payload, infer_schema_length=1000)
             .with_columns(
                 (pl.lit(deck_color) if deck_color != "any" else pl.lit(None))
                 .alias(ColName.MAIN_COLORS)

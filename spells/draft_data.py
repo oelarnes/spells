@@ -6,7 +6,6 @@ Aggregate dataframes containing raw counts are cached in the local file system
 for performance.
 """
 
-from dataclasses import dataclass
 import datetime
 import functools
 import hashlib
@@ -25,20 +24,11 @@ import spells.filter as spells_filter
 from spells import manifest
 from spells.columns import ColDef, ColSpec, get_specs
 from spells.cards import write_card_file, names_from_parquet
-from spells.enums import View, ColName, ColType, EventType
+from spells.enums import View, ColName, ColType, EventType, TimePeriod
 from spells.log import make_verbose
-from spells.card_data_files import base_ratings_df
+from spells.card_data_files import base_ratings_df, CacheUsage
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
-
-@dataclass
-class CardDataFileSpec():
-    set_code: str
-    start_date: datetime.date
-    event_type: EventType = EventType.PREMIER
-    player_cohort: str = "all"
-    deck_colors: str | list[str] = "any"
-    end_date: datetime.date | None = None
 
 
 def _cache_key(args) -> str:
@@ -50,7 +40,7 @@ def _cache_key(args) -> str:
 
 @functools.lru_cache(maxsize=None)
 def get_names(
-    set_code: str, event_type: EventType = EventType.PREMIER
+    set_code: str
 ) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
@@ -92,14 +82,14 @@ def _get_card_context(
             card_df, frozenset(columns), col_def_map, is_agg_view=False
         ).to_dicts()
 
-        names = get_names(set_code, event_type)
+        names = get_names(set_code)
         loaded_context = {row[ColName.NAME]: row for row in select_rows}
 
         for name in names:
             loaded_context[name] = loaded_context.get(name, {})
     else:
         if names is None:
-            names = get_names(set_code, event_type)
+            names = get_names(set_code)
         loaded_context = {name: {} for name in names}
 
     if card_context is not None:
@@ -287,7 +277,7 @@ def _hydrate_col_defs(
     names: list[str] | None = None,
 ):
     if names is None:
-        names = get_names(set_code, event_type)
+        names = get_names(set_code)
 
     set_context = _get_set_context(set_code, set_context, event_type)
 
@@ -449,7 +439,7 @@ def _base_agg_df(
                 join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         for col in name_sum_cols:
-            names = get_names(set_code, event_type)
+            names = get_names(set_code)
             expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
 
             pre_agg_df = base_df.select(expr + nonname_gb)
@@ -490,26 +480,10 @@ def _base_agg_df(
     return joined_df
 
 
-def _normalize_context(
-    context: pl.DataFrame | dict | None,
+def _normalize_context_keys(
+    context: pl.DataFrame | dict | Any | None,
     cells: list[tuple[str, EventType]],
-) -> dict[tuple[str, EventType], pl.DataFrame | dict | None]:
-    """Normalize a user-provided context into the canonical (set_code, event_type)-keyed dict.
-
-    The canonical index for card and set context is (set_code, event_type), matching
-    the data files — these contexts are the hook for looping aggregations back into
-    row-level selectors (e.g. joining card win rates in as card_context). Context may
-    be supplied at that full index or in a broadcast form for convenience:
-
-      - dict keyed by (set_code, event_type) tuples — the canonical index
-      - dict keyed by set_code — broadcast across event types
-      - a bare context (set_context fields, or {name: {...}} card context) — broadcast
-        across every set and event type
-      - a DataFrame — filtered by `expansion` and, when present, `event_type`
-
-    `cells` is the full set of (set_code, event_type) pairs the caller is about to
-    process; the returned dict has exactly those keys.
-    """
+) -> dict[tuple[str, EventType], Any]:
     if context is None:
         return {cell: None for cell in cells}
 
@@ -534,9 +508,36 @@ def _normalize_context(
         codes = {code for code, _ in cells}
         if context and all(k in codes for k in context):
             return {cell: context.get(cell[0]) for cell in cells}
-        return {cell: context for cell in cells}  # bare context, broadcast to every cell
+        return {cell: context for cell in cells}
 
     return {cell: context for cell in cells}
+
+
+def _finalize_agg(concat_dfs: list[pl.DataFrame], m: manifest.Manifest) -> pl.DataFrame:
+    """Shared tail of summon()/card_ratings_view(): concat per-cell aggregate
+    frames, apply the user's group_by (re-aggregating if it's coarser than the
+    base grouping), and run the final AGG-stage column selection.
+    """
+    full_agg_df = pl.concat(concat_dfs, how="vertical")
+
+    if m.group_by:
+        gb = m.group_by
+        # an agg may depend on some card column that hasn't been explicitly requested, but can be safely
+        # depended on if we are grouping by name
+        if ColName.NAME in m.group_by and View.CARD in m.view_cols:
+            for col in m.view_cols[View.CARD]:
+                if col not in m.group_by:
+                    gb = tuple([*gb, col])
+        full_agg_df = full_agg_df.group_by(gb).sum()
+    else:
+        full_agg_df = full_agg_df.sum()
+
+    ret_cols = m.group_by + m.columns
+    return (
+        _view_select(full_agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True)
+        .select(ret_cols)
+        .sort(m.group_by)
+    )
 
 
 @make_verbose()
@@ -551,7 +552,6 @@ def summon(
     write_cache: bool = True,
     card_context: pl.DataFrame | dict | None = None,
     set_context: pl.DataFrame | dict | None = None,
-    cdfs: CardDataFileSpec | None = None,
     event_type: EventType | list[EventType] = EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
@@ -570,57 +570,22 @@ def summon(
     event_types = [EventType(et) for et in event_types]
 
     cells = [(code, et) for code in codes for et in event_types]
-    if cdfs is not None:
-        cells = cells + [(cdfs.set_code, cdfs.event_type)]
-    card_context_by_cell = _normalize_context(card_context, cells)
-    set_context_by_cell = _normalize_context(set_context, cells)
+    card_context_by_cell = _normalize_context_keys(card_context, cells)
+    set_context_by_cell = _normalize_context_keys(set_context, cells)
 
     m = None
 
     concat_dfs = []
     for code in codes:
-        if cdfs is not None:
-            assert len(codes) == 1, "Only one set supported for loading from card data file"
-            assert codes[0] == cdfs.set_code, "Wrong set file specified"
-            agg_df = base_ratings_df(
-                set_code=cdfs.set_code,
-                event_type=cdfs.event_type,
-                player_cohort=cdfs.player_cohort,
-                deck_colors=cdfs.deck_colors,
-                start_date=cdfs.start_date,
-                end_date=cdfs.end_date,
-            )
-            cdfs_names = agg_df[ColName.NAME].to_list()
-            try:
-                write_card_file(code, cdfs_names)
-            except ValueError:
-                raise  # card list inconsistency — propagate
-            except Exception:
-                pass  # MTGJSON unavailable (e.g. new set on release day)
-            m = manifest.create(
-                _hydrate_col_defs(
-                    code,
-                    specs,
-                    card_context_by_cell[(code, cdfs.event_type)],
-                    set_context_by_cell[(code, cdfs.event_type)],
-                    cdfs.event_type,
-                    card_only=True,
-                    names=cdfs_names,
-                ),
-                columns,
-                group_by,
-                filter_spec,
-            )
-            concat_dfs.append(agg_df)
-            continue
-
         for code_event_type in event_types:
+            cell = (code, code_event_type)
+
             logging.info(f"Calculating agg df for {code} {code_event_type}")
             col_def_map = _hydrate_col_defs(
                 code,
                 specs,
-                card_context_by_cell[(code, code_event_type)],
-                set_context_by_cell[(code, code_event_type)],
+                card_context_by_cell[cell],
+                set_context_by_cell[cell],
                 code_event_type,
             )
             m = manifest.create(col_def_map, columns, group_by, filter_spec)
@@ -658,35 +623,97 @@ def summon(
 
             concat_dfs.append(agg_df)
 
-    full_agg_df = pl.concat(concat_dfs, how="vertical")
+    assert (
+        m is not None
+    ), "What happened? We mean to use one of the sets manifest, it shouldn't matter which."
+
+    return _finalize_agg(concat_dfs, m)
+
+
+@make_verbose()
+def card_ratings_view(
+    set_code: str | list[str],
+    event_type: EventType | list[EventType] = EventType.PREMIER,
+    player_cohort: str = "all",
+    deck_colors: str | list[str] = "any",
+    time_period: TimePeriod = TimePeriod.ALL_TIME,
+    cache_usage: datetime.date | CacheUsage = CacheUsage.NONE,
+    columns: list[str] | None = None,
+    group_by: list[str] | None = None,
+    extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
+) -> pl.DataFrame:
+    """
+    Fetch pre-aggregated card ratings from 17Lands and apply custom aggs. The
+    live-fetch counterpart to `summon()` — no `filter_spec`/`card_context`/
+    `set_context` (the API already returns one aggregated row per card).
+
+    `cache_usage` given a concrete date reads that day's cached snapshot,
+    downloading it live only if the date is today; a past date with nothing
+    cached raises, since 17lands resolves `time_period` against its own
+    current date and a missed day can't be reconstructed. `CacheUsage.LAST`
+    (or `"LAST_CACHED"`) reads whatever snapshot is most recently cached,
+    however old, falling back to a live query (as of today) if nothing is
+    cached yet. `CacheUsage.NONE` (the default) means today: cached if
+    present, live otherwise.
+    """
+    specs = get_specs()
+
+    if extensions is not None:
+        if not isinstance(extensions, list):
+            extensions = [extensions]
+        for ext in extensions:
+            specs.update(ext)
+
+    codes = [set_code] if isinstance(set_code, str) else set_code
+
+    assert codes, "Please ask for at least one set"
+
+    event_types = event_type if isinstance(event_type, list) else [event_type]
+    event_types = [EventType(et) for et in event_types]
+
+    time_period = TimePeriod(time_period)
+
+    m = None
+
+    concat_dfs = []
+    for code in codes:
+        for code_event_type in event_types:
+            agg_df = base_ratings_df(
+                set_code=code,
+                event_type=code_event_type,
+                player_cohort=player_cohort,
+                deck_colors=deck_colors,
+                time_period=time_period,
+                cache_usage=cache_usage,
+            )
+            names = agg_df[ColName.NAME].to_list()
+            try:
+                write_card_file(code, names)
+            except ValueError:
+                raise  # card list inconsistency — propagate
+            except Exception:
+                pass  # MTGJSON unavailable (e.g. new set on release day)
+
+            col_def_map = _hydrate_col_defs(
+                code,
+                specs,
+                None,
+                None,
+                code_event_type,
+                card_only=True,
+                names=names,
+            )
+            m = manifest.create(col_def_map, columns, group_by, None)
+            concat_dfs.append(agg_df)
 
     assert (
         m is not None
     ), "What happened? We mean to use one of the sets manifest, it shouldn't matter which."
 
-    if m.group_by:
-        gb = m.group_by
-        # an agg may depend on some card column that hasn't been explicitly requested, but can be safely
-        # depended on if we are grouping by name
-        if ColName.NAME in m.group_by and View.CARD in m.view_cols:
-            for col in m.view_cols[View.CARD]:
-                if col not in m.group_by:
-                    gb = tuple([*gb, col])
-        full_agg_df = full_agg_df.group_by(gb).sum()
-    else:
-        full_agg_df = full_agg_df.sum()
-
-    ret_cols = m.group_by + m.columns
-    ret_df = (
-        _view_select(full_agg_df, frozenset(ret_cols), m.col_def_map, is_agg_view=True)
-        .select(ret_cols)
-        .sort(m.group_by)
-    )
-
-    return ret_df
+    return _finalize_agg(concat_dfs, m)
 
 
-def view_select(
+def lazy_select(
     set_code: str,
     view: View,
     columns: list[str],
@@ -709,8 +736,8 @@ def view_select(
     col_def_map = _hydrate_col_defs(
         set_code,
         specs,
-        _normalize_context(card_context, [cell])[cell],
-        _normalize_context(set_context, [cell])[cell],
+        _normalize_context_keys(card_context, [cell])[cell],
+        _normalize_context_keys(set_context, [cell])[cell],
         event_type,
     )
 
