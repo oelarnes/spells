@@ -172,6 +172,30 @@ def data_file_path(set_code, dataset_type: str, event_type: EventType | None = N
     )
 
 
+def _card_ratings_stub(
+    event_type: EventType,
+    user_group: str,
+    deck_color: str,
+    time_period: TimePeriod,
+) -> str:
+    return f"{event_type}_{user_group}_{deck_color}_{time_period}"
+
+
+def card_ratings_file_stub(
+    set_code: str,
+    event_type: EventType,
+    user_group: str,
+    deck_color: str,
+    time_period: TimePeriod,
+) -> tuple[str, str]:
+    """Directory + filename prefix shared by every dated snapshot of this
+    query, for globbing to find the most recently cached one."""
+    return os.path.join(
+        data_dir_path(DataDir.RATINGS),
+        set_code,
+    ), _card_ratings_stub(event_type, user_group, deck_color, time_period)
+
+
 def card_ratings_file_path(
     set_code: str,
     event_type: EventType,
@@ -180,18 +204,37 @@ def card_ratings_file_path(
     time_period: TimePeriod,
     as_of: dt.date,
 ) -> tuple[str, str]:
-    return os.path.join(
-        data_dir_path(DataDir.RATINGS),
-        set_code,
-    ), (
-        f"{event_type}_{user_group}_{deck_color}_{time_period}"
-        f"_{as_of.strftime('%Y-%m-%d')}.json"
+    target_dir, stub = card_ratings_file_stub(
+        set_code, event_type, user_group, deck_color, time_period
     )
+    return target_dir, f"{stub}_{as_of.strftime('%Y-%m-%d')}.json"
 
 
 def draft_file_path(draft_id: str) -> tuple[str, str]:
     """Completed drafts are immutable, so files are cached indefinitely by id."""
     return data_dir_path(DataDir.DRAFT), f"{draft_id}.json"
+
+
+def _deck_color_stub(
+    event_type: EventType,
+    user_group: str,
+    time_period: TimePeriod,
+) -> str:
+    return f"{event_type}_{user_group}_{time_period}"
+
+
+def deck_color_file_stub(
+    set_code: str,
+    event_type: EventType,
+    user_group: str,
+    time_period: TimePeriod,
+) -> tuple[str, str]:
+    """Directory + filename prefix shared by every dated snapshot of this
+    query, for globbing to find the most recently cached one."""
+    return os.path.join(
+        data_dir_path(DataDir.DECK_COLOR),
+        set_code,
+    ), _deck_color_stub(event_type, user_group, time_period)
 
 
 def deck_color_file_path(
@@ -201,13 +244,8 @@ def deck_color_file_path(
     time_period: TimePeriod,
     as_of: dt.date,
 ) -> tuple[str, str]:
-    return os.path.join(
-        data_dir_path(DataDir.DECK_COLOR),
-        set_code,
-    ), (
-        f"{event_type}_{user_group}_{time_period}"
-        f"_{as_of.strftime('%Y-%m-%d')}.json"
-    )
+    target_dir, stub = deck_color_file_stub(set_code, event_type, user_group, time_period)
+    return target_dir, f"{stub}_{as_of.strftime('%Y-%m-%d')}.json"
 
 
 def cache_dir_for_set(set_code: str) -> str:

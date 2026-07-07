@@ -240,6 +240,60 @@ def test_cohort_with_colors_empty_response_names_the_gap(fake_ratings_file):
 
 
 # ---------------------------------------------------------------------------
+# as_of="LAST_CACHED": most recently cached snapshot, whatever its age
+# ---------------------------------------------------------------------------
+
+
+def test_last_cached_picks_the_most_recent_snapshot(fake_ratings_file):
+    # Seed a second, newer snapshot alongside the fixture's FAKE_AS_OF one, with
+    # different data so the two are distinguishable.
+    ratings_dir = fake_ratings_file / "ratings" / FAKE_SET
+    newer_as_of = FAKE_AS_OF + datetime.timedelta(days=5)
+    newer_ratings = [{**card, "ever_drawn_game_count": 999} for card in FAKE_CARD_RATINGS]
+    newer_filename = (
+        f"{EventType.PREMIER}_all_any_{TimePeriod.ALL_TIME}"
+        f"_{newer_as_of.strftime('%Y-%m-%d')}.json"
+    )
+    (ratings_dir / newer_filename).write_text(json.dumps(newer_ratings))
+
+    result = card_ratings_view(
+        FAKE_SET, columns=["num_gih"], group_by=["name"], as_of="LAST_CACHED"
+    )
+    assert set(result["num_gih"].to_list()) == {999}
+
+
+def test_last_cached_falls_back_to_live_query_when_nothing_cached(monkeypatch, tmp_path):
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+
+    def _fake_download(url, out):
+        assert "time_period=ALL_TIME" in url
+        Path(out).write_text(json.dumps(FAKE_CARD_RATINGS))
+
+    monkeypatch.setattr("spells.card_data_files.wget.download", _fake_download)
+
+    result = card_ratings_view(FAKE_SET, columns=["num_gih"], group_by=["name"], as_of="LAST_CACHED")
+    assert len(result) == len(FAKE_CARD_RATINGS)
+
+
+def test_last_cached_ignores_other_deck_colors_stub(fake_ratings_file):
+    # A cached snapshot for a different deck_color shouldn't be picked up when
+    # resolving "LAST_CACHED" for deck_colors="any" — the stub match must be exact.
+    ratings_dir = fake_ratings_file / "ratings" / FAKE_SET
+    newer_as_of = FAKE_AS_OF + datetime.timedelta(days=5)
+    other_color_filename = (
+        f"{EventType.PREMIER}_all_WU_{TimePeriod.ALL_TIME}"
+        f"_{newer_as_of.strftime('%Y-%m-%d')}.json"
+    )
+    (ratings_dir / other_color_filename).write_text(json.dumps(FAKE_CARD_RATINGS))
+
+    result = card_ratings_view(FAKE_SET, columns=["num_gih"], group_by=["name"], as_of="LAST_CACHED")
+    result_map = dict(zip(result["name"].to_list(), result["num_gih"].to_list()))
+    for card in FAKE_CARD_RATINGS:
+        expected = card["opening_hand_game_count"] + card["drawn_game_count"]
+        assert result_map[card["name"]] == expected
+
+
+# ---------------------------------------------------------------------------
 # time_period / as_of validation
 # ---------------------------------------------------------------------------
 

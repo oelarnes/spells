@@ -14,7 +14,7 @@ import logging
 import warnings
 from inspect import signature
 import os
-from typing import Callable, TypeVar, Any
+from typing import Callable, TypeVar, Any, Literal
 
 import polars as pl
 from polars.exceptions import ColumnNotFoundError
@@ -638,22 +638,20 @@ def card_ratings_view(
     group_by: list[str] | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
     time_period: TimePeriod = TimePeriod.ALL_TIME,
-    as_of: datetime.date | None = None,
+    as_of: datetime.date | Literal["LAST_CACHED"] | None = None,
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
 ) -> pl.DataFrame:
-    """Aggregate card ratings straight from 17lands' daily API — the live-fetch
-    counterpart to `summon()`. Unlike `summon()`, there's no underlying row-level
-    dataset: the API already returns one aggregated row per card, so there's no
-    `filter_spec` (nothing to pre-aggregation filter) and no `card_context`/
-    `set_context` (CARD_ATTR columns come directly from the API response; join in
-    anything else with a plain DataFrame `.join()` after the call, the same way
-    every existing caller of this path already does).
+    """
+    Fetch pre-aggregated card ratings from 17Lands and apply custom aggs.
 
-    17lands serves card data for named time periods only, resolved server-side
-    against its own current date. `as_of` keys the local snapshot cache: today's
-    snapshot (the default) is fetched on a cache miss, while a past `as_of` only
-    reads a snapshot already on disk (a missed day cannot be refetched).
+    `as_of` given a date looks for that dated cache, downloading it live only if
+    the date is today; a past date with no cached snapshot raises, since 17lands
+    resolves `time_period` against its own current date and a missed day can't
+    be reconstructed. Given `"LAST_CACHED"`, looks for the most recently cached
+    dated snapshot regardless of age, falling back to a live query (as of today)
+    if nothing is cached yet. Given `None` (the default), looks for a today-dated
+    cache, otherwise performs a live query.
     """
     specs = get_specs()
 

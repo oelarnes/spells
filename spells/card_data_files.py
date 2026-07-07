@@ -1,4 +1,5 @@
 import datetime as dt
+from enum import StrEnum
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,16 @@ DECK_COLOR_DATA_TEMPLATE = (
     "https://www.17lands.com/color_ratings/data?expansion={set_code}&event_type={event_type}"
     "&time_period={time_period}{user_group_param}&combine_splash=true"
 )
+
+
+class Cached(StrEnum):
+    """`as_of=Cached.LAST` means "whatever snapshot is most recently cached on
+    disk for this exact query, however old" — falling back to a live fetch
+    (as of today) when nothing is cached yet. Distinct from `as_of=None`,
+    which always means today.
+    """
+
+    LAST = "LAST_CACHED"
 
 
 ratings_col_defs = {
@@ -76,12 +87,34 @@ def _validated_as_of(as_of: dt.date | None) -> dt.date:
     return as_of
 
 
+def _resolve_as_of(
+    as_of: dt.date | Cached | None, target_dir: str, filename_stub: str
+) -> dt.date:
+    """Turn `as_of` into a concrete date.
+
+    `Cached.LAST` picks whatever dated snapshot matching `filename_stub` is
+    most recently cached on disk, however old, falling back to today (i.e. a
+    live fetch) if nothing is cached yet. Any other value is handled by
+    `_validated_as_of`: `None` means today, a past or present date passes
+    through, and a future date raises.
+    """
+    if as_of != Cached.LAST:
+        return _validated_as_of(as_of)
+
+    cached_dates = sorted(
+        dt.datetime.strptime(path.stem[len(filename_stub) + 1 :], "%Y-%m-%d").date()
+        for path in Path(target_dir).glob(f"{filename_stub}_*.json")
+    )
+    return cached_dates[-1] if cached_dates else dt.date.today()
+
+
 def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) -> list:
-    """Return the cached JSON payload for an `as_of` snapshot, downloading it only
-    when `as_of` is today. 17lands resolves `time_period` relative to its own
-    current date, so a missed snapshot for a past `as_of` cannot be reconstructed.
-    An empty payload is not cached: it indicates an unsupported query (bad
-    set/event_type, or a filter combination the 17lands precompute doesn't cover).
+    """Return the cached JSON payload for a resolved (concrete-date) `as_of`
+    snapshot, downloading it only when `as_of` is today. 17lands resolves
+    `time_period` relative to its own current date, so a missed snapshot for
+    a past `as_of` cannot be reconstructed. An empty payload is not cached: it
+    indicates an unsupported query (bad set/event_type, or a filter
+    combination the 17lands precompute doesn't cover).
     """
     file_path = os.path.join(target_dir, filename)
 
@@ -105,14 +138,17 @@ def deck_color_df(
     set_code: str,
     event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
-    *,
     time_period: TimePeriod = TimePeriod.ALL_TIME,
-    as_of: dt.date | None = None,
+    as_of: dt.date | Cached | None = None,
 ):
     time_period = TimePeriod(time_period)
-    as_of = _validated_as_of(as_of)
 
-    target_dir, filename = cache.deck_color_file_path(
+    target_dir, stub = cache.deck_color_file_stub(
+        set_code, event_type, player_cohort, time_period
+    )
+    as_of = _resolve_as_of(as_of, target_dir, stub)
+
+    _, filename = cache.deck_color_file_path(
         set_code,
         event_type,
         player_cohort,
@@ -161,15 +197,21 @@ def base_ratings_df(
     event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
-    *,
     time_period: TimePeriod = TimePeriod.ALL_TIME,
-    as_of: dt.date | None = None,
+    as_of: dt.date | Cached | None = None,
 ) -> pl.DataFrame:
     time_period = TimePeriod(time_period)
-    as_of = _validated_as_of(as_of)
 
     if isinstance(deck_colors, str):
         deck_colors = [deck_colors]
+
+    # Resolved once, against the first deck_color, so every color in this call
+    # shares one snapshot date — resolving `Cached.LAST` independently per
+    # color could otherwise mix data from different days into one aggregate.
+    primary_dir, primary_stub = cache.card_ratings_file_stub(
+        set_code, event_type, player_cohort, deck_colors[0], time_period
+    )
+    as_of = _resolve_as_of(as_of, primary_dir, primary_stub)
 
     concat_list = []
     for i, deck_color in enumerate(deck_colors):
