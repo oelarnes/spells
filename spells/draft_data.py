@@ -14,7 +14,7 @@ import logging
 import warnings
 from inspect import signature
 import os
-from typing import Callable, TypeVar, Any, Literal
+from typing import Callable, TypeVar, Any
 
 import polars as pl
 from polars.exceptions import ColumnNotFoundError
@@ -26,7 +26,7 @@ from spells.columns import ColDef, ColSpec, get_specs
 from spells.cards import write_card_file, names_from_parquet
 from spells.enums import View, ColName, ColType, EventType, TimePeriod
 from spells.log import make_verbose
-from spells.card_data_files import base_ratings_df
+from spells.card_data_files import base_ratings_df, CacheUsage
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 
@@ -634,24 +634,27 @@ def summon(
 def card_ratings_view(
     set_code: str | list[str],
     event_type: EventType | list[EventType] = EventType.PREMIER,
+    player_cohort: str = "all",
+    deck_colors: str | list[str] = "any",
+    time_period: TimePeriod = TimePeriod.ALL_TIME,
+    cache_usage: datetime.date | CacheUsage = CacheUsage.NONE,
     columns: list[str] | None = None,
     group_by: list[str] | None = None,
     extensions: dict[str, ColSpec] | list[dict[str, ColSpec]] | None = None,
-    time_period: TimePeriod = TimePeriod.ALL_TIME,
-    as_of: datetime.date | Literal["LAST_CACHED"] | None = None,
-    player_cohort: str = "all",
-    deck_colors: str | list[str] = "any",
 ) -> pl.DataFrame:
     """
-    Fetch pre-aggregated card ratings from 17Lands and apply custom aggs.
+    Fetch pre-aggregated card ratings from 17Lands and apply custom aggs. The
+    live-fetch counterpart to `summon()` — no `filter_spec`/`card_context`/
+    `set_context` (the API already returns one aggregated row per card).
 
-    `as_of` given a date looks for that dated cache, downloading it live only if
-    the date is today; a past date with no cached snapshot raises, since 17lands
-    resolves `time_period` against its own current date and a missed day can't
-    be reconstructed. Given `"LAST_CACHED"`, looks for the most recently cached
-    dated snapshot regardless of age, falling back to a live query (as of today)
-    if nothing is cached yet. Given `None` (the default), looks for a today-dated
-    cache, otherwise performs a live query.
+    `cache_usage` given a concrete date reads that day's cached snapshot,
+    downloading it live only if the date is today; a past date with nothing
+    cached raises, since 17lands resolves `time_period` against its own
+    current date and a missed day can't be reconstructed. `CacheUsage.LAST`
+    (or `"LAST_CACHED"`) reads whatever snapshot is most recently cached,
+    however old, falling back to a live query (as of today) if nothing is
+    cached yet. `CacheUsage.NONE` (the default) means today: cached if
+    present, live otherwise.
     """
     specs = get_specs()
 
@@ -681,7 +684,7 @@ def card_ratings_view(
                 player_cohort=player_cohort,
                 deck_colors=deck_colors,
                 time_period=time_period,
-                as_of=as_of,
+                cache_usage=cache_usage,
             )
             names = agg_df[ColName.NAME].to_list()
             try:

@@ -22,14 +22,19 @@ DECK_COLOR_DATA_TEMPLATE = (
 )
 
 
-class Cached(StrEnum):
-    """`as_of=Cached.LAST` means "whatever snapshot is most recently cached on
-    disk for this exact query, however old" — falling back to a live fetch
-    (as of today) when nothing is cached yet. Distinct from `as_of=None`,
-    which always means today.
+class CacheUsage(StrEnum):
+    """Non-date values for `card_ratings_view`'s/`base_ratings_df`'s/
+    `deck_color_df`'s `cache_usage` param (a concrete `date` is also valid,
+    meaning that exact day's snapshot).
+
+    `NONE` (the default) means today: read today's cached snapshot if present,
+    otherwise fetch it live. `LAST` means whatever snapshot is most recently
+    cached on disk for this exact query, however old, falling back to a live
+    fetch (as of today) only when nothing is cached yet.
     """
 
     LAST = "LAST_CACHED"
+    NONE = "NONE"
 
 
 ratings_col_defs = {
@@ -78,34 +83,23 @@ def download_data_file(url: str, target_dir: str, filename: str) -> str:
     return file_path
 
 
-def _validated_as_of(as_of: dt.date | None) -> dt.date:
-    today = dt.date.today()
-    if as_of is None:
-        return today
-    if as_of > today:
-        raise ValueError(f"as_of={as_of} is in the future")
-    return as_of
-
-
 def _resolve_as_of(
-    as_of: dt.date | Cached | None, target_dir: str, filename_stub: str
+    as_of: dt.date | CacheUsage, target_dir: str, filename_stub: str
 ) -> dt.date:
-    """Turn `as_of` into a concrete date.
-
-    `Cached.LAST` picks whatever dated snapshot matching `filename_stub` is
-    most recently cached on disk, however old, falling back to today (i.e. a
-    live fetch) if nothing is cached yet. Any other value is handled by
-    `_validated_as_of`: `None` means today, a past or present date passes
-    through, and a future date raises.
-    """
-    if as_of != Cached.LAST:
-        return _validated_as_of(as_of)
+    """Resolve cache_usage to concrete as-of date"""
+    today = dt.date.today()
+    if as_of == CacheUsage.NONE:
+        return today
+    if as_of != CacheUsage.LAST:
+        if as_of > today:
+            raise ValueError(f"as_of={as_of} is in the future")
+        return as_of
 
     cached_dates = sorted(
         dt.datetime.strptime(path.stem[len(filename_stub) + 1 :], "%Y-%m-%d").date()
         for path in Path(target_dir).glob(f"{filename_stub}_*.json")
     )
-    return cached_dates[-1] if cached_dates else dt.date.today()
+    return cached_dates[-1] if cached_dates else today
 
 
 def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) -> list:
@@ -139,14 +133,12 @@ def deck_color_df(
     event_type: EventType = EventType.PREMIER,
     player_cohort: str = "all",
     time_period: TimePeriod = TimePeriod.ALL_TIME,
-    as_of: dt.date | Cached | None = None,
+    cache_usage: dt.date | CacheUsage = CacheUsage.NONE,
 ):
-    time_period = TimePeriod(time_period)
-
     target_dir, stub = cache.deck_color_file_stub(
         set_code, event_type, player_cohort, time_period
     )
-    as_of = _resolve_as_of(as_of, target_dir, stub)
+    as_of = _resolve_as_of(cache_usage, target_dir, stub)
 
     _, filename = cache.deck_color_file_path(
         set_code,
@@ -198,20 +190,15 @@ def base_ratings_df(
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
     time_period: TimePeriod = TimePeriod.ALL_TIME,
-    as_of: dt.date | Cached | None = None,
+    cache_usage: dt.date | CacheUsage = CacheUsage.NONE,
 ) -> pl.DataFrame:
-    time_period = TimePeriod(time_period)
-
     if isinstance(deck_colors, str):
         deck_colors = [deck_colors]
 
-    # Resolved once, against the first deck_color, so every color in this call
-    # shares one snapshot date — resolving `Cached.LAST` independently per
-    # color could otherwise mix data from different days into one aggregate.
     primary_dir, primary_stub = cache.card_ratings_file_stub(
         set_code, event_type, player_cohort, deck_colors[0], time_period
     )
-    as_of = _resolve_as_of(as_of, primary_dir, primary_stub)
+    as_of = _resolve_as_of(cache_usage, primary_dir, primary_stub)
 
     concat_list = []
     for i, deck_color in enumerate(deck_colors):
