@@ -102,6 +102,18 @@ def _resolve_as_of(
     return cached_dates[-1] if cached_dates else today
 
 
+def _unwrap_payload(raw: list | dict) -> list:
+    """17lands' newer endpoints (e.g. `/api/card_data`) wrap the card list in
+    `{"copyright": ..., "notes": ..., "data": [...]}`; older ones (e.g.
+    `/color_ratings/data`) return a bare list. Normalize to the bare list
+    either way, since the wrapper is always truthy and would otherwise defeat
+    the empty-payload check below.
+    """
+    if isinstance(raw, dict) and "data" in raw:
+        return raw["data"]
+    return raw
+
+
 def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) -> list:
     """Return the cached JSON payload for a resolved (concrete-date) `as_of`
     snapshot, downloading it only when `as_of` is today. 17lands resolves
@@ -113,7 +125,7 @@ def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) ->
     file_path = os.path.join(target_dir, filename)
 
     if os.path.isfile(file_path):
-        return json.loads(Path(file_path).read_text())
+        return _unwrap_payload(json.loads(Path(file_path).read_text()))
 
     if as_of < dt.date.today():
         raise ValueError(
@@ -122,7 +134,7 @@ def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) ->
         )
 
     download_data_file(url, target_dir, filename)
-    payload = json.loads(Path(file_path).read_text())
+    payload = _unwrap_payload(json.loads(Path(file_path).read_text()))
     if not payload:
         os.remove(file_path)
     return payload
@@ -184,6 +196,17 @@ def deck_color_df(
     return df
 
 
+def _is_known_precompute_gap(player_cohort: str, deck_color: str) -> bool:
+    """17lands' EventCardData precompute covers player_cohort alone, deck_color
+    alone, or neither — never both together (see refresh_event_card_data in
+    mtg-draft-logger's db/event_card_data_repository.py). An empty response for
+    such a query is expected, not a real error. This is server-side behavior
+    we don't control, so it may change (e.g. if 17lands adds the cross
+    product) — if it does, this is the one place to update.
+    """
+    return player_cohort != "all" and deck_color != "any"
+
+
 def base_ratings_df(
     set_code: str,
     event_type: EventType = EventType.PREMIER,
@@ -232,7 +255,7 @@ def base_ratings_df(
         if not payload:
             gap_hint = (
                 " (17lands does not precompute user_group and colors together)"
-                if player_cohort != "all" and deck_color != "any"
+                if _is_known_precompute_gap(player_cohort, deck_color)
                 else ""
             )
             raise ValueError(
