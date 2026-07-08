@@ -165,7 +165,7 @@ def write_card_file(
     `spells refresh {set_code}` to regenerate. With force_download=True:
     always overwrites.
     """
-    names = list(set(names) | BASIC_LANDS)
+    names = sorted(set(names) | BASIC_LANDS)
     mode = "refresh" if force_download else "add"
     card_filepath = cache.data_file_path(draft_set_code, View.CARD)
 
