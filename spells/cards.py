@@ -146,12 +146,7 @@ def names_from_parquet(draft_set_code: str, event_type: EventType) -> list[str]:
     return [col[len(prefix):] for col in columns if col.startswith(prefix)]
 
 
-BASIC_LANDS = ("Plains", "Island", "Swamp", "Mountain", "Forest")
-
-
-def _with_basics(names: list[str]) -> list[str]:
-    seen = set(names)
-    return list(names) + [land for land in BASIC_LANDS if land not in seen]
+BASIC_LANDS = frozenset({"Plains", "Island", "Swamp", "Mountain", "Forest"})
 
 
 def write_card_file(
@@ -170,7 +165,7 @@ def write_card_file(
     `spells refresh {set_code}` to regenerate. With force_download=True:
     always overwrites.
     """
-    names = _with_basics(names)
+    names = list(set(names) | BASIC_LANDS)
     mode = "refresh" if force_download else "add"
     card_filepath = cache.data_file_path(draft_set_code, View.CARD)
 
