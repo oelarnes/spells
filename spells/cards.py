@@ -185,6 +185,7 @@ def write_card_file(
 
     cache.spells_print(mode, "Fetching card data from mtgjson.com and writing card file")
     df = card_df(draft_set_code, names)
+    os.makedirs(os.path.dirname(card_filepath), exist_ok=True)
     df.write_parquet(card_filepath)
     cache.spells_print(mode, f"Wrote file {card_filepath}")
     return 0

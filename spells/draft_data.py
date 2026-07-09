@@ -687,12 +687,6 @@ def card_ratings_view(
                 cache_usage=cache_usage,
             )
             names = agg_df[ColName.NAME].to_list()
-            try:
-                write_card_file(code, names)
-            except ValueError:
-                raise  # card list inconsistency — propagate
-            except Exception:
-                pass  # MTGJSON unavailable (e.g. new set on release day)
 
             col_def_map = _hydrate_col_defs(
                 code,
