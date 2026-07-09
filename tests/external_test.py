@@ -78,24 +78,42 @@ def test_add_pick_two_skips_only_set_context(record_io):
 
 
 def test_write_card_file_validates_consistent_names(tmp_path, monkeypatch):
-    from spells import cache
-    from spells.cards import write_card_file
+    from spells.cards import BASIC_LANDS, write_card_file
 
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
     ext = tmp_path / "external" / "TST"
     ext.mkdir(parents=True)
-    pl.DataFrame({"name": ["Card A", "Card B"]}).write_parquet(ext / "TST_card.parquet")
+    pl.DataFrame({"name": ["Card A", "Card B", *BASIC_LANDS]}).write_parquet(
+        ext / "TST_card.parquet"
+    )
 
     assert write_card_file("TST", ["Card A", "Card B"]) == 1
 
 
-def test_write_card_file_raises_on_inconsistent_names(tmp_path, monkeypatch):
-    from spells.cards import write_card_file
+def test_write_card_file_tolerates_names_without_basics(tmp_path, monkeypatch):
+    from spells.cards import BASIC_LANDS, write_card_file
 
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
     ext = tmp_path / "external" / "TST"
     ext.mkdir(parents=True)
-    pl.DataFrame({"name": ["Card A", "Card B"]}).write_parquet(ext / "TST_card.parquet")
+    pl.DataFrame({"name": ["Card A", *BASIC_LANDS]}).write_parquet(
+        ext / "TST_card.parquet"
+    )
+
+    # the card ratings API omits basics; the file still validates because
+    # write_card_file canonicalizes the incoming names to include them
+    assert write_card_file("TST", ["Card A"]) == 1
+
+
+def test_write_card_file_raises_on_inconsistent_names(tmp_path, monkeypatch):
+    from spells.cards import BASIC_LANDS, write_card_file
+
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    ext = tmp_path / "external" / "TST"
+    ext.mkdir(parents=True)
+    pl.DataFrame({"name": ["Card A", "Card B", *BASIC_LANDS]}).write_parquet(
+        ext / "TST_card.parquet"
+    )
 
     with pytest.raises(ValueError, match="inconsistent"):
         write_card_file("TST", ["Card A", "Card C"])

@@ -146,6 +146,9 @@ def names_from_parquet(draft_set_code: str, event_type: EventType) -> list[str]:
     return [col[len(prefix):] for col in columns if col.startswith(prefix)]
 
 
+BASIC_LANDS = frozenset({"Plains", "Island", "Swamp", "Mountain", "Forest"})
+
+
 def write_card_file(
     draft_set_code: str,
     names: list[str],
@@ -153,12 +156,16 @@ def write_card_file(
 ) -> int:
     """Write (or validate) the set-level card attribute parquet.
 
-    On first call: fetches MTGJSON and writes the card file from `names`.
-    On subsequent calls with the same names: validates and returns 1.
+    Basic lands are always included: they appear in every set's game data but
+    not always in draft packs (the `names_from_parquet` source) or the card
+    ratings API, so the card file's name set is canonicalized to include them
+    regardless of caller. On first call: fetches MTGJSON and writes the card
+    file. On subsequent calls with the same names: validates and returns 1.
     On subsequent calls with different names: raises ValueError — run
-    `spells refresh {set_code}` to regenerate.
-    With force_download=True: always overwrites.
+    `spells refresh {set_code}` to regenerate. With force_download=True:
+    always overwrites.
     """
+    names = sorted(set(names) | BASIC_LANDS)
     mode = "refresh" if force_download else "add"
     card_filepath = cache.data_file_path(draft_set_code, View.CARD)
 
