@@ -48,7 +48,7 @@ def cli() -> int:
     cache.spells_print("spells", f"[data home]={data_dir}")
     print()
     usage = """spells [add|refresh|remove|clean] [set_code] [event_type]
-            spells refresh [set_code] --card-only [event_type]
+            spells [add|refresh] [set_code] --card-only [event_type]
             spells clean all
             spells info
 
@@ -65,6 +65,12 @@ def cli() -> int:
         supported for multi-pick formats yet.
 
         e.g. $ spells add OM1 PickTwoDraft
+
+        --card-only: spot-check the card file against the draft file already on
+        disk — no download. Builds the card file if missing; if it exists and
+        disagrees with the draft file's names, raises rather than overwriting.
+
+        e.g. $ spells add OTJ --card-only
 
     refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear
         local
@@ -95,8 +101,10 @@ def cli() -> int:
     if mode == "info":
         return _info()
 
-    if card_only and mode != "refresh":
-        cache.spells_print("usage", "--card-only is only valid with `spells refresh`")
+    if card_only and mode not in ("add", "refresh"):
+        cache.spells_print(
+            "usage", "--card-only is only valid with `spells add`/`spells refresh`"
+        )
         return 1
 
     if len(args) not in (2, 3):
@@ -120,6 +128,8 @@ def cli() -> int:
 
     match mode:
         case "add":
+            if card_only:
+                return _add_card_only(set_code, event_type=event_type)
             return _add(set_code, event_type=event_type)
         case "refresh":
             if card_only:
@@ -162,6 +172,22 @@ def _add(
             set_code, event_type=event_type, force_download=force_download
         )
     return 0
+
+
+def _add_card_only(set_code: str, event_type: EventType) -> int:
+    mode = "add"
+    cache.spells_print(
+        mode, f"Checking card file for {set_code} against existing {event_type} draft data"
+    )
+    try:
+        names = cards.names_from_parquet(set_code, event_type)
+    except FileNotFoundError as e:
+        cache.spells_print("error", str(e))
+        return 1
+
+    # no force_download: builds the file if missing, validates and raises on
+    # mismatch if it already exists — a spot check, not a rebuild
+    return cards.write_card_file(set_code, names)
 
 
 def _refresh(set_code: str, event_type: EventType):

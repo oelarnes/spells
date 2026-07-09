@@ -100,6 +100,61 @@ def test_refresh_card_only_requires_existing_draft_file(monkeypatch):
     assert external._refresh_card_only("TST", event_type=EventType.PREMIER) == 1
 
 
+def test_add_card_only_builds_missing_file(record_io, monkeypatch):
+    result = external._add_card_only("TST", event_type=EventType.PREMIER)
+
+    assert result == 0
+    assert record_io["card"] == [("TST", FAKE_NAMES)]
+    assert record_io["download"] == []
+    assert record_io["context"] == []
+
+
+def test_add_card_only_validates_consistent_file(tmp_path, monkeypatch):
+    from spells.cards import BASIC_LANDS
+
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    ext = tmp_path / "external" / "TST"
+    ext.mkdir(parents=True)
+    pl.DataFrame({"name": [*FAKE_NAMES, *BASIC_LANDS]}).write_parquet(
+        ext / "TST_card.parquet"
+    )
+    monkeypatch.setattr(
+        external.cards, "names_from_parquet", lambda set_code, event_type: FAKE_NAMES
+    )
+
+    assert external._add_card_only("TST", event_type=EventType.PREMIER) == 1
+
+
+def test_add_card_only_raises_on_mismatch_rather_than_overwriting(tmp_path, monkeypatch):
+    """The spot-check case: a stale card file must fail loudly, not get silently
+    rebuilt — that's what `refresh --card-only` is for."""
+    from spells.cards import BASIC_LANDS
+
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    ext = tmp_path / "external" / "TST"
+    ext.mkdir(parents=True)
+    pl.DataFrame({"name": ["Card A", *BASIC_LANDS]}).write_parquet(
+        ext / "TST_card.parquet"
+    )
+    monkeypatch.setattr(
+        external.cards,
+        "names_from_parquet",
+        lambda set_code, event_type: ["Card A", "Card B"],
+    )
+
+    with pytest.raises(ValueError, match="inconsistent"):
+        external._add_card_only("TST", event_type=EventType.PREMIER)
+
+
+def test_add_card_only_requires_existing_draft_file(monkeypatch):
+    def boom(set_code, event_type=EventType.PREMIER, **kw):
+        raise FileNotFoundError(f"No {event_type} draft file for {set_code}")
+
+    monkeypatch.setattr(external.cards, "names_from_parquet", boom)
+
+    assert external._add_card_only("TST", event_type=EventType.PREMIER) == 1
+
+
 def test_cli_dispatches_refresh_card_only(monkeypatch):
     calls = []
     monkeypatch.setattr(
@@ -114,8 +169,22 @@ def test_cli_dispatches_refresh_card_only(monkeypatch):
     assert calls == [("TST", EventType.PREMIER)]
 
 
-def test_cli_rejects_card_only_with_add(monkeypatch):
+def test_cli_dispatches_add_card_only(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        external,
+        "_add_card_only",
+        lambda set_code, event_type: calls.append((set_code, event_type)) or 0,
+    )
+    monkeypatch.setattr(external, "_add", lambda *a, **kw: pytest.fail("full add ran"))
     monkeypatch.setattr(external.sys, "argv", ["spells", "add", "TST", "--card-only"])
+
+    assert external.cli() == 0
+    assert calls == [("TST", EventType.PREMIER)]
+
+
+def test_cli_rejects_card_only_with_remove(monkeypatch):
+    monkeypatch.setattr(external.sys, "argv", ["spells", "remove", "TST", "--card-only"])
 
     assert external.cli() == 1
 
