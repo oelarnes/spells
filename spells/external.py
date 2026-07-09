@@ -48,6 +48,7 @@ def cli() -> int:
     cache.spells_print("spells", f"[data home]={data_dir}")
     print()
     usage = """spells [add|refresh|remove|clean] [set_code] [event_type]
+            spells [add|refresh] [set_code] --card-only [event_type]
             spells clean all
             spells info
 
@@ -65,8 +66,20 @@ def cli() -> int:
 
         e.g. $ spells add OM1 PickTwoDraft
 
+        --card-only: spot-check the card file against the draft file already on
+        disk — no download. Builds the card file if missing; if it exists and
+        disagrees with the draft file's names, raises rather than overwriting.
+
+        e.g. $ spells add OTJ --card-only
+
     refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear
         local
+
+        --card-only: rebuild just the card file, from the draft file already on disk —
+        no download. For when the card file itself needs fixing (e.g. after a spells
+        release changes how it's built) but the draft/game data is still good.
+
+        e.g. $ spells refresh OTJ --card-only
 
     remove: Delete the [data home]/external/[set code] and [data home]/local/[set code] directories and their contents
 
@@ -76,28 +89,37 @@ def cli() -> int:
     """
     print_usage = functools.partial(cache.spells_print, "usage", usage)
 
-    if len(sys.argv) < 2:
+    args = [a for a in sys.argv[1:] if a != "--card-only"]
+    card_only = len(args) != len(sys.argv) - 1
+
+    if len(args) < 1:
         print_usage()
         return 1
 
-    mode = sys.argv[1]
+    mode = args[0]
 
     if mode == "info":
         return _info()
 
-    if len(sys.argv) not in (3, 4):
+    if card_only and mode not in ("add", "refresh"):
+        cache.spells_print(
+            "usage", "--card-only is only valid with `spells add`/`spells refresh`"
+        )
+        return 1
+
+    if len(args) not in (2, 3):
         print_usage()
         return 1
 
-    set_code = sys.argv[2]
+    set_code = args[1]
 
-    if len(sys.argv) == 4:
+    if len(args) == 3:
         try:
-            event_type = EventType(sys.argv[3])
+            event_type = EventType(args[2])
         except ValueError:
             cache.spells_print(
                 "usage",
-                f"Unknown event type '{sys.argv[3]}'; expected one of "
+                f"Unknown event type '{args[2]}'; expected one of "
                 f"{[e.value for e in EventType]}",
             )
             return 1
@@ -106,8 +128,12 @@ def cli() -> int:
 
     match mode:
         case "add":
+            if card_only:
+                return _add_card_only(set_code, event_type=event_type)
             return _add(set_code, event_type=event_type)
         case "refresh":
+            if card_only:
+                return _refresh_card_only(set_code, event_type=event_type)
             return _refresh(set_code, event_type=event_type)
         case "remove":
             return _remove(set_code)
@@ -148,8 +174,40 @@ def _add(
     return 0
 
 
+def _add_card_only(set_code: str, event_type: EventType) -> int:
+    mode = "add"
+    cache.spells_print(
+        mode, f"Checking card file for {set_code} against existing {event_type} draft data"
+    )
+    try:
+        names = cards.names_from_parquet(set_code, event_type)
+    except FileNotFoundError as e:
+        cache.spells_print("error", str(e))
+        return 1
+
+    # no force_download: builds the file if missing, validates and raises on
+    # mismatch if it already exists — a spot check, not a rebuild
+    return cards.write_card_file(set_code, names)
+
+
 def _refresh(set_code: str, event_type: EventType):
     return _add(set_code, event_type=event_type, force_download=True)
+
+
+def _refresh_card_only(set_code: str, event_type: EventType) -> int:
+    mode = "refresh"
+    cache.spells_print(
+        mode, f"Rebuilding card file for {set_code} from existing {event_type} draft data"
+    )
+    try:
+        names = cards.names_from_parquet(set_code, event_type)
+    except FileNotFoundError as e:
+        cache.spells_print("error", str(e))
+        return 1
+
+    cards.write_card_file(set_code, names, force_download=True)
+    cache.clean(set_code)
+    return 0
 
 
 def _remove(set_code: str):
