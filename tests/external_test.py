@@ -77,6 +77,49 @@ def test_add_pick_two_skips_only_set_context(record_io):
     assert record_io["context"] == []
 
 
+def test_refresh_card_only_rebuilds_from_existing_draft_file(record_io, monkeypatch):
+    cleaned = []
+    monkeypatch.setattr(external.cache, "clean", lambda set_code: cleaned.append(set_code))
+
+    result = external._refresh_card_only("TST", event_type=EventType.PREMIER)
+
+    assert result == 0
+    assert record_io["card"] == [("TST", FAKE_NAMES)]
+    # no draft/game download, no set context — only the card file is touched
+    assert record_io["download"] == []
+    assert record_io["context"] == []
+    assert cleaned == ["TST"]
+
+
+def test_refresh_card_only_requires_existing_draft_file(monkeypatch):
+    def boom(set_code, event_type=EventType.PREMIER, **kw):
+        raise FileNotFoundError(f"No {event_type} draft file for {set_code}")
+
+    monkeypatch.setattr(external.cards, "names_from_parquet", boom)
+
+    assert external._refresh_card_only("TST", event_type=EventType.PREMIER) == 1
+
+
+def test_cli_dispatches_refresh_card_only(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        external,
+        "_refresh_card_only",
+        lambda set_code, event_type: calls.append((set_code, event_type)) or 0,
+    )
+    monkeypatch.setattr(external, "_refresh", lambda *a, **kw: pytest.fail("full refresh ran"))
+    monkeypatch.setattr(external.sys, "argv", ["spells", "refresh", "TST", "--card-only"])
+
+    assert external.cli() == 0
+    assert calls == [("TST", EventType.PREMIER)]
+
+
+def test_cli_rejects_card_only_with_add(monkeypatch):
+    monkeypatch.setattr(external.sys, "argv", ["spells", "add", "TST", "--card-only"])
+
+    assert external.cli() == 1
+
+
 def test_write_card_file_validates_consistent_names(tmp_path, monkeypatch):
     from spells.cards import BASIC_LANDS, write_card_file
 
