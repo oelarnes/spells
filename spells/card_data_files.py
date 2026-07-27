@@ -1,6 +1,15 @@
+"""Live queries against 17Lands' curated aggregate endpoints.
+
+Unlike the public datasets (CC BY 4.0), this data is covered by 17Lands' usage
+guidelines: it is intended for use on 17Lands.com, automated access is
+discouraged without explicit permission, and derived work carries citation and
+new-set embargo obligations. Nothing here is exported from the package root.
+"""
+
 import datetime as dt
 from enum import StrEnum
 import json
+import logging
 import os
 from pathlib import Path
 import wget
@@ -70,6 +79,26 @@ deck_color_col_defs = {
 }
 
 
+_guidelines_warned = False
+
+
+def _warn_usage_guidelines() -> None:
+    """Warn once per process, on the first request that actually reaches
+    17Lands' servers. Cache hits are not requests, so they stay quiet."""
+    global _guidelines_warned
+    if _guidelines_warned:
+        return
+    _guidelines_warned = True
+
+    logging.warning(
+        "Fetching curated data from 17Lands. This data is not covered by the "
+        "CC BY 4.0 license that applies to the public datasets: 17Lands "
+        "discourages automated access without explicit permission, and asks "
+        "that published work cite 17Lands and observe the new-set embargo. "
+        "See 17lands.com/usage_guidelines and 17lands.com/terms_of_service."
+    )
+
+
 def download_data_file(url: str, target_dir: str, filename: str) -> str:
     """Download a 17lands data file unless already cached; return the local path."""
     if not os.path.isdir(target_dir):
@@ -133,6 +162,7 @@ def _fetch_snapshot(url: str, target_dir: str, filename: str, as_of: dt.date) ->
             "cannot be fetched"
         )
 
+    _warn_usage_guidelines()
     download_data_file(url, target_dir, filename)
     payload = _unwrap_payload(json.loads(Path(file_path).read_text()))
     if not payload:

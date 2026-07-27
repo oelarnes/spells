@@ -24,11 +24,13 @@ snapshot is most recently cached, however old).
 
 import datetime
 import json
+import logging
 from pathlib import Path
 
 import polars as pl
 import pytest
 
+from spells import card_data_files
 from spells.card_data_files import base_ratings_df, CacheUsage
 from spells.draft_data import card_ratings_view
 from spells.columns import ColSpec
@@ -358,3 +360,56 @@ def test_past_cache_usage_date_cache_miss_cannot_refetch(fake_ratings_file):
             time_period=TimePeriod.LAST_WEEK,
             cache_usage=FAKE_AS_OF,
         )
+
+
+# ---------------------------------------------------------------------------
+# Usage guidelines warning
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def unwarned():
+    """The warning fires once per process, so tests must clear the flag."""
+    card_data_files._guidelines_warned = False
+    yield
+    card_data_files._guidelines_warned = False
+
+
+@pytest.fixture
+def fake_download(monkeypatch):
+    monkeypatch.setattr(
+        "spells.card_data_files.wget.download",
+        lambda url, out: Path(out).write_text(json.dumps(FAKE_CARD_RATINGS)),
+    )
+
+
+def test_fetch_warns_about_usage_guidelines(
+    fake_ratings_file, fake_download, unwarned, caplog
+):
+    with caplog.at_level(logging.WARNING):
+        card_ratings_view(FAKE_SET, columns=["num_gih"], group_by=["name"])
+
+    assert "17lands.com/usage_guidelines" in caplog.text
+
+
+def test_cached_read_does_not_warn(fake_ratings_file, unwarned, caplog):
+    with caplog.at_level(logging.WARNING):
+        card_ratings_view(
+            FAKE_SET, columns=["num_gih"], group_by=["name"], cache_usage=FAKE_AS_OF
+        )
+
+    assert "usage_guidelines" not in caplog.text
+
+
+def test_warns_once_per_process(fake_ratings_file, fake_download, unwarned, caplog):
+    # distinct time periods are distinct snapshots, so both calls fetch
+    with caplog.at_level(logging.WARNING):
+        for time_period in (TimePeriod.LAST_WEEK, TimePeriod.LAST_TWO_WEEKS):
+            card_ratings_view(
+                FAKE_SET,
+                columns=["num_gih"],
+                group_by=["name"],
+                time_period=time_period,
+            )
+
+    assert caplog.text.count("usage_guidelines") == 1
