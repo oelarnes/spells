@@ -161,7 +161,9 @@ def _render_status(
 
     console.print(Padding(table, (0, 0, 0, 2)))
 
-    if inv.draft_logs:
+    # cached draft logs are keyed by draft id alone, so they cannot be
+    # attributed to the set being reported on
+    if inv.draft_logs and not detailed:
         console.print(
             f"\n  {inv.draft_logs} cached draft logs "
             f"[dim]({sizeof_fmt(inv.draft_log_bytes)})[/dim]"

@@ -182,3 +182,13 @@ def test_path_reports_store_dir(data_home):
 def test_path_reports_store_set_dir(data_home):
     result = runner.invoke(cli.app, ["path", "TST", "--kind", "cache"])
     assert result.stdout.strip() == str(data_home / "cache" / "TST")
+
+
+def test_status_omits_draft_logs_when_reporting_on_one_set(data_home):
+    """Cached logs are keyed by draft id with no set attribution, so showing a
+    count under `status TST` implies an association that does not exist."""
+    (data_home / "draft").mkdir()
+    (data_home / "draft" / "abc123.json").write_bytes(b"x" * 10)
+
+    assert "cached draft logs" in runner.invoke(cli.app, ["status"]).stdout
+    assert "cached draft logs" not in runner.invoke(cli.app, ["status", "TST"]).stdout
