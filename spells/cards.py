@@ -1,12 +1,11 @@
 import json
 import os
-import re
-import urllib.request
 from enum import StrEnum
 
 import polars as pl
 
 from spells import cache
+from spells import http
 from spells.enums import ColName, View, EventType
 
 
@@ -34,15 +33,7 @@ MTG_JSON_TEMPLATE = "https://mtgjson.com/api/v5/{set_code}.json"
 
 
 def _fetch_mtg_json(set_code: str) -> dict:
-    request = urllib.request.Request(
-        MTG_JSON_TEMPLATE.format(set_code=set_code),
-        headers={"User-Agent": "spells-mtg/0.1.0"},
-    )
-
-    with urllib.request.urlopen(request) as f:
-        draft_set_json = json.loads(f.read().decode("utf-8"))
-
-    return draft_set_json
+    return http.get_json(MTG_JSON_TEMPLATE.format(set_code=set_code))
 
 
 def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):

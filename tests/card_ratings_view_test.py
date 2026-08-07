@@ -6,7 +6,7 @@ All tests use fake set codes ("TST", "TS2") with no local parquet files.
 Ratings JSON is pre-seeded as snapshots at a past cache_usage date, so a cache
 miss raises instead of reaching the network (past snapshots cannot be
 refetched — 17lands resolves time periods against its own current date).
-Tests that exercise the fetch path itself monkeypatch wget.download.
+Tests that exercise the fetch path itself monkeypatch http.download.
 
 card_ratings_view() takes no filter_spec/card_context/set_context: the ratings
 API already returns one aggregated row per card, so there's nothing to
@@ -190,7 +190,7 @@ def test_omitted_cache_usage_defaults_to_today(fake_ratings_file, monkeypatch):
     # Today's snapshot isn't seeded, so the fetch path runs — the fake download
     # asserts the new /api/card_data query format and writes the payload where
     # the cache expects it.
-    def _fake_download(url, out):
+    def _fake_download(url, out, **kwargs):
         assert "https://www.17lands.com/api/card_data?" in url
         assert f"expansion={FAKE_SET}" in url
         assert "event_type=PremierDraft" in url
@@ -198,17 +198,17 @@ def test_omitted_cache_usage_defaults_to_today(fake_ratings_file, monkeypatch):
         assert "start_date" not in url
         Path(out).write_text(json.dumps(FAKE_CARD_RATINGS))
 
-    monkeypatch.setattr("spells.card_data_files.wget.download", _fake_download)
+    monkeypatch.setattr("spells.card_data_files.http.download", _fake_download)
 
     result = card_ratings_view(FAKE_SET, columns=["num_gih"], group_by=["name"])
     assert len(result) == len(FAKE_CARD_RATINGS)
 
 
 def test_explicit_cache_usage_none_same_as_omitted(fake_ratings_file, monkeypatch):
-    def _fake_download(url, out):
+    def _fake_download(url, out, **kwargs):
         Path(out).write_text(json.dumps(FAKE_CARD_RATINGS))
 
-    monkeypatch.setattr("spells.card_data_files.wget.download", _fake_download)
+    monkeypatch.setattr("spells.card_data_files.http.download", _fake_download)
 
     result = card_ratings_view(
         FAKE_SET, columns=["num_gih"], group_by=["name"], cache_usage=CacheUsage.NONE
@@ -288,11 +288,11 @@ def test_last_cached_accepts_plain_string(fake_ratings_file):
 def test_last_cached_falls_back_to_live_query_when_nothing_cached(monkeypatch, tmp_path):
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
 
-    def _fake_download(url, out):
+    def _fake_download(url, out, **kwargs):
         assert "time_period=ALL_TIME" in url
         Path(out).write_text(json.dumps(FAKE_CARD_RATINGS))
 
-    monkeypatch.setattr("spells.card_data_files.wget.download", _fake_download)
+    monkeypatch.setattr("spells.card_data_files.http.download", _fake_download)
 
     result = card_ratings_view(
         FAKE_SET, columns=["num_gih"], group_by=["name"], cache_usage=CacheUsage.LAST
@@ -378,8 +378,8 @@ def unwarned():
 @pytest.fixture
 def fake_download(monkeypatch):
     monkeypatch.setattr(
-        "spells.card_data_files.wget.download",
-        lambda url, out: Path(out).write_text(json.dumps(FAKE_CARD_RATINGS)),
+        "spells.card_data_files.http.download",
+        lambda url, out, **kwargs: Path(out).write_text(json.dumps(FAKE_CARD_RATINGS)),
     )
 
 

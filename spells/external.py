@@ -8,21 +8,16 @@ import os
 import shutil
 from enum import StrEnum
 
-import wget
 import polars as pl
 from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
+from spells import http
+from spells.catalog import DATASET_TEMPLATE, RESOURCE_TEMPLATE
 from spells.enums import View, ColName, EventType
 from spells.schema import schema
 from spells.draft_data import summon
-
-
-DATASET_TEMPLATE = "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
-RESOURCE_TEMPLATE = (
-    "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
-)
 
 class FileFormat(StrEnum):
     CSV = "csv"
@@ -177,8 +172,7 @@ def download_data_set(
     source_url = RESOURCE_TEMPLATE.format(dataset_type=dataset_type) + dataset_file
     dataset_path = os.path.join(cache.external_set_path(set_code), dataset_file)
     cache.spells_print(mode, f"Fetching {source_url}")
-    wget.download(source_url, out=dataset_path)
-    print()
+    http.download(source_url, dataset_path, description=dataset_file)
 
     cache.spells_print(
         mode, "Unzipping and transforming to parquet (this might take a few minutes)..."
