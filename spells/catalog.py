@@ -24,11 +24,11 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
-import json
-import urllib.error
 import urllib.parse
-import urllib.request
 
+import requests
+
+from spells import http
 from spells.enums import EventType, View
 
 PRISMIC_API = "https://17lands.cdn.prismic.io/api/v2"
@@ -40,9 +40,6 @@ DATASET_TEMPLATE = "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
 RESOURCE_TEMPLATE = (
     "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
 )
-
-USER_AGENT = "spells-mtg"
-TIMEOUT = 30
 
 
 class Freshness(StrEnum):
@@ -161,16 +158,10 @@ def parse(document: dict) -> Catalog:
     return Catalog(datasets=tuple(datasets))
 
 
-def _get_json(url: str) -> dict:
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
 def _fetch_document() -> dict:
-    ref = _get_json(PRISMIC_API)["refs"][0]["ref"]
+    ref = http.get_json(PRISMIC_API)["refs"][0]["ref"]
     query = urllib.parse.urlencode({"ref": ref, "q": PRISMIC_QUERY, "pageSize": 100})
-    results = _get_json(f"{PRISMIC_API}/documents/search?{query}")["results"]
+    results = http.get_json(f"{PRISMIC_API}/documents/search?{query}")["results"]
     if not results:
         raise ValueError("no public-data document in the 17Lands catalog")
     return results[0]
@@ -191,13 +182,7 @@ def fetch(refresh: bool = False) -> Catalog:
 
     try:
         _cached = parse(_fetch_document())
-    except (
-        urllib.error.URLError,
-        TimeoutError,
-        KeyError,
-        ValueError,
-        json.JSONDecodeError,
-    ):
+    except (requests.RequestException, KeyError, ValueError):
         _cached = Catalog(datasets=(), is_fallback=True)
     return _cached
 
@@ -209,19 +194,11 @@ def fallback_url(expansion: str, view: View, event_type: EventType) -> str:
 
 
 def head(url: str) -> RemoteFile | None:
-    """Remote metadata, or None if the object is missing or unreachable.
-
-    Unpublished datasets are `public-read` only for objects that exist, so a
-    stale or guessed URL comes back 403 rather than 404.
-    """
-    request = urllib.request.Request(
-        url, method="HEAD", headers={"User-Agent": USER_AGENT}
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
-            headers = response.headers
-    except (urllib.error.URLError, TimeoutError):
+    """Remote metadata, or None if the object is missing or unreachable."""
+    response = http.head(url)
+    if response is None:
         return None
+    headers = response.headers
 
     last_modified = None
     if raw := headers.get("Last-Modified"):

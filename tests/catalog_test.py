@@ -85,14 +85,14 @@ def test_parse_tolerates_an_empty_document():
 
 
 def test_fetch_falls_back_when_17lands_is_unreachable(monkeypatch):
-    import urllib.error
+    import requests
 
     monkeypatch.setattr(catalog, "_cached", None)
 
     def unreachable(url):
-        raise urllib.error.URLError("no network")
+        raise requests.ConnectionError("no network")
 
-    monkeypatch.setattr(catalog, "_get_json", unreachable)
+    monkeypatch.setattr(catalog.http, "get_json", unreachable)
 
     result = catalog.fetch()
     assert result.is_fallback

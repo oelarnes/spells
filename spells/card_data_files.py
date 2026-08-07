@@ -12,12 +12,12 @@ import json
 import logging
 import os
 from pathlib import Path
-import wget
 from time import sleep
 
 import polars as pl
 
 from spells import cache
+from spells import http
 from spells.enums import ColName, EventType, TimePeriod
 
 RATINGS_TEMPLATE = (
@@ -107,7 +107,7 @@ def download_data_file(url: str, target_dir: str, filename: str) -> str:
     file_path = os.path.join(target_dir, filename)
 
     if not os.path.isfile(file_path):
-        wget.download(url, out=file_path)
+        http.download(url, file_path, progress=False)
 
     return file_path
 
