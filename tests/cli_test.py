@@ -192,3 +192,152 @@ def test_status_omits_draft_logs_when_reporting_on_one_set(data_home):
 
     assert "cached draft logs" in runner.invoke(cli.app, ["status"]).stdout
     assert "cached draft logs" not in runner.invoke(cli.app, ["status", "TST"]).stdout
+
+
+# ---------------------------------------------------------------------------
+# check
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def fake_catalog(monkeypatch):
+    """A catalog publishing TST in two event types, and nothing for KHM."""
+    import datetime
+
+    from spells.catalog import Catalog, Dataset, RemoteFile
+
+    def dataset(event_type, draft=True):
+        stub = f"https://example/{{}}_data_public.TST.{event_type}.csv.gz"
+        return Dataset(
+            expansion="TST",
+            format_name=str(event_type),
+            event_type=event_type,
+            last_updated=datetime.date(2026, 7, 26),
+            draft_url=stub.format("draft") if draft else None,
+            game_url=stub.format("game"),
+        )
+
+    cat = Catalog(datasets=(dataset(EventType.PREMIER), dataset(EventType.TRADITIONAL)))
+    monkeypatch.setattr(cli.catalog, "fetch", lambda *a, **k: cat)
+    monkeypatch.setattr(
+        cli.catalog,
+        "head",
+        lambda url: RemoteFile(
+            url=url,
+            last_modified=datetime.datetime(2026, 7, 27, tzinfo=datetime.timezone.utc),
+        ),
+    )
+    return cat
+
+
+REMOTE_MTIME = 1785110400  # 2026-07-27, what fake_catalog's HEAD reports
+
+
+def _set_mtime(data_home, when: int) -> None:
+    import os
+
+    for path in (data_home / "external" / "TST").glob("*.parquet"):
+        os.utime(path, (when, when))
+
+
+def test_check_flags_stale_local_data_and_exits_3(data_home, fake_catalog):
+    _set_mtime(data_home, REMOTE_MTIME - 86400)
+
+    result = runner.invoke(cli.app, ["check"])
+    assert result.exit_code == 3
+    assert "stale" in result.stdout
+
+
+def test_check_reports_an_event_type_published_but_never_added(data_home, fake_catalog):
+    """The whole point of the catalog: TradDraft exists and we do not have it."""
+    result = runner.invoke(cli.app, ["check", "--json"])
+    payload = json.loads(result.stdout)
+
+    trad = [d for d in payload["datasets"] if d["event_type"] == "TradDraft"]
+    assert trad and all(d["status"] == "absent" for d in trad)
+
+
+def test_check_json_carries_the_url_and_remote_timestamp(data_home, fake_catalog):
+    result = runner.invoke(cli.app, ["check", "--json"])
+    payload = json.loads(result.stdout)
+
+    assert payload["catalog_reachable"] is True
+    draft = next(
+        d
+        for d in payload["datasets"]
+        if d["event_type"] == "PremierDraft" and d["view"] == "draft"
+    )
+    assert draft["url"].endswith("draft_data_public.TST.PremierDraft.csv.gz")
+    assert draft["remote_last_modified"].startswith("2026-07-27")
+
+
+def test_check_reports_current_when_local_is_newer(data_home, fake_catalog):
+    _set_mtime(data_home, REMOTE_MTIME + 86400)
+
+    result = runner.invoke(cli.app, ["check", "TST", "--json"])
+    payload = json.loads(result.stdout)
+    held = [
+        d
+        for d in payload["datasets"]
+        if d["event_type"] == "PremierDraft" and d["view"] in ("draft", "game")
+    ]
+    assert all(d["status"] == "current" for d in held)
+
+
+def test_check_for_a_set_17lands_does_not_publish_exits_1(data_home, fake_catalog):
+    result = runner.invoke(cli.app, ["check", "NOPE"])
+    assert result.exit_code == 1
+
+
+def test_check_warns_but_does_not_claim_unpublished_when_offline(
+    monkeypatch, data_home
+):
+    from spells.catalog import Catalog
+
+    monkeypatch.setattr(
+        cli.catalog, "fetch", lambda *a, **k: Catalog(datasets=(), is_fallback=True)
+    )
+    result = runner.invoke(cli.app, ["check", "--json"])
+    payload = json.loads(result.stdout)
+
+    assert payload["catalog_reachable"] is False
+    assert all(d["status"] == "unknown" for d in payload["datasets"])
+
+
+def test_check_ignores_event_types_never_added_when_setting_exit_code(
+    data_home, fake_catalog
+):
+    """Nearly every set publishes TradDraft. Counting one the user never added
+    as "work to do" would make exit 3 fire permanently and be useless to cron."""
+    _set_mtime(data_home, REMOTE_MTIME + 86400)
+
+    result = runner.invoke(cli.app, ["check"])
+    assert result.exit_code == 0
+
+    payload = json.loads(runner.invoke(cli.app, ["check", "--json"]).stdout)
+    trad = [d for d in payload["datasets"] if d["event_type"] == "TradDraft"]
+    assert trad
+    assert all(d["status"] == "absent" for d in trad)
+    assert all(d["tracked"] is False for d in trad)
+    assert all(d["actionable"] is False for d in trad)
+
+
+def test_check_counts_a_missing_file_in_a_tracked_event_type_as_work(
+    data_home, fake_catalog
+):
+    """A half-downloaded event type is a real defect, unlike one never added."""
+    _set_mtime(data_home, REMOTE_MTIME + 86400)
+    (data_home / "external" / "TST" / "TST_PremierDraft_game.parquet").unlink()
+
+    result = runner.invoke(cli.app, ["check", "--json"])
+    assert result.exit_code == 3
+
+    payload = json.loads(result.stdout)
+    game = next(
+        d
+        for d in payload["datasets"]
+        if d["event_type"] == "PremierDraft" and d["view"] == "game"
+    )
+    assert game["status"] == "absent"
+    assert game["tracked"] is True
+    assert game["actionable"] is True

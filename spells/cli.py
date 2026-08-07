@@ -9,9 +9,10 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.table import Table
 
-from spells import cache, external, inventory
+from spells import cache, catalog, external, inventory
 from spells.cache import DataDir
-from spells.enums import EventType
+from spells.catalog import Freshness, Target
+from spells.enums import EventType, View
 from spells.inventory import Anomaly, AnomalyKind, Inventory
 
 ANOMALY_HELP = {
@@ -301,6 +302,236 @@ def clean(
 ) -> None:
     """Delete derived cache files. Always safe: they rebuild on demand."""
     raise typer.Exit(cache.clean(set_code))
+
+
+FRESHNESS_STYLE = {
+    Freshness.CURRENT: ("[green]current[/green]", "up to date"),
+    Freshness.STALE: ("[yellow]stale[/yellow]", "17Lands has newer data"),
+    Freshness.ABSENT: ("[cyan]absent[/cyan]", "published, not downloaded"),
+    Freshness.UNPUBLISHED: ("[dim]unpublished[/dim]", "17Lands does not publish it"),
+    Freshness.UNKNOWN: ("[dim]unknown[/dim]", "could not determine"),
+}
+
+CHECKED_VIEWS = (View.DRAFT, View.GAME)
+
+UNADDED_SHOWN = 5
+
+
+def _targets(
+    inv: Inventory, set_code: str | None, cat: catalog.Catalog
+) -> list[Target]:
+    """Every downloadable file worth asking about.
+
+    Sets already on disk are checked for staleness *and* for event types the
+    catalog publishes but we never added; a set with nothing on disk is only
+    reachable by naming it explicitly.
+    """
+    if set_code is not None:
+        expansions = [set_code]
+    else:
+        expansions = catalog.in_release_order(
+            cat, (s.set_code for s in inv.sets.values() if s.has_external)
+        )
+
+    targets = []
+    for expansion in expansions:
+        set_inv = inv.sets.get(expansion)
+        published = {
+            d.event_type for d in cat.for_expansion(expansion) if d.is_supported
+        }
+        held = set(set_inv.events) if set_inv else set()
+        for event_type in sorted(published | held):
+            files = set_inv.events.get(event_type) if set_inv else None
+            for view in CHECKED_VIEWS:
+                local = getattr(files, view, None) if files else None
+                targets.append(
+                    Target(expansion, event_type, view, local.mtime if local else None)
+                )
+    return targets
+
+
+def _held_events(inv: Inventory) -> set[tuple[str, EventType]]:
+    return {(s.set_code, event) for s in inv.sets.values() for event in s.events}
+
+
+def _is_actionable(row: catalog.CheckRow, held: set[tuple[str, EventType]]) -> bool:
+    """Whether a row represents something the user actually needs to do.
+
+    An event type they have never added is a suggestion, not a defect: nearly
+    every set publishes TradDraft, so counting those as work would make the
+    exit-3 contract fire permanently and be useless to cron.
+    """
+    if row.freshness == Freshness.STALE:
+        return True
+    key = (row.target.expansion, row.target.event_type)
+    return row.freshness == Freshness.ABSENT and key in held
+
+
+def _render_check(
+    rows: list[catalog.CheckRow],
+    cat: catalog.Catalog,
+    held: set[tuple[str, EventType]],
+    detailed: bool,
+    unadded: list[str],
+) -> None:
+    if cat.is_fallback:
+        err_console.print(
+            "[yellow]Could not reach the 17Lands catalog; "
+            "reporting local state only.[/yellow]\n"
+        )
+
+    if not rows:
+        console.print("  [dim]Nothing to check. Try `spells add DSK`.[/dim]")
+        return
+
+    tracked = [r for r in rows if (r.target.expansion, r.target.event_type) in held]
+    untracked = [r for r in rows if r not in tracked]
+
+    if tracked:
+        table = Table(box=None, pad_edge=False, header_style="bold")
+        table.add_column("set")
+        table.add_column("event type")
+        table.add_column("file")
+        table.add_column("status")
+        table.add_column("updated", justify="right")
+
+        for row in tracked:
+            remote = row.remote
+            when = "[dim]—[/dim]"
+            if remote is not None and remote.last_modified is not None:
+                when = remote.last_modified.date().isoformat()
+            table.add_row(
+                row.target.expansion,
+                str(row.target.event_type),
+                str(row.target.view),
+                FRESHNESS_STYLE[row.freshness][0],
+                when,
+            )
+
+        console.print(Padding(table, (0, 0, 0, 2)))
+
+    if untracked:
+        available: dict[str, set[EventType]] = {}
+        for row in untracked:
+            if row.freshness == Freshness.ABSENT:
+                available.setdefault(row.target.expansion, set()).add(
+                    row.target.event_type
+                )
+
+        if available and detailed:
+            console.print("\n  [bold]also published[/bold] [dim](not added)[/dim]")
+            for expansion, events in sorted(available.items()):
+                names = ", ".join(sorted(str(e) for e in events))
+                console.print(f"    {expansion}: [cyan]{names}[/cyan]")
+        elif available:
+            events = sorted({str(e) for evs in available.values() for e in evs})
+            console.print(
+                f"\n  [dim]{len(available)} set(s) also publish "
+                f"{', '.join(events)}[/dim]"
+            )
+            console.print("  [dim]`spells check <SET>` for detail[/dim]")
+
+    if unadded:
+        shown = unadded[:UNADDED_SHOWN]
+        console.print(f"\n  [bold]published, not added[/bold] ({len(unadded)})")
+        for expansion in shown:
+            when = cat.updated(expansion)
+            console.print(
+                f"    [cyan]{expansion:<14}[/cyan] "
+                f"[dim]{when.isoformat() if when else '—'}[/dim]"
+            )
+        if len(unadded) > len(shown):
+            console.print(f"    [dim]+{len(unadded) - len(shown)} older[/dim]")
+
+    work = sorted({r.target.expansion for r in tracked if _is_actionable(r, held)})
+    if work:
+        console.print(
+            f"\n  [bold]{len(work)} set(s) incomplete or out of date:[/bold] "
+            f"{', '.join(work)}"
+        )
+        console.print(
+            "  [dim]`spells add <SET>` fills gaps, `refresh` re-downloads[/dim]"
+        )
+
+
+@app.command()
+def check(
+    set_code: Annotated[
+        str | None, typer.Argument(help="Limit to a single set.")
+    ] = None,
+    json_out: Annotated[
+        bool, typer.Option("--json", help="Machine-readable output.")
+    ] = False,
+) -> None:
+    """Compare local data against what 17Lands publishes.
+
+    Exits 3 when data you already track is out of date, so cron can chain on
+    it. Event types you have never added are reported but do not affect the
+    exit code.
+    """
+    inv = inventory.scan()
+    cat = catalog.fetch()
+    rows = catalog.resolve(_targets(inv, set_code, cat), cat)
+    held = _held_events(inv)
+
+    # only meaningful for the whole-data-home view; naming a set already says
+    # which expansion you care about
+    unadded = (
+        []
+        if set_code is not None
+        else catalog.unadded(
+            cat, {s.set_code for s in inv.sets.values() if s.has_external}
+        )
+    )
+
+    if set_code is not None and not rows:
+        err_console.print(f"17Lands publishes no draft data for set {set_code}")
+        raise typer.Exit(1)
+
+    if json_out:
+        print(
+            json.dumps(
+                {
+                    "catalog_reachable": not cat.is_fallback,
+                    "unadded_expansions": [
+                        {
+                            "set_code": expansion,
+                            "last_updated": (
+                                cat.updated(expansion).isoformat()
+                                if cat.updated(expansion)
+                                else None
+                            ),
+                        }
+                        for expansion in unadded
+                    ],
+                    "datasets": [
+                        {
+                            "set_code": r.target.expansion,
+                            "event_type": str(r.target.event_type),
+                            "view": str(r.target.view),
+                            "status": str(r.freshness),
+                            "tracked": (r.target.expansion, r.target.event_type)
+                            in held,
+                            "actionable": _is_actionable(r, held),
+                            "url": r.remote.url if r.remote else None,
+                            "remote_last_modified": (
+                                r.remote.last_modified.isoformat()
+                                if r.remote and r.remote.last_modified
+                                else None
+                            ),
+                            "remote_bytes": r.remote.size if r.remote else None,
+                        }
+                        for r in rows
+                    ],
+                },
+                indent=2,
+            )
+        )
+    else:
+        _render_check(rows, cat, held, detailed=set_code is not None, unadded=unadded)
+
+    if any(_is_actionable(r, held) for r in rows):
+        raise typer.Exit(3)
 
 
 @app.command()
