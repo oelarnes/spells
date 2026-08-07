@@ -1,0 +1,300 @@
+{
+  "data": {
+    "datasets": [
+      {
+        "expansion": [
+          {
+            "type": "paragraph",
+            "text": "MSH",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "format": [
+          {
+            "type": "paragraph",
+            "text": "PremierDraft",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "last_updated": [
+          {
+            "type": "paragraph",
+            "text": "2026-07-26",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "draft_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/draft_data/draft_data_public.MSH.PremierDraft.csv.gz",
+                  "target": "_blank"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ],
+        "game_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/game_data_public.MSH.PremierDraft.csv.gz",
+                  "target": "_blank"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ]
+      },
+      {
+        "expansion": [
+          {
+            "type": "paragraph",
+            "text": "MSH",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "format": [
+          {
+            "type": "paragraph",
+            "text": "PickTwoDraft",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "last_updated": [
+          {
+            "type": "paragraph",
+            "text": "2026-07-26",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "draft_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/draft_data/draft_data_public.MSH.PickTwoDraft.csv.gz",
+                  "target": "_blank"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ],
+        "game_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/game_data_public.MSH.PickTwoDraft.csv.gz",
+                  "target": "_blank"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ]
+      },
+      {
+        "expansion": [
+          {
+            "type": "paragraph",
+            "text": "MSH",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "format": [
+          {
+            "type": "paragraph",
+            "text": "Sealed",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "last_updated": [
+          {
+            "type": "paragraph",
+            "text": "2026-07-26",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "draft_data": [
+          {
+            "type": "paragraph",
+            "text": "-",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "game_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/game_data_public.MSH.Sealed.csv.gz",
+                  "target": "_blank"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ]
+      },
+      {
+        "expansion": [
+          {
+            "type": "paragraph",
+            "text": "KHM",
+            "spans": []
+          }
+        ],
+        "format": [
+          {
+            "type": "paragraph",
+            "text": "PremierDraft",
+            "spans": []
+          }
+        ],
+        "last_updated": [
+          {
+            "type": "paragraph",
+            "text": "2021-04-04",
+            "spans": []
+          }
+        ],
+        "draft_data": [
+          {
+            "type": "paragraph",
+            "text": "-",
+            "spans": []
+          }
+        ],
+        "game_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/game_data_public.KHM.PremierDraft.csv.gz",
+                  "target": "_blank"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ]
+      },
+      {
+        "expansion": [
+          {
+            "type": "paragraph",
+            "text": "BLB",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "format": [
+          {
+            "type": "paragraph",
+            "text": "TradDraft",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "last_updated": [
+          {
+            "type": "paragraph",
+            "text": "2024-09-05",
+            "spans": [],
+            "direction": "ltr"
+          }
+        ],
+        "draft_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/draft_data/draft_data_public.BLB.TradDraft.csv.gz",
+                  "target": "_blank"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ],
+        "game_data": [
+          {
+            "type": "paragraph",
+            "text": "link",
+            "spans": [
+              {
+                "start": 0,
+                "end": 4,
+                "type": "hyperlink",
+                "data": {
+                  "link_type": "Web",
+                  "url": "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/game_data_public.BLB.TradDraft.csv.gz",
+                  "target": "_self"
+                }
+              }
+            ],
+            "direction": "ltr"
+          }
+        ]
+      }
+    ]
+  }
+}

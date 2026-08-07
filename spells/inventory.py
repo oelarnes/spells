@@ -52,6 +52,7 @@ class Anomaly:
 class FileInfo:
     path: Path
     size: int
+    mtime: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -150,7 +151,8 @@ def is_valid_snapshot(filename: str) -> bool:
 
 
 def _file_info(entry: os.DirEntry) -> FileInfo:
-    return FileInfo(path=Path(entry.path), size=entry.stat().st_size)
+    stat = entry.stat()
+    return FileInfo(path=Path(entry.path), size=stat.st_size, mtime=stat.st_mtime)
 
 
 def _scan_external_set(inv: SetInventory, set_dir: Path) -> None:
