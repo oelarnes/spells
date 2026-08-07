@@ -1,16 +1,11 @@
 """
 download public data sets from 17Lands.com and generate a card
 file containing card attributes using MTGJSON
-
-cli tool `spells`
 """
 
-import functools
 import gzip
 import os
-import re
 import shutil
-import sys
 from enum import StrEnum
 
 import wget
@@ -32,116 +27,6 @@ RESOURCE_TEMPLATE = (
 class FileFormat(StrEnum):
     CSV = "csv"
     PARQUET = "parquet"
-
-
-# Fred Cirera via https://stackoverflow.com/questions/1094841/get-a-human-readable-version-of-a-file-size
-def sizeof_fmt(num, suffix="B"):
-    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
-        if abs(num) < 1024.0:
-            return f"{num:3.1f}{unit}{suffix}"
-        num /= 1024.0
-    return f"{num:.1f}Yi{suffix}"
-
-
-def cli() -> int:
-    data_dir = cache.data_home()
-    cache.spells_print("spells", f"[data home]={data_dir}")
-    print()
-    usage = """spells [add|refresh|remove|clean] [set_code] [event_type]
-            spells [add|refresh] [set_code] --card-only [event_type]
-            spells clean all
-            spells info
-
-    add: Download draft and game files from 17Lands.com and card file from MTGJSON.com and save to path
-        [data home]/external/[set code] (use $SPELLS_DATA_HOME or $XDG_DATA_HOME to configure).
-        Does not overwrite existing files. If any files are downloaded, existing local cache is cleared.
-        [set code] should be the capitalized official set code for the draft release.
-
-        e.g. $ spells add OTJ
-
-        [event_type] is optional and defaults to PremierDraft. Pass a 17Lands event type
-        (e.g. PickTwoDraft) to download an alternate draft format. The draft, game, and
-        card downloads are format-agnostic; only the set context (and summon) are not
-        supported for multi-pick formats yet.
-
-        e.g. $ spells add OM1 PickTwoDraft
-
-        --card-only: spot-check the card file against the draft file already on
-        disk — no download. Builds the card file if missing; if it exists and
-        disagrees with the draft file's names, raises rather than overwriting.
-
-        e.g. $ spells add OTJ --card-only
-
-    refresh: Force download and overwrite of existing files (for new data drops, use sparingly!). Clear
-        local
-
-        --card-only: rebuild just the card file, from the draft file already on disk —
-        no download. For when the card file itself needs fixing (e.g. after a spells
-        release changes how it's built) but the draft/game data is still good.
-
-        e.g. $ spells refresh OTJ --card-only
-
-    remove: Delete the [data home]/external/[set code] and [data home]/local/[set code] directories and their contents
-
-    clean: Delete [data home]/local/[set code] data directory (your cache of aggregate parquet files), or all of them.
-
-    info: No set code argument. Print info on all external and local files.
-    """
-    print_usage = functools.partial(cache.spells_print, "usage", usage)
-
-    args = [a for a in sys.argv[1:] if a != "--card-only"]
-    card_only = len(args) != len(sys.argv) - 1
-
-    if len(args) < 1:
-        print_usage()
-        return 1
-
-    mode = args[0]
-
-    if mode == "info":
-        return _info()
-
-    if card_only and mode not in ("add", "refresh"):
-        cache.spells_print(
-            "usage", "--card-only is only valid with `spells add`/`spells refresh`"
-        )
-        return 1
-
-    if len(args) not in (2, 3):
-        print_usage()
-        return 1
-
-    set_code = args[1]
-
-    if len(args) == 3:
-        try:
-            event_type = EventType(args[2])
-        except ValueError:
-            cache.spells_print(
-                "usage",
-                f"Unknown event type '{args[2]}'; expected one of "
-                f"{[e.value for e in EventType]}",
-            )
-            return 1
-    else:
-        event_type = EventType.PREMIER
-
-    match mode:
-        case "add":
-            if card_only:
-                return _add_card_only(set_code, event_type=event_type)
-            return _add(set_code, event_type=event_type)
-        case "refresh":
-            if card_only:
-                return _refresh_card_only(set_code, event_type=event_type)
-            return _refresh(set_code, event_type=event_type)
-        case "remove":
-            return _remove(set_code)
-        case "clean":
-            return cache.clean(set_code)
-        case _:
-            print_usage()
-            return 1
 
 
 def _add(
@@ -233,75 +118,6 @@ def _remove(set_code: str):
         cache.spells_print(mode, f"No external cache found for set {set_code}")
 
     return cache.clean(set_code)
-
-
-def _info():
-    mode = "info"
-    external_path = cache.data_dir_path(cache.DataDir.EXTERNAL)
-
-    suggest_add = set()
-    suggest_remove = set()
-    all_external = set()
-    if os.path.isdir(external_path):
-        cache.spells_print(mode, f"External archives found {external_path}")
-        with os.scandir(external_path) as ext_dir:
-            for entry in ext_dir:
-                if entry.is_dir():
-                    all_external.add(entry.name)
-                    file_count = 0
-                    cache.spells_print(mode, f"Archive {entry.name} contents:")
-                    for item in os.scandir(entry):
-                        if not re.match(f"^{entry.name}_.*\\.parquet", item.name):
-                            print(
-                                f"!!! imposter file {item.name}! Please sort that out"
-                            )
-                        print(f"    {item.name} {sizeof_fmt(os.stat(item).st_size)}")
-                        file_count += 1
-                    if file_count < 4:
-                        suggest_add.add(entry.name)
-                    if file_count > 4:
-                        suggest_remove.add(entry.name)
-                else:
-                    cache.spells_print(
-                        mode, f"Imposter file {entry.name}! Please sort that out"
-                    )
-
-    else:
-        cache.spells_print(mode, "No external archives found")
-
-    cache_path = cache.data_dir_path(cache.DataDir.CACHE)
-
-    if os.path.isdir(cache_path):
-        print()
-        cache.spells_print(mode, f"Local cache found {cache_path}")
-        with os.scandir(cache_path) as cache_dir:
-            for entry in cache_dir:
-                if entry.name not in all_external:
-                    suggest_remove.add(entry.name)
-                if entry.is_dir():
-                    cache.spells_print(mode, f"Cache {entry.name} contents:")
-                    parquet_num = 0
-                    parquet_size = 0
-                    for item in os.scandir(entry):
-                        if item.name.endswith(".parquet"):
-                            parquet_num += 1
-                            parquet_size += os.stat(item).st_size
-                        else:
-                            print(
-                                f"!!! imposter file {item.name}! Please sort that out"
-                            )
-                    print(f"    {parquet_num} cache files: {sizeof_fmt(parquet_size)}")
-    else:
-        print()
-        cache.spells_print(mode, "No local cache found")
-
-    print()
-    for name in suggest_add:
-        cache.spells_print(mode, f"Suggest `spells add {name}'")
-    for name in suggest_remove:
-        cache.spells_print(mode, f"Suggest `spells remove {name}'")
-
-    return 0
 
 
 def _process_zipped_file(gzip_path, target_path):

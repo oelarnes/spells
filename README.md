@@ -70,7 +70,7 @@ Spells is not affiliated with 17Lands. Please review the [Usage Guidelines](http
 - Can aggregate over multiple sets at once, even all of them, if you want.
 - Supports "Deck Color Data" aggregations with built-in column definitions.
 - Lets you feed card metrics back in to column definitions to support scientific workflows like MLE
-- Provides a CLI tool `spells [add|refresh|clean|remove|info] [SET]` to download and manage external files
+- Provides a CLI tool `spells [status|add|refresh|clean|remove|path] [SET]` to download and manage external files
 - Downloads and manages public datasets from 17Lands
 - Retrieves and models booster configuration and card data from [MTGJSON](https://mtgjson.com/)
 - Is fully typed, linted, and statically analyzed for support of advanced IDE features
@@ -274,7 +274,20 @@ So that's it, that's what Spells does from a high level. `summon` will hand off 
 
 Spells includes a command-line interface `spells` to manage your external data files and local cache. Spells will download files to an appropriate file location on your system, 
 typically `~/.local/share/spells` on Unix-like platforms and `C:\Users\{Username}\AppData\Local\Spells` on Windows, or to a location specified by the environment variable `SPELLS_DATA_HOME`.
-To use `spells`, make sure Spells is installed in your environment using pip or a package manager, and type `spells help` into your shell, or dive in with `spells add DSK` or your favorite set. If Spells is installed globally using pipx, any local version of Spells will be able to read the managed files.
+To use `spells`, make sure Spells is installed in your environment using pip or a package manager, and type `spells --help` into your shell, or dive in with `spells add DSK` or your favorite set. If Spells is installed globally using pipx, any local version of Spells will be able to read the managed files.
+
+Run `spells` with no arguments for an overview of everything on disk — which sets you have, which event types are complete, how much space each is using, and anything that looks wrong (leftover downloads, caches with no data behind them, files spells doesn't recognize). Pass a set code for detail on one set, or `--json` for machine-readable output.
+
+| command | |
+|---|---|
+| `spells status [SET]` | what is on disk, and anything wrong with it |
+| `spells add SET [EVENT_TYPE]` | download draft, game, and card files, skipping any already present |
+| `spells refresh SET [EVENT_TYPE]` | re-download and overwrite. Use sparingly |
+| `spells remove SET` | delete a set's downloaded data and derived cache |
+| `spells clean SET\|all` | delete derived cache files. Always safe: they rebuild on demand |
+| `spells path [SET] [--kind]` | print a data path, for scripting |
+
+`add` and `refresh` take `--card-only` to build or check the card file against draft data already on disk, without downloading. `remove` requires `--yes` when run unattended, so a script can never hang on a confirmation prompt.
 
 ## API
 

@@ -155,40 +155,6 @@ def test_add_card_only_requires_existing_draft_file(monkeypatch):
     assert external._add_card_only("TST", event_type=EventType.PREMIER) == 1
 
 
-def test_cli_dispatches_refresh_card_only(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        external,
-        "_refresh_card_only",
-        lambda set_code, event_type: calls.append((set_code, event_type)) or 0,
-    )
-    monkeypatch.setattr(external, "_refresh", lambda *a, **kw: pytest.fail("full refresh ran"))
-    monkeypatch.setattr(external.sys, "argv", ["spells", "refresh", "TST", "--card-only"])
-
-    assert external.cli() == 0
-    assert calls == [("TST", EventType.PREMIER)]
-
-
-def test_cli_dispatches_add_card_only(monkeypatch):
-    calls = []
-    monkeypatch.setattr(
-        external,
-        "_add_card_only",
-        lambda set_code, event_type: calls.append((set_code, event_type)) or 0,
-    )
-    monkeypatch.setattr(external, "_add", lambda *a, **kw: pytest.fail("full add ran"))
-    monkeypatch.setattr(external.sys, "argv", ["spells", "add", "TST", "--card-only"])
-
-    assert external.cli() == 0
-    assert calls == [("TST", EventType.PREMIER)]
-
-
-def test_cli_rejects_card_only_with_remove(monkeypatch):
-    monkeypatch.setattr(external.sys, "argv", ["spells", "remove", "TST", "--card-only"])
-
-    assert external.cli() == 1
-
-
 def test_write_card_file_validates_consistent_names(tmp_path, monkeypatch):
     from spells.cards import BASIC_LANDS, write_card_file
 
