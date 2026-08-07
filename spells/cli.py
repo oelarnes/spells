@@ -329,7 +329,9 @@ def _targets(
     if set_code is not None:
         expansions = [set_code]
     else:
-        expansions = [s.set_code for s in inv.sets.values() if s.has_external]
+        expansions = catalog.in_release_order(
+            cat, (s.set_code for s in inv.sets.values() if s.has_external)
+        )
 
     targets = []
     for expansion in expansions:

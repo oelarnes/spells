@@ -18,7 +18,7 @@ display-only. Freshness decisions come from a HEAD on the URL the catalog gives
 us. Nothing here writes to the data home.
 """
 
-from collections.abc import Collection
+from collections.abc import Collection, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -294,6 +294,19 @@ def resolve(
     return sorted(rows, key=lambda row: order[row.target])
 
 
+def in_release_order(cat: Catalog, expansions: Iterable[str]) -> list[str]:
+    """Newest expansion first, by catalog array position.
+
+    17Lands authors the array in release order, which is the order a drafter
+    thinks in; alphabetical ordering puts whatever they are currently drafting
+    at an arbitrary place in the list. Expansions the catalog no longer lists
+    sort to the end alphabetically rather than vanishing.
+    """
+    order = {expansion: i for i, expansion in enumerate(cat.expansions)}
+    known = sorted((e for e in expansions if e in order), key=lambda e: -order[e])
+    return known + sorted(e for e in expansions if e not in order)
+
+
 def unadded(cat: Catalog, held: Collection[str]) -> list[str]:
     """Published expansions the caller does not have, newest first.
 
@@ -310,12 +323,14 @@ def unadded(cat: Catalog, held: Collection[str]) -> list[str]:
     position = {expansion: i for i, expansion in enumerate(order)}
     anchor = min((position[e] for e in held if e in position), default=0)
 
-    missing = [
-        expansion
-        for expansion in order[anchor:]
-        if expansion not in held and cat.is_addable(expansion)
-    ]
-    return list(reversed(missing))
+    return in_release_order(
+        cat,
+        (
+            expansion
+            for expansion in order[anchor:]
+            if expansion not in held and cat.is_addable(expansion)
+        ),
+    )
 
 
 def compare(local_mtime: float | None, remote: RemoteFile | None) -> Freshness:

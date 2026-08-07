@@ -269,8 +269,35 @@ def test_unadded_orders_by_catalog_position_not_last_updated(parsed):
     the stable release signal, so a regenerated old set must not look new."""
     stale_first = Catalog(
         datasets=tuple(
-            d if d.expansion != "KHM" else replace(d, last_updated=datetime.date(2099, 1, 1))
+            d
+            if d.expansion != "KHM"
+            else replace(d, last_updated=datetime.date(2099, 1, 1))
             for d in parsed.datasets
         )
     )
     assert catalog.unadded(stale_first, set()) == ["BLB", "MSH"]
+
+
+def test_in_release_order_is_newest_first(parsed):
+    """Fixture array order is MSH, KHM, BLB, so BLB is the most recent."""
+    assert catalog.in_release_order(parsed, ["KHM", "MSH", "BLB"]) == [
+        "BLB",
+        "KHM",
+        "MSH",
+    ]
+
+
+def test_in_release_order_keeps_retired_expansions_at_the_end(parsed):
+    """A set on disk that 17Lands no longer lists must still be reported."""
+    assert catalog.in_release_order(parsed, ["ZZZ", "MSH", "AAA"]) == [
+        "MSH",
+        "AAA",
+        "ZZZ",
+    ]
+
+
+def test_in_release_order_survives_an_unreachable_catalog():
+    """With no catalog there is no release order, so fall back to alphabetical
+    rather than an arbitrary one."""
+    empty = Catalog(datasets=(), is_fallback=True)
+    assert catalog.in_release_order(empty, ["MSH", "BLB"]) == ["BLB", "MSH"]
