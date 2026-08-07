@@ -18,6 +18,7 @@ display-only. Freshness decisions come from a HEAD on the URL the catalog gives
 us. Nothing here writes to the data home.
 """
 
+from collections.abc import Collection
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -94,6 +95,18 @@ class Catalog:
             if dataset.expansion == expansion and dataset.event_type == event_type:
                 return dataset
         return None
+
+    def is_addable(self, expansion: str) -> bool:
+        """Whether any event type spells models has draft data published."""
+        return any(
+            d.is_supported and d.draft_url for d in self.for_expansion(expansion)
+        )
+
+    def updated(self, expansion: str) -> date | None:
+        dates = [
+            d.last_updated for d in self.for_expansion(expansion) if d.last_updated
+        ]
+        return max(dates) if dates else None
 
 
 def _text(field) -> str:
@@ -279,6 +292,30 @@ def resolve(
 
     order = {t: i for i, t in enumerate(targets)}
     return sorted(rows, key=lambda row: order[row.target])
+
+
+def unadded(cat: Catalog, held: Collection[str]) -> list[str]:
+    """Published expansions the caller does not have, newest first.
+
+    Anchored to the oldest expansion they already hold, so sets that predate
+    their collection are not reported as things they are missing. Without that
+    anchor the answer would be every expansion 17Lands has ever published,
+    which is noise rather than news.
+
+    Ordering comes from the catalog array, which 17Lands authors in release
+    order, rather than from `last_updated` — regenerating an old set's files
+    bumps that date without making the set new.
+    """
+    order = cat.expansions
+    position = {expansion: i for i, expansion in enumerate(order)}
+    anchor = min((position[e] for e in held if e in position), default=0)
+
+    missing = [
+        expansion
+        for expansion in order[anchor:]
+        if expansion not in held and cat.is_addable(expansion)
+    ]
+    return list(reversed(missing))
 
 
 def compare(local_mtime: float | None, remote: RemoteFile | None) -> Freshness:

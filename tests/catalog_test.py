@@ -1,4 +1,5 @@
 import datetime
+from dataclasses import replace
 import json
 from pathlib import Path
 
@@ -223,3 +224,53 @@ def test_needs_download_covers_stale_and_absent_only(parsed, no_head):
 
 def _now() -> float:
     return datetime.datetime(2026, 8, 7, tzinfo=UTC).timestamp()
+
+
+def test_is_addable_requires_published_draft_data(parsed):
+    """KHM's game data is published but its draft data 403s, so it cannot be added."""
+    assert parsed.is_addable("MSH")
+    assert not parsed.is_addable("KHM")
+
+
+def test_updated_takes_the_newest_across_event_types(parsed):
+    assert parsed.updated("MSH") == datetime.date(2026, 7, 26)
+
+
+def test_unadded_reports_missing_expansions_newest_first(parsed):
+    """Catalog order is MSH, KHM, BLB; holding KHM anchors at position 1."""
+    assert catalog.unadded(parsed, {"KHM"}) == ["BLB"]
+
+
+def test_unadded_ignores_expansions_predating_the_collection(parsed):
+    """BLB is last in this fixture, so holding it means nothing is newer."""
+    assert catalog.unadded(parsed, {"BLB"}) == []
+
+
+def test_unadded_never_offers_a_set_with_no_draft_data(parsed):
+    """KHM sits at position 1, so it is in range but still must not be offered."""
+    assert "KHM" not in catalog.unadded(parsed, {"MSH"})
+
+
+def test_unadded_with_nothing_held_offers_everything_addable(parsed):
+    assert catalog.unadded(parsed, set()) == ["BLB", "MSH"]
+
+
+def test_unadded_is_empty_when_everything_is_held(parsed):
+    assert catalog.unadded(parsed, {"MSH", "KHM", "BLB"}) == []
+
+
+def test_unadded_ignores_held_sets_absent_from_the_catalog(parsed):
+    """A local set 17Lands has retired must not break the anchor."""
+    assert catalog.unadded(parsed, {"BLB", "NOTASET"}) == []
+
+
+def test_unadded_orders_by_catalog_position_not_last_updated(parsed):
+    """17Lands bumps last_updated when regenerating old files; array order is
+    the stable release signal, so a regenerated old set must not look new."""
+    stale_first = Catalog(
+        datasets=tuple(
+            d if d.expansion != "KHM" else replace(d, last_updated=datetime.date(2099, 1, 1))
+            for d in parsed.datasets
+        )
+    )
+    assert catalog.unadded(stale_first, set()) == ["BLB", "MSH"]

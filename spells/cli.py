@@ -314,6 +314,8 @@ FRESHNESS_STYLE = {
 
 CHECKED_VIEWS = (View.DRAFT, View.GAME)
 
+UNADDED_SHOWN = 5
+
 
 def _targets(
     inv: Inventory, set_code: str | None, cat: catalog.Catalog
@@ -368,6 +370,7 @@ def _render_check(
     cat: catalog.Catalog,
     held: set[tuple[str, EventType]],
     detailed: bool,
+    unadded: list[str],
 ) -> None:
     if cat.is_fallback:
         err_console.print(
@@ -422,8 +425,21 @@ def _render_check(
             events = sorted({str(e) for evs in available.values() for e in evs})
             console.print(
                 f"\n  [dim]{len(available)} set(s) also publish "
-                f"{', '.join(events)} — `spells check <SET>` for detail[/dim]"
+                f"{', '.join(events)}[/dim]"
             )
+            console.print("  [dim]`spells check <SET>` for detail[/dim]")
+
+    if unadded:
+        shown = unadded[:UNADDED_SHOWN]
+        console.print(f"\n  [bold]published, not added[/bold] ({len(unadded)})")
+        for expansion in shown:
+            when = cat.updated(expansion)
+            console.print(
+                f"    [cyan]{expansion:<14}[/cyan] "
+                f"[dim]{when.isoformat() if when else '—'}[/dim]"
+            )
+        if len(unadded) > len(shown):
+            console.print(f"    [dim]+{len(unadded) - len(shown)} older[/dim]")
 
     work = sorted({r.target.expansion for r in tracked if _is_actionable(r, held)})
     if work:
@@ -456,6 +472,16 @@ def check(
     rows = catalog.resolve(_targets(inv, set_code, cat), cat)
     held = _held_events(inv)
 
+    # only meaningful for the whole-data-home view; naming a set already says
+    # which expansion you care about
+    unadded = (
+        []
+        if set_code is not None
+        else catalog.unadded(
+            cat, {s.set_code for s in inv.sets.values() if s.has_external}
+        )
+    )
+
     if set_code is not None and not rows:
         err_console.print(f"17Lands publishes no draft data for set {set_code}")
         raise typer.Exit(1)
@@ -465,6 +491,17 @@ def check(
             json.dumps(
                 {
                     "catalog_reachable": not cat.is_fallback,
+                    "unadded_expansions": [
+                        {
+                            "set_code": expansion,
+                            "last_updated": (
+                                cat.updated(expansion).isoformat()
+                                if cat.updated(expansion)
+                                else None
+                            ),
+                        }
+                        for expansion in unadded
+                    ],
                     "datasets": [
                         {
                             "set_code": r.target.expansion,
@@ -489,7 +526,7 @@ def check(
             )
         )
     else:
-        _render_check(rows, cat, held, detailed=set_code is not None)
+        _render_check(rows, cat, held, detailed=set_code is not None, unadded=unadded)
 
     if any(_is_actionable(r, held) for r in rows):
         raise typer.Exit(3)
