@@ -425,3 +425,50 @@ def test_snapshots_prune_keeps_refetchable_snapshots(snapshots):
     assert result.exit_code == 0
     assert not (snapshots / LEGACY_SNAPSHOT).exists()
     assert (snapshots / VALID_SNAPSHOT).exists()
+
+
+@pytest.fixture
+def at_a_terminal(monkeypatch):
+    """CliRunner's stdin is never a tty, so the interactive branch has to be
+    asked for explicitly."""
+    monkeypatch.setattr(cli, "_is_interactive", lambda: True)
+
+
+def test_doctor_offers_the_deletion_at_a_terminal(snapshots, at_a_terminal):
+    """No rerun with --execute: the prompt is the confirmation."""
+    result = runner.invoke(cli.app, ["doctor"], input="y\n")
+
+    assert result.exit_code == 0
+    assert not (snapshots / LEGACY_SNAPSHOT).exists()
+    assert (snapshots / VALID_SNAPSHOT).exists()
+
+
+def test_doctor_declining_the_prompt_deletes_nothing(snapshots, at_a_terminal):
+    result = runner.invoke(cli.app, ["doctor"], input="n\n")
+
+    assert result.exit_code == 0
+    assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+def test_doctor_prompt_defaults_to_declining(snapshots, at_a_terminal):
+    """A bare newline must not destroy anything."""
+    result = runner.invoke(cli.app, ["doctor"], input="\n")
+
+    assert result.exit_code == 0
+    assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+def test_doctor_json_never_prompts_even_at_a_terminal(snapshots, at_a_terminal):
+    result = runner.invoke(cli.app, ["doctor", "--json"])
+
+    assert result.exit_code == 0
+    json.loads(result.stdout)
+    assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+def test_snapshots_prune_offers_the_deletion_at_a_terminal(snapshots, at_a_terminal):
+    result = runner.invoke(cli.app, ["snapshots", "prune"], input="y\n")
+
+    assert result.exit_code == 0
+    assert not (snapshots / LEGACY_SNAPSHOT).exists()
+    assert (snapshots / VALID_SNAPSHOT).exists()

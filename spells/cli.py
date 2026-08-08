@@ -604,17 +604,29 @@ def _repair_dict(r: repair.Repair) -> dict:
     }
 
 
+def _is_interactive() -> bool:
+    """Both ends must be a terminal: piping stdout would post the prompt into
+    the pipe, where nobody sees it."""
+    return sys.stdin.isatty() and console.is_terminal
+
+
 def _run_repairs(
     repairs: list[repair.Repair], execute: bool, yes: bool, action: str
 ) -> None:
-    """Dry run unless told otherwise: every path here is irreversible, and the
-    snapshot ones cannot be refetched."""
-    if not execute:
-        console.print(f"\n  [dim]dry run — re-run with --execute to {action}[/dim]")
-        return
-
+    """Offer the deletion at a terminal, and never act without being asked
+    anywhere else. Every path here is irreversible, and the snapshot ones
+    cannot be refetched."""
     total = sum(r.files for r in repairs)
-    _confirm(f"permanently delete {total} file(s)", yes)
+
+    if not execute:
+        if not _is_interactive():
+            console.print(f"\n  [dim]dry run — re-run with --execute to {action}[/dim]")
+            return
+        if not typer.confirm(f"\n  Permanently delete {total} file(s)?", default=False):
+            console.print("  [dim]nothing deleted[/dim]")
+            return
+    else:
+        _confirm(f"permanently delete {total} file(s)", yes)
 
     outcome = repair.apply(repairs)
     console.print(
@@ -632,7 +644,10 @@ def doctor(
         str | None, typer.Argument(help="Limit to a single set.")
     ] = None,
     execute: Annotated[
-        bool, typer.Option("--execute", help="Actually delete. Off by default.")
+        bool,
+        typer.Option(
+            "--execute", help="Delete without asking first. For unattended use."
+        ),
     ] = False,
     yes: Annotated[
         bool, typer.Option("--yes", "-y", help="Skip confirmation.")
@@ -744,7 +759,10 @@ def snapshots_prune(
         str | None, typer.Argument(help="Limit to a single set.")
     ] = None,
     execute: Annotated[
-        bool, typer.Option("--execute", help="Actually delete. Off by default.")
+        bool,
+        typer.Option(
+            "--execute", help="Delete without asking first. For unattended use."
+        ),
     ] = False,
     yes: Annotated[
         bool, typer.Option("--yes", "-y", help="Skip confirmation.")
