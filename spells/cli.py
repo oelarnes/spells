@@ -223,7 +223,10 @@ def status(
         bool, typer.Option("--json", help="Machine-readable output.")
     ] = False,
 ) -> None:
-    """Show what is on disk and anything that looks wrong with it."""
+    """Show what is on disk and anything that looks wrong with it.
+
+    Sets are listed alphabetically. `check` lists them newest first, but only because it already holds the catalog; reading it here would make a purely local report depend on the network.
+    """
     inv = inventory.scan()
 
     sets = list(inv.sets.values())
