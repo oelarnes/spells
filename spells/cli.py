@@ -12,6 +12,7 @@ from rich.table import Table
 from spells import cache, catalog, external, inventory
 from spells.cache import DataDir
 from spells.catalog import Freshness, Target
+from spells import repair
 from spells.enums import EventType, View
 from spells.inventory import Anomaly, AnomalyKind, Inventory
 
@@ -550,6 +551,215 @@ def path(
         target = cache.data_dir_path(kind)
 
     print(target)
+
+
+def _render_repairs(repairs: list[repair.Repair], executed: bool) -> None:
+    total_files = sum(r.files for r in repairs)
+    total_size = sum(r.size for r in repairs)
+
+    table = Table(box=None, pad_edge=False, header_style="bold")
+    table.add_column("issue")
+    table.add_column("set")
+    table.add_column("files", justify="right")
+    table.add_column("size", justify="right")
+
+    for r in repairs:
+        table.add_row(
+            str(r.anomaly.kind),
+            r.anomaly.set_code or "[dim]—[/dim]",
+            str(r.files),
+            sizeof_fmt(r.size),
+        )
+
+    console.print(Padding(table, (0, 0, 0, 2)))
+    verb = "removed" if executed else "would remove"
+    console.print(
+        f"\n  [bold]{verb} {total_files} file(s)[/bold], " f"{sizeof_fmt(total_size)}"
+    )
+
+
+def _render_advisories(inv: Inventory, set_code: str | None) -> None:
+    advisories = [
+        a
+        for a in inv.all_anomalies
+        if not a.is_repairable and (set_code is None or a.set_code == set_code)
+    ]
+    if not advisories:
+        return
+
+    console.print(f"\n  [bold]needs your judgement[/bold] ({len(advisories)})")
+    for a in advisories:
+        console.print(f"    [yellow]{a.kind}[/yellow] {a.detail}", soft_wrap=True)
+        console.print(f"      [dim]{a.path}[/dim]", soft_wrap=True)
+
+
+def _repair_dict(r: repair.Repair) -> dict:
+    return {
+        "kind": str(r.anomaly.kind),
+        "set_code": r.anomaly.set_code,
+        "detail": r.anomaly.detail,
+        "files": r.files,
+        "bytes": r.size,
+        "paths": [str(p) for p in r.paths],
+    }
+
+
+def _run_repairs(
+    repairs: list[repair.Repair], execute: bool, yes: bool, action: str
+) -> None:
+    """Dry run unless told otherwise: every path here is irreversible, and the
+    snapshot ones cannot be refetched."""
+    if not execute:
+        console.print(f"\n  [dim]dry run — re-run with --execute to {action}[/dim]")
+        return
+
+    total = sum(r.files for r in repairs)
+    _confirm(f"permanently delete {total} file(s)", yes)
+
+    outcome = repair.apply(repairs)
+    console.print(
+        f"\n  removed {outcome.removed} file(s), freed {sizeof_fmt(outcome.freed)}"
+    )
+    for path, error in outcome.failures:
+        err_console.print(f"  [red]could not remove[/red] {path}: {error}")
+    if outcome.failures:
+        raise typer.Exit(1)
+
+
+@app.command()
+def doctor(
+    set_code: Annotated[
+        str | None, typer.Argument(help="Limit to a single set.")
+    ] = None,
+    execute: Annotated[
+        bool, typer.Option("--execute", help="Actually delete. Off by default.")
+    ] = False,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Skip confirmation.")
+    ] = False,
+    json_out: Annotated[
+        bool, typer.Option("--json", help="Machine-readable output.")
+    ] = False,
+) -> None:
+    """Find files spells can no longer use, and optionally remove them."""
+    inv = inventory.scan()
+    repairs = repair.plan(inv, set_code)
+
+    if json_out:
+        print(json.dumps({"repairs": [_repair_dict(r) for r in repairs]}, indent=2))
+        if execute:
+            _run_repairs(repairs, execute, yes, "delete them")
+        return
+
+    if not repairs:
+        console.print("  [green]Nothing to repair.[/green]")
+        _render_advisories(inv, set_code)
+        return
+
+    _render_repairs(repairs, executed=False)
+    _run_repairs(repairs, execute, yes, "delete them")
+    _render_advisories(inv, set_code)
+
+
+snapshots_app = typer.Typer(
+    help="Inspect and prune cached 17Lands API responses.",
+    no_args_is_help=True,
+)
+app.add_typer(snapshots_app, name="snapshots")
+
+
+@snapshots_app.command("list")
+def snapshots_list(
+    set_code: Annotated[
+        str | None, typer.Argument(help="Limit to a single set.")
+    ] = None,
+    json_out: Annotated[
+        bool, typer.Option("--json", help="Machine-readable output.")
+    ] = False,
+) -> None:
+    """Show cached responses per set, split into readable and dead."""
+    inv = inventory.scan()
+    sets = [
+        s
+        for s in inv.sets.values()
+        if (set_code is None or s.set_code == set_code)
+        and (s.ratings.total or s.deck_color.total)
+    ]
+
+    if json_out:
+        print(
+            json.dumps(
+                {
+                    "sets": [
+                        {
+                            "set_code": s.set_code,
+                            "ratings": {
+                                "valid": s.ratings.valid,
+                                "legacy": s.ratings.legacy,
+                                "bytes": s.ratings.total_bytes,
+                            },
+                            "deck_color": {
+                                "valid": s.deck_color.valid,
+                                "legacy": s.deck_color.legacy,
+                                "bytes": s.deck_color.total_bytes,
+                            },
+                        }
+                        for s in sets
+                    ]
+                },
+                indent=2,
+            )
+        )
+        return
+
+    if not sets:
+        console.print("  [dim]No cached responses.[/dim]")
+        return
+
+    table = Table(box=None, pad_edge=False, header_style="bold")
+    table.add_column("set")
+    table.add_column("keep", justify="right")
+    table.add_column("dead", justify="right")
+    table.add_column("size", justify="right")
+
+    for s in sets:
+        dead = s.ratings.legacy + s.deck_color.legacy
+        table.add_row(
+            s.set_code,
+            str(s.ratings.valid + s.deck_color.valid),
+            f"[yellow]{dead}[/yellow]" if dead else "[dim]—[/dim]",
+            sizeof_fmt(s.snapshot_bytes),
+        )
+
+    console.print(Padding(table, (0, 0, 0, 2)))
+    console.print(
+        "\n  [dim]`keep` cannot be refetched: 17Lands resolves a time period"
+        "\n  against its own today, so a past window is gone once deleted.[/dim]"
+    )
+
+
+@snapshots_app.command("prune")
+def snapshots_prune(
+    set_code: Annotated[
+        str | None, typer.Argument(help="Limit to a single set.")
+    ] = None,
+    execute: Annotated[
+        bool, typer.Option("--execute", help="Actually delete. Off by default.")
+    ] = False,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Skip confirmation.")
+    ] = False,
+) -> None:
+    """Delete pre-0.14 cached responses, which nothing can read."""
+    inv = inventory.scan()
+    repairs = repair.prune_snapshots(inv, set_code)
+
+    if not repairs:
+        console.print("  [green]No dead snapshots.[/green]")
+        return
+
+    _render_repairs(repairs, executed=False)
+    _run_repairs(repairs, execute, yes, "delete them")
 
 
 def cli() -> None:
