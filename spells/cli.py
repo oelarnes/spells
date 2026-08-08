@@ -553,7 +553,7 @@ def path(
     print(target)
 
 
-def _render_repairs(repairs: list[repair.Repair], executed: bool) -> None:
+def _render_repairs(repairs: list[repair.Repair]) -> None:
     total_files = sum(r.files for r in repairs)
     total_size = sum(r.size for r in repairs)
 
@@ -572,9 +572,9 @@ def _render_repairs(repairs: list[repair.Repair], executed: bool) -> None:
         )
 
     console.print(Padding(table, (0, 0, 0, 2)))
-    verb = "removed" if executed else "would remove"
     console.print(
-        f"\n  [bold]{verb} {total_files} file(s)[/bold], " f"{sizeof_fmt(total_size)}"
+        f"\n  [bold]would remove {total_files} file(s)[/bold], "
+        f"{sizeof_fmt(total_size)}"
     )
 
 
@@ -610,23 +610,21 @@ def _is_interactive() -> bool:
     return sys.stdin.isatty() and console.is_terminal
 
 
-def _run_repairs(
-    repairs: list[repair.Repair], execute: bool, yes: bool, action: str
-) -> None:
-    """Offer the deletion at a terminal, and never act without being asked
-    anywhere else. Every path here is irreversible, and the snapshot ones
-    cannot be refetched."""
+def _run_repairs(repairs: list[repair.Repair], yes: bool, action: str) -> None:
+    """Ask at a terminal, act on `--yes`, and otherwise only report.
+
+    Every path here is irreversible and the snapshot ones cannot be refetched,
+    so the one thing this must never do is delete without having been told to.
+    """
     total = sum(r.files for r in repairs)
 
-    if not execute:
+    if not yes:
         if not _is_interactive():
-            console.print(f"\n  [dim]dry run — re-run with --execute to {action}[/dim]")
+            console.print(f"\n  [dim]dry run — pass --yes to {action}[/dim]")
             return
         if not typer.confirm(f"\n  Permanently delete {total} file(s)?", default=False):
             console.print("  [dim]nothing deleted[/dim]")
             return
-    else:
-        _confirm(f"permanently delete {total} file(s)", yes)
 
     outcome = repair.apply(repairs)
     console.print(
@@ -643,14 +641,9 @@ def doctor(
     set_code: Annotated[
         str | None, typer.Argument(help="Limit to a single set.")
     ] = None,
-    execute: Annotated[
-        bool,
-        typer.Option(
-            "--execute", help="Delete without asking first. For unattended use."
-        ),
-    ] = False,
     yes: Annotated[
-        bool, typer.Option("--yes", "-y", help="Skip confirmation.")
+        bool,
+        typer.Option("--yes", "-y", help="Delete without asking. Required headless."),
     ] = False,
     json_out: Annotated[
         bool, typer.Option("--json", help="Machine-readable output.")
@@ -662,8 +655,8 @@ def doctor(
 
     if json_out:
         print(json.dumps({"repairs": [_repair_dict(r) for r in repairs]}, indent=2))
-        if execute:
-            _run_repairs(repairs, execute, yes, "delete them")
+        if yes:
+            _run_repairs(repairs, yes, "delete them")
         return
 
     if not repairs:
@@ -671,8 +664,8 @@ def doctor(
         _render_advisories(inv, set_code)
         return
 
-    _render_repairs(repairs, executed=False)
-    _run_repairs(repairs, execute, yes, "delete them")
+    _render_repairs(repairs)
+    _run_repairs(repairs, yes, "delete them")
     _render_advisories(inv, set_code)
 
 
@@ -758,14 +751,9 @@ def snapshots_prune(
     set_code: Annotated[
         str | None, typer.Argument(help="Limit to a single set.")
     ] = None,
-    execute: Annotated[
-        bool,
-        typer.Option(
-            "--execute", help="Delete without asking first. For unattended use."
-        ),
-    ] = False,
     yes: Annotated[
-        bool, typer.Option("--yes", "-y", help="Skip confirmation.")
+        bool,
+        typer.Option("--yes", "-y", help="Delete without asking. Required headless."),
     ] = False,
 ) -> None:
     """Delete pre-0.14 cached responses, which nothing can read."""
@@ -776,8 +764,8 @@ def snapshots_prune(
         console.print("  [green]No dead snapshots.[/green]")
         return
 
-    _render_repairs(repairs, executed=False)
-    _run_repairs(repairs, execute, yes, "delete them")
+    _render_repairs(repairs)
+    _run_repairs(repairs, yes, "delete them")
 
 
 def cli() -> None:

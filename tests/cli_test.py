@@ -368,14 +368,16 @@ def test_doctor_is_a_dry_run_by_default(snapshots):
     assert (snapshots / LEGACY_SNAPSHOT).exists()
 
 
-def test_doctor_refuses_to_execute_unattended_without_yes(snapshots):
-    result = runner.invoke(cli.app, ["doctor", "--execute"])
-    assert result.exit_code == 2
+def test_doctor_tells_you_how_to_act_when_headless(snapshots):
+    """Nothing can be confirmed without a terminal, so the dry run has to name
+    the flag that would have done it."""
+    result = runner.invoke(cli.app, ["doctor"])
+    assert "--yes" in result.stdout
     assert (snapshots / LEGACY_SNAPSHOT).exists()
 
 
 def test_doctor_execute_with_yes_deletes_only_the_dead_snapshot(snapshots):
-    result = runner.invoke(cli.app, ["doctor", "--execute", "--yes"])
+    result = runner.invoke(cli.app, ["doctor", "--yes"])
     assert result.exit_code == 0
     assert not (snapshots / LEGACY_SNAPSHOT).exists()
     assert (snapshots / VALID_SNAPSHOT).exists()
@@ -414,14 +416,15 @@ def test_snapshots_prune_is_a_dry_run_by_default(snapshots):
     assert (snapshots / LEGACY_SNAPSHOT).exists()
 
 
-def test_snapshots_prune_refuses_unattended_without_yes(snapshots):
-    result = runner.invoke(cli.app, ["snapshots", "prune", "--execute"])
-    assert result.exit_code == 2
+def test_snapshots_prune_never_deletes_headless_without_yes(snapshots):
+    result = runner.invoke(cli.app, ["snapshots", "prune"])
+    assert result.exit_code == 0
+    assert "--yes" in result.stdout
     assert (snapshots / LEGACY_SNAPSHOT).exists()
 
 
 def test_snapshots_prune_keeps_refetchable_snapshots(snapshots):
-    result = runner.invoke(cli.app, ["snapshots", "prune", "--execute", "--yes"])
+    result = runner.invoke(cli.app, ["snapshots", "prune", "--yes"])
     assert result.exit_code == 0
     assert not (snapshots / LEGACY_SNAPSHOT).exists()
     assert (snapshots / VALID_SNAPSHOT).exists()
