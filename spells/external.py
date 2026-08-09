@@ -69,7 +69,8 @@ def _add_card_only(set_code: str, event_type: EventType) -> int:
 
     # no force_download: builds the file if missing, validates and raises on
     # mismatch if it already exists — a spot check, not a rebuild
-    return cards.write_card_file(set_code, names)
+    cards.write_card_file(set_code, names)
+    return 0
 
 
 def _refresh(set_code: str, event_type: EventType):

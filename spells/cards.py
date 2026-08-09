@@ -141,6 +141,29 @@ def names_from_parquet(draft_set_code: str, event_type: EventType) -> list[str]:
 BASIC_LANDS = frozenset({"Plains", "Island", "Swamp", "Mountain", "Forest"})
 
 
+class CardFileMismatch(ValueError):
+    """The card file on disk describes a different set of cards than the draft
+    data does.
+
+    Carries both sides so a caller can say which is which; formatting a
+    readable summary is the caller's job, since the lists run to hundreds of
+    names when the wrong set is compared.
+    """
+
+    def __init__(
+        self, set_code: str, only_in_data: list[str], only_in_file: list[str]
+    ):
+        self.set_code = set_code
+        self.only_in_data = only_in_data
+        self.only_in_file = only_in_file
+        super().__init__(
+            f"Card list for {set_code} is inconsistent with the existing file "
+            f"({len(only_in_data)} only in draft data, "
+            f"{len(only_in_file)} only in card file). "
+            f"Run `spells cards {set_code} --rebuild` to regenerate."
+        )
+
+
 def write_card_file(
     draft_set_code: str,
     names: list[str],
@@ -165,12 +188,10 @@ def write_card_file(
         existing = frozenset(pl.read_parquet(card_filepath)["name"].to_list())
         incoming = frozenset(names)
         if existing != incoming:
-            added = sorted(incoming - existing)
-            removed = sorted(existing - incoming)
-            raise ValueError(
-                f"Card list for {draft_set_code} is inconsistent with existing file "
-                f"(added={added}, removed={removed}). "
-                f"Run `spells refresh {draft_set_code}` to regenerate."
+            raise CardFileMismatch(
+                draft_set_code,
+                only_in_data=sorted(incoming - existing),
+                only_in_file=sorted(existing - incoming),
             )
         cache.spells_print(mode, f"Card file validated ({len(names)} cards match)")
         return 1
