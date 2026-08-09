@@ -567,3 +567,37 @@ def test_mismatch_error_carries_both_sides():
     assert e.only_in_data == ["a"]
     assert e.only_in_file == ["b", "c"]
     assert "TST" in str(e)
+
+
+# ---------------------------------------------------------------------------
+# --quiet
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _loud():
+    """--quiet is process-global, so a test that sets it must not leak."""
+    from spells import console as spells_console
+
+    spells_console.set_quiet(False)
+    yield
+    spells_console.set_quiet(False)
+
+
+def test_quiet_suppresses_library_progress(data_home):
+    loud = runner.invoke(cli.app, ["clean", "TST"])
+    quiet = runner.invoke(cli.app, ["--quiet", "clean", "TST"])
+
+    assert "🪄" in loud.output
+    assert quiet.output.strip() == ""
+    assert quiet.exit_code == loud.exit_code
+
+
+def test_quiet_still_reports_errors(card_set):
+    card_set(["Alpha", "Gamma"], ["Alpha", "Delta"])
+
+    result = runner.invoke(cli.app, ["--quiet", "cards", "TST"])
+
+    assert result.exit_code == 1
+    assert "does not match" in result.output
+    assert "🪄" not in result.output

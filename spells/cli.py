@@ -10,6 +10,7 @@ from rich.padding import Padding
 from rich.table import Table
 
 from spells import cache, cards as cards_module, catalog, external, inventory
+from spells import console as spells_console
 from spells.cache import DataDir
 from spells.catalog import Freshness, Target
 from spells import repair
@@ -246,7 +247,14 @@ def _render_status(
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context) -> None:
+def main(
+    ctx: typer.Context,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Suppress progress. Errors still print."),
+    ] = False,
+) -> None:
+    spells_console.set_quiet(quiet)
     if ctx.invoked_subcommand is None:
         status()
 

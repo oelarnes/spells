@@ -13,6 +13,8 @@ import os
 from pathlib import Path
 import sys
 
+from spells import console
+
 import polars as pl
 
 from spells.enums import EventType, TimePeriod
@@ -32,10 +34,6 @@ class DataDir(StrEnum):
     RATINGS = "ratings"
     DECK_COLOR = "deck_color"
     DRAFT = "draft"
-
-
-def spells_print(mode, content):
-    print(f"  🪄 {mode} ✨ {content}")
 
 
 def set_test_env():
@@ -292,19 +290,19 @@ def clean(set_code: str) -> int:
             count = 0
             for entry in set_dir:
                 if not entry.name.endswith(".parquet"):
-                    spells_print(
+                    console.info(
                         mode,
                         f"Unexpected file {entry.name} found in local cache, please sort that out!",
                     )
                     return 1
                 count += 1
                 os.remove(entry)
-            spells_print(
+            console.info(
                 mode, f"Removed {count} files from local cache for set {set_code}"
             )
         os.rmdir(cache_dir)
-        spells_print(mode, f"Removed local cache dir {cache_dir}")
+        console.info(mode, f"Removed local cache dir {cache_dir}")
         return 0
     else:
-        spells_print(mode, f"No local cache found for set {set_code}")
+        console.info(mode, f"No local cache found for set {set_code}")
         return 0

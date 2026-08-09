@@ -5,6 +5,7 @@ from enum import StrEnum
 import polars as pl
 
 from spells import cache
+from spells import console
 from spells import http
 from spells.enums import ColName, View, EventType
 
@@ -150,9 +151,7 @@ class CardFileMismatch(ValueError):
     names when the wrong set is compared.
     """
 
-    def __init__(
-        self, set_code: str, only_in_data: list[str], only_in_file: list[str]
-    ):
+    def __init__(self, set_code: str, only_in_data: list[str], only_in_file: list[str]):
         self.set_code = set_code
         self.only_in_data = only_in_data
         self.only_in_file = only_in_file
@@ -193,14 +192,12 @@ def write_card_file(
                 only_in_data=sorted(incoming - existing),
                 only_in_file=sorted(existing - incoming),
             )
-        cache.spells_print(mode, f"Card file validated ({len(names)} cards match)")
+        console.info(mode, f"Card file validated ({len(names)} cards match)")
         return 1
 
-    cache.spells_print(
-        mode, "Fetching card data from mtgjson.com and writing card file"
-    )
+    console.info(mode, "Fetching card data from mtgjson.com and writing card file")
     df = card_df(draft_set_code, names)
     os.makedirs(os.path.dirname(card_filepath), exist_ok=True)
     df.write_parquet(card_filepath)
-    cache.spells_print(mode, f"Wrote file {card_filepath}")
+    console.info(mode, f"Wrote file {card_filepath}")
     return 0

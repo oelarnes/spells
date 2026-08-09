@@ -6,6 +6,7 @@
 # converted to use by polars
 
 import csv
+import logging
 import re
 from typing import Dict
 
@@ -153,5 +154,5 @@ def schema(
                 break
             else:
                 if print_missing:
-                    print(f"Could not find an appropriate type for {column}")
+                    logging.warning("No column type matched %s", column)
     return dtypes

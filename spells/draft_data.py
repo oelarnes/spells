@@ -302,8 +302,11 @@ def _hydrate_col_defs(
             if spec.version is not None:
                 expr_sig = col + spec.version
             else:
-                print(
-                    f"Using session-only signature for non-serializable column {col}, please provide a version value"
+                logging.warning(
+                    "Column %s has a non-serializable expression and no version, "
+                    "so its cache signature is session-only and nothing will be "
+                    "reused across runs. Set `version` on its ColSpec.",
+                    col,
                 )
                 expr_sig = str(sig_expr)
 
