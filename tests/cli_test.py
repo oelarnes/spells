@@ -447,3 +447,123 @@ def test_doctor_json_never_prompts_even_at_a_terminal(snapshots, at_a_terminal):
     assert result.exit_code == 0
     json.loads(result.stdout)
     assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+# ---------------------------------------------------------------------------
+# cards
+# ---------------------------------------------------------------------------
+
+
+import polars as pl  # noqa: E402
+
+from spells import cards as cards_module  # noqa: E402
+
+BASICS = ["Plains", "Island", "Swamp", "Mountain", "Forest"]
+
+
+@pytest.fixture
+def card_set(data_home):
+    """Real parquets: the card commands read them, unlike the stub files the
+    scanner tests get away with."""
+
+    def build(draft_names, card_names):
+        d = data_home / "external" / "TST"
+        d.mkdir(parents=True, exist_ok=True)
+        pl.DataFrame({f"pack_card_{n}": [1] for n in draft_names}).write_parquet(
+            d / "TST_PremierDraft_draft.parquet"
+        )
+        if card_names is not None:
+            pl.DataFrame({"name": sorted(set(card_names) | set(BASICS))}).write_parquet(
+                d / "TST_card.parquet"
+            )
+        return d
+
+    return build
+
+
+def test_cards_validates_a_consistent_file(card_set):
+    """Exit 0: a card file that checks out is success, not a runtime error."""
+    card_set(["Alpha", "Beta"], ["Alpha", "Beta"])
+
+    result = runner.invoke(cli.app, ["cards", "TST"])
+    assert result.exit_code == 0
+    assert "validated" in result.output
+
+
+def test_cards_reports_a_mismatch_without_a_traceback(card_set):
+    card_set(["Alpha", "Gamma"], ["Alpha", "Delta"])
+
+    result = runner.invoke(cli.app, ["cards", "TST"])
+
+    assert result.exit_code == 1
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert "Traceback" not in result.output
+    assert "does not match" in result.output
+    assert "Gamma" in result.output and "Delta" in result.output
+
+
+def test_cards_mismatch_names_the_side_each_difference_came_from(card_set):
+    card_set(["Alpha", "Gamma"], ["Alpha", "Delta"])
+
+    out = runner.invoke(cli.app, ["cards", "TST"]).output
+    assert "1 only in draft data" in out
+    assert "1 only in card file" in out
+
+
+def test_cards_mismatch_truncates_long_name_lists(card_set):
+    """Comparing the wrong set puts hundreds of names on each side."""
+    card_set(
+        [f"Card{i:03d}" for i in range(200)], [f"Other{i:03d}" for i in range(150)]
+    )
+
+    out = runner.invoke(cli.app, ["cards", "TST"]).output
+    assert "200 only in draft data" in out
+    assert "more" in out
+    assert out.count("Card0") <= cli.NAMES_SHOWN
+
+
+def test_cards_reports_a_missing_draft_file(card_set):
+    result = runner.invoke(cli.app, ["cards", "NOPE"])
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
+
+
+def test_cards_rebuild_dispatches_to_the_rebuild_path(monkeypatch, card_set):
+    calls = []
+    monkeypatch.setattr(
+        external,
+        "_refresh_card_only",
+        lambda set_code, event_type: calls.append((set_code, event_type)) or 0,
+    )
+    result = runner.invoke(cli.app, ["cards", "TST", "--rebuild"])
+
+    assert result.exit_code == 0
+    assert calls == [("TST", EventType.PREMIER)]
+
+
+def test_cards_takes_an_event_type(monkeypatch, card_set):
+    calls = []
+    monkeypatch.setattr(
+        external,
+        "_add_card_only",
+        lambda set_code, event_type: calls.append(event_type) or 0,
+    )
+    runner.invoke(cli.app, ["cards", "TST", "TradDraft"])
+    assert calls == [EventType.TRADITIONAL]
+
+
+def test_add_presents_a_card_mismatch_cleanly(card_set):
+    """The guard covers every entry point, not just `cards`."""
+    card_set(["Alpha", "Gamma"], ["Alpha", "Delta"])
+
+    result = runner.invoke(cli.app, ["add", "TST", "--card-only"])
+    assert result.exit_code == 1
+    assert "does not match" in result.output
+    assert "Traceback" not in result.output
+
+
+def test_mismatch_error_carries_both_sides():
+    e = cards_module.CardFileMismatch("TST", ["a"], ["b", "c"])
+    assert e.only_in_data == ["a"]
+    assert e.only_in_file == ["b", "c"]
+    assert "TST" in str(e)

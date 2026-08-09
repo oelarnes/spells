@@ -124,7 +124,9 @@ def test_add_card_only_validates_consistent_file(tmp_path, monkeypatch):
         external.cards, "names_from_parquet", lambda set_code, event_type: FAKE_NAMES
     )
 
-    assert external._add_card_only("TST", event_type=EventType.PREMIER) == 1
+    # 0, not 1: this value becomes the process exit code, and a card file
+    # that checks out is success rather than a runtime error
+    assert external._add_card_only("TST", event_type=EventType.PREMIER) == 0
 
 
 def test_add_card_only_raises_on_mismatch_rather_than_overwriting(

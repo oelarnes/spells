@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.padding import Padding
 from rich.table import Table
 
-from spells import cache, catalog, external, inventory
+from spells import cache, cards as cards_module, catalog, external, inventory
 from spells.cache import DataDir
 from spells.catalog import Freshness, Target
 from spells import repair
@@ -57,6 +57,43 @@ def _confirm(action: str, yes: bool) -> None:
         raise typer.Exit(2)
     if not typer.confirm(f"{action[0].upper()}{action[1:]}?"):
         raise typer.Exit(2)
+
+
+NAMES_SHOWN = 6
+
+
+def _name_sample(names: list[str]) -> str:
+    shown = ", ".join(names[:NAMES_SHOWN])
+    rest = len(names) - NAMES_SHOWN
+    return f"{shown}, +{rest} more" if rest > 0 else shown
+
+
+def _guard_card_file(action, *args, **kwargs) -> int:
+    """Present a card-file mismatch as an error rather than a traceback.
+
+    Comparing the wrong set puts hundreds of names on each side, so the counts
+    lead and only a sample of each is printed.
+    """
+    try:
+        return action(*args, **kwargs)
+    except cards_module.CardFileMismatch as e:
+        err_console.print(
+            f"[red]Card file for {e.set_code} does not match the draft data.[/red]"
+        )
+        if e.only_in_data:
+            err_console.print(
+                f"  {len(e.only_in_data)} only in draft data: "
+                f"{_name_sample(e.only_in_data)}"
+            )
+        if e.only_in_file:
+            err_console.print(
+                f"  {len(e.only_in_file)} only in card file: "
+                f"{_name_sample(e.only_in_file)}"
+            )
+        err_console.print(
+            f"\n  Run `spells cards {e.set_code} --rebuild` to regenerate it."
+        )
+        raise typer.Exit(1)
 
 
 def _anomaly_dict(anomaly: Anomaly) -> dict:
@@ -266,8 +303,10 @@ def add(
 ) -> None:
     """Download draft, game, and card files, skipping any already present."""
     if card_only:
-        raise typer.Exit(external._add_card_only(set_code, event_type=event_type))
-    raise typer.Exit(external._add(set_code, event_type=event_type))
+        raise typer.Exit(
+            _guard_card_file(external._add_card_only, set_code, event_type=event_type)
+        )
+    raise typer.Exit(_guard_card_file(external._add, set_code, event_type=event_type))
 
 
 @app.command()
@@ -284,8 +323,14 @@ def refresh(
 ) -> None:
     """Re-download and overwrite existing files. Use sparingly."""
     if card_only:
-        raise typer.Exit(external._refresh_card_only(set_code, event_type=event_type))
-    raise typer.Exit(external._refresh(set_code, event_type=event_type))
+        raise typer.Exit(
+            _guard_card_file(
+                external._refresh_card_only, set_code, event_type=event_type
+            )
+        )
+    raise typer.Exit(
+        _guard_card_file(external._refresh, set_code, event_type=event_type)
+    )
 
 
 @app.command()
@@ -536,6 +581,27 @@ def check(
 
     if any(_is_actionable(r, held) for r in rows):
         raise typer.Exit(3)
+
+
+@app.command()
+def cards(
+    set_code: str,
+    event_type: Annotated[EventType, typer.Argument()] = EventType.PREMIER,
+    rebuild: Annotated[
+        bool,
+        typer.Option("--rebuild", help="Regenerate from MTGJSON, discarding the file."),
+    ] = False,
+) -> None:
+    """Check the card file against downloaded draft data, or rebuild it."""
+    if rebuild:
+        raise typer.Exit(
+            _guard_card_file(
+                external._refresh_card_only, set_code, event_type=event_type
+            )
+        )
+    raise typer.Exit(
+        _guard_card_file(external._add_card_only, set_code, event_type=event_type)
+    )
 
 
 @app.command()
