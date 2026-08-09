@@ -133,7 +133,7 @@ def _card_attr_map(expansion: str, names: list[str]) -> dict[str, dict]:
         try:
             df = card_df(expansion, names)
         except Exception:
-            console.info("draft", f"No card data available for {expansion}")
+            console.info(f"No card data available for {expansion}")
             return {}
 
     return {row[ColName.NAME]: row for row in df.to_dicts()}

@@ -10,7 +10,7 @@ from spells import console
 
 
 def print_ext(ext: dict[str, ColSpec]) -> None:
-    console.info("create", "Created extensions:")
+    console.info("Created extensions:")
     for key in ext:
         console.detail(key)
 

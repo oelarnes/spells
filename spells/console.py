@@ -27,10 +27,15 @@ def is_quiet() -> bool:
     return _quiet
 
 
-def info(mode: str, content: str) -> None:
-    """Progress, suppressed by --quiet."""
+def info(content: str) -> None:
+    """Progress, suppressed by --quiet.
+
+    No prefix: the command the user typed already says what is happening, and
+    the old one named the internal function rather than the command, so
+    `spells cards` announced itself as `add`.
+    """
     if not _quiet:
-        _out.print(f"  🪄 [bold]{mode}[/bold] ✨ {content}", soft_wrap=True)
+        _out.print(f"  {content}", soft_wrap=True)
 
 
 def detail(content: str) -> None:

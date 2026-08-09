@@ -22,13 +22,13 @@ def loud():
 
 
 def test_info_writes_progress(capsys):
-    console.info("add", "downloading")
+    console.info("downloading")
     assert "downloading" in capsys.readouterr().out
 
 
 def test_quiet_suppresses_progress(capsys):
     console.set_quiet(True)
-    console.info("add", "downloading")
+    console.info("downloading")
     console.detail("a detail")
     assert capsys.readouterr().out == ""
 
@@ -42,7 +42,7 @@ def test_quiet_never_suppresses_errors(capsys):
 
 
 def test_errors_go_to_stderr_so_stdout_stays_pipeable(capsys):
-    console.info("add", "progress")
+    console.info("progress")
     console.error("failure")
     captured = capsys.readouterr()
     assert "progress" in captured.out and "progress" not in captured.err
@@ -55,7 +55,7 @@ def test_progress_and_errors_stay_in_order_when_piped(tmp_path):
     script = tmp_path / "prog.py"
     script.write_text(
         "from spells import console\n"
-        "console.info('add', 'FIRST')\n"
+        "console.info('FIRST')\n"
         "console.error('SECOND')\n"
     )
     out = subprocess.run([sys.executable, str(script)], capture_output=True, text=True)
@@ -66,3 +66,11 @@ def test_progress_and_errors_stay_in_order_when_piped(tmp_path):
 
     assert "FIRST" in merged and "SECOND" in merged
     assert combined.index("FIRST") < combined.index("SECOND")
+
+
+def test_info_has_no_prefix_naming_an_internal_function():
+    """`spells cards` used to announce itself as `add`, because the prefix came
+    from whichever helper happened to be running."""
+    import inspect
+
+    assert list(inspect.signature(console.info).parameters) == ["content"]

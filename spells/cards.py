@@ -180,7 +180,6 @@ def write_card_file(
     always overwrites.
     """
     names = sorted(set(names) | BASIC_LANDS)
-    mode = "refresh" if force_download else "add"
     card_filepath = cache.data_file_path(draft_set_code, View.CARD)
 
     if os.path.isfile(card_filepath) and not force_download:
@@ -192,12 +191,12 @@ def write_card_file(
                 only_in_data=sorted(incoming - existing),
                 only_in_file=sorted(existing - incoming),
             )
-        console.info(mode, f"Card file validated ({len(names)} cards match)")
+        console.info(f"Card file validated ({len(names)} cards match)")
         return 1
 
-    console.info(mode, "Fetching card data from mtgjson.com and writing card file")
+    console.info("Fetching card data from mtgjson.com and writing card file")
     df = card_df(draft_set_code, names)
     os.makedirs(os.path.dirname(card_filepath), exist_ok=True)
     df.write_parquet(card_filepath)
-    console.info(mode, f"Wrote file {card_filepath}")
+    console.info(f"Wrote file {card_filepath}")
     return 0

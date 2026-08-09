@@ -275,8 +275,6 @@ def write_cache(set_code: str, cache_key: str, df: pl.DataFrame) -> None:
 
 
 def clean(set_code: str) -> int:
-    mode = "clean"
-
     if set_code == "all":
         cache_dir = data_dir_path(DataDir.CACHE)
         with os.scandir(cache_dir) as set_dir:
@@ -291,18 +289,15 @@ def clean(set_code: str) -> int:
             for entry in set_dir:
                 if not entry.name.endswith(".parquet"):
                     console.info(
-                        mode,
                         f"Unexpected file {entry.name} found in local cache, please sort that out!",
                     )
                     return 1
                 count += 1
                 os.remove(entry)
-            console.info(
-                mode, f"Removed {count} files from local cache for set {set_code}"
-            )
+            console.info(f"Removed {count} files from local cache for set {set_code}")
         os.rmdir(cache_dir)
-        console.info(mode, f"Removed local cache dir {cache_dir}")
+        console.info(f"Removed local cache dir {cache_dir}")
         return 0
     else:
-        console.info(mode, f"No local cache found for set {set_code}")
+        console.info(f"No local cache found for set {set_code}")
         return 0

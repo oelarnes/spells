@@ -31,9 +31,9 @@ def _add(
     event_type: EventType,
     force_download: bool = False,
 ) -> int:
-    mode = "refresh" if force_download else "add"
     console.info(
-        mode, f"Adding {set_code} {event_type} to {cache.external_set_path(set_code)}"
+        f"{'Refreshing' if force_download else 'Adding'} {set_code} {event_type} "
+        f"in {cache.external_set_path(set_code)}",
     )
 
     download_data_set(
@@ -47,7 +47,6 @@ def _add(
 
     if event_type == EventType.PICK_TWO:
         console.info(
-            "add",
             f"Skipping set context for {event_type} "
             "(summon does not support multi-pick formats yet)",
         )
@@ -57,15 +56,13 @@ def _add(
 
 
 def _add_card_only(set_code: str, event_type: EventType) -> int:
-    mode = "add"
     console.info(
-        mode,
         f"Checking card file for {set_code} against existing {event_type} draft data",
     )
     try:
         names = cards.names_from_parquet(set_code, event_type)
     except FileNotFoundError as e:
-        console.info("error", str(e))
+        console.error(str(e))
         return 1
 
     # no force_download: builds the file if missing, validates and raises on
@@ -79,15 +76,13 @@ def _refresh(set_code: str, event_type: EventType):
 
 
 def _refresh_card_only(set_code: str, event_type: EventType) -> int:
-    mode = "refresh"
     console.info(
-        mode,
         f"Rebuilding card file for {set_code} from existing {event_type} draft data",
     )
     try:
         names = cards.names_from_parquet(set_code, event_type)
     except FileNotFoundError as e:
-        console.info("error", str(e))
+        console.error(str(e))
         return 1
 
     cards.write_card_file(set_code, names, force_download=True)
@@ -96,7 +91,6 @@ def _refresh_card_only(set_code: str, event_type: EventType) -> int:
 
 
 def _remove(set_code: str):
-    mode = "remove"
     dir_path = cache.external_set_path(set_code)
     if os.path.isdir(dir_path):
         with os.scandir(dir_path) as set_dir:
@@ -104,18 +98,17 @@ def _remove(set_code: str):
             for entry in set_dir:
                 if not entry.name.endswith(".parquet"):
                     console.info(
-                        mode,
                         f"Unexpected file {entry.name} found in external cache, please sort that out!",
                     )
                     return 1
                 count += 1
                 os.remove(entry)
             console.info(
-                mode, f"Removed {count} files from external cache for set {set_code}"
+                f"Removed {count} files from external cache for set {set_code}"
             )
         os.rmdir(dir_path)
     else:
-        console.info(mode, f"No external cache found for set {set_code}")
+        console.info(f"No external cache found for set {set_code}")
 
     return cache.clean(set_code)
 
@@ -135,9 +128,8 @@ def _process_zipped_file(gzip_path, target_path):
     except ComputeError:
         df = pl.scan_csv(csv_path)
         console.info(
-            "error",
-            "Bad schema found, loading dataset into memory"
-            + " and attempting to cast to correct schema",
+            "Bad schema found, loading dataset into memory "
+            "and attempting to cast to the correct schema"
         )
         select = [pl.col(name).cast(dtype) for name, dtype in schema(csv_path).items()]
         cast_df = df.select(select).collect()
@@ -153,9 +145,7 @@ def download_data_set(
     force_download=False,
     clear_set_cache=True,
 ):
-    mode = "refresh" if force_download else "add"
     console.info(
-        mode,
         f"Downloading {set_code} {event_type} {dataset_type} dataset from 17Lands.com",
     )
 
@@ -166,7 +156,6 @@ def download_data_set(
 
     if os.path.isfile(target_path) and not force_download:
         console.info(
-            mode,
             f"File {target_path} already exists, use `spells refresh {set_code}` to overwrite",
         )
         return 1
@@ -176,14 +165,14 @@ def download_data_set(
     )
     source_url = RESOURCE_TEMPLATE.format(dataset_type=dataset_type) + dataset_file
     dataset_path = os.path.join(cache.external_set_path(set_code), dataset_file)
-    console.info(mode, f"Fetching {source_url}")
+    console.info(f"Fetching {source_url}")
     http.download(source_url, dataset_path, description=dataset_file)
 
     console.info(
-        mode, "Unzipping and transforming to parquet (this might take a few minutes)..."
+        "Unzipping and transforming to parquet (this might take a few minutes)..."
     )
     _process_zipped_file(dataset_path, target_path)
-    console.info(mode, f"Wrote file {target_path}")
+    console.info(f"Wrote file {target_path}")
     if clear_set_cache:
         cache.clean(set_code)
 
@@ -195,13 +184,10 @@ def get_set_context(
     event_type: EventType,
     force_download=False,
 ) -> int:
-    mode = "refresh" if force_download else "add"
-
     context_fp = cache.data_file_path(set_code, "context", event_type)
-    console.info(mode, "Calculating set context")
+    console.info("Calculating set context")
     if os.path.isfile(context_fp) and not force_download:
         console.info(
-            mode,
             f"File {context_fp} already exists, use `spells refresh {set_code}` to overwrite",
         )
         return 1
@@ -222,6 +208,6 @@ def get_set_context(
 
     context_df.write_parquet(context_fp)
 
-    console.info(mode, f"Wrote file {context_fp}")
+    console.info(f"Wrote file {context_fp}")
 
     return 0

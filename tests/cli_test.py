@@ -588,7 +588,7 @@ def test_quiet_suppresses_library_progress(data_home):
     loud = runner.invoke(cli.app, ["clean", "TST"])
     quiet = runner.invoke(cli.app, ["--quiet", "clean", "TST"])
 
-    assert "🪄" in loud.output
+    assert loud.output.strip() != ""
     assert quiet.output.strip() == ""
     assert quiet.exit_code == loud.exit_code
 
@@ -600,4 +600,20 @@ def test_quiet_still_reports_errors(card_set):
 
     assert result.exit_code == 1
     assert "does not match" in result.output
-    assert "🪄" not in result.output
+    assert "Checking card file" not in result.output
+
+
+def test_quiet_does_not_swallow_a_missing_file_error(data_home):
+    """These went through info(), so --quiet reduced them to a bare exit 1."""
+    result = runner.invoke(cli.app, ["--quiet", "cards", "NOPE"])
+
+    assert result.exit_code == 1
+    assert "No PremierDraft draft file for NOPE" in result.output
+
+
+def test_cards_does_not_report_itself_as_add(card_set):
+    card_set(["Alpha"], ["Alpha"])
+
+    output = runner.invoke(cli.app, ["cards", "TST"]).output
+    assert "Checking card file" in output
+    assert "add" not in output.split("Checking")[0]
