@@ -190,9 +190,7 @@ def deck_color_df(
         as_of,
     )
 
-    user_group_param = (
-        "" if player_cohort == "all" else f"&user_group={player_cohort}"
-    )
+    user_group_param = "" if player_cohort == "all" else f"&user_group={player_cohort}"
 
     url = DECK_COLOR_DATA_TEMPLATE.format(
         set_code=set_code,

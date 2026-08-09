@@ -402,32 +402,12 @@ def test_doctor_json_lists_paths(snapshots):
 
 
 def test_snapshots_list_separates_keep_from_dead(snapshots):
-    result = runner.invoke(cli.app, ["snapshots", "list", "--json"])
+    result = runner.invoke(cli.app, ["snapshots", "--json"])
     payload = json.loads(result.stdout)
 
     (entry,) = payload["sets"]
     assert entry["ratings"]["valid"] == 1
     assert entry["ratings"]["legacy"] == 1
-
-
-def test_snapshots_prune_is_a_dry_run_by_default(snapshots):
-    result = runner.invoke(cli.app, ["snapshots", "prune"])
-    assert result.exit_code == 0
-    assert (snapshots / LEGACY_SNAPSHOT).exists()
-
-
-def test_snapshots_prune_never_deletes_headless_without_yes(snapshots):
-    result = runner.invoke(cli.app, ["snapshots", "prune"])
-    assert result.exit_code == 0
-    assert "--yes" in result.stdout
-    assert (snapshots / LEGACY_SNAPSHOT).exists()
-
-
-def test_snapshots_prune_keeps_refetchable_snapshots(snapshots):
-    result = runner.invoke(cli.app, ["snapshots", "prune", "--yes"])
-    assert result.exit_code == 0
-    assert not (snapshots / LEGACY_SNAPSHOT).exists()
-    assert (snapshots / VALID_SNAPSHOT).exists()
 
 
 @pytest.fixture
@@ -438,7 +418,7 @@ def at_a_terminal(monkeypatch):
 
 
 def test_doctor_offers_the_deletion_at_a_terminal(snapshots, at_a_terminal):
-    """No rerun with --execute: the prompt is the confirmation."""
+    """At a terminal the prompt is the confirmation; no second invocation."""
     result = runner.invoke(cli.app, ["doctor"], input="y\n")
 
     assert result.exit_code == 0
@@ -467,11 +447,3 @@ def test_doctor_json_never_prompts_even_at_a_terminal(snapshots, at_a_terminal):
     assert result.exit_code == 0
     json.loads(result.stdout)
     assert (snapshots / LEGACY_SNAPSHOT).exists()
-
-
-def test_snapshots_prune_offers_the_deletion_at_a_terminal(snapshots, at_a_terminal):
-    result = runner.invoke(cli.app, ["snapshots", "prune"], input="y\n")
-
-    assert result.exit_code == 0
-    assert not (snapshots / LEGACY_SNAPSHOT).exists()
-    assert (snapshots / VALID_SNAPSHOT).exists()

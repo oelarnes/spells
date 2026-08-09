@@ -197,7 +197,9 @@ _specs: dict[str, ColSpec] = {
                 .then(1)
                 .otherwise(0)
             )
-        ).then(1).otherwise(0),
+        )
+        .then(1)
+        .otherwise(0),
     ),
     ColName.PICK: ColSpec(
         col_type=ColType.FILTER_ONLY,
@@ -238,7 +240,9 @@ _specs: dict[str, ColSpec] = {
         # pool_ columns only track the `pick` card, not pick_2.
         col_type=ColType.PICK_SUM,
         views=[View.DRAFT],
-        expr=lambda names: pl.sum_horizontal([pl.col(f"pool_{name}") for name in names]),
+        expr=lambda names: pl.sum_horizontal(
+            [pl.col(f"pool_{name}") for name in names]
+        ),
     ),
     ColName.GAME_TIME: ColSpec(
         col_type=ColType.FILTER_ONLY,
@@ -501,26 +505,43 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.DECK_TOTAL: agg_col(pl.col(ColName.DECK).sum()),
     ColName.WON_DECK_TOTAL: agg_col(pl.col(ColName.WON_DECK).sum()),
-    ColName.GP_WR_MEAN: agg_col(pl.col(ColName.WON_DECK_TOTAL) / pl.col(ColName.DECK_TOTAL)),
+    ColName.GP_WR_MEAN: agg_col(
+        pl.col(ColName.WON_DECK_TOTAL) / pl.col(ColName.DECK_TOTAL)
+    ),
     ColName.GP_WR_EXCESS: agg_col(pl.col(ColName.GP_WR) - pl.col(ColName.GP_WR_MEAN)),
-    ColName.GP_WR_VAR: agg_col((pl.col(ColName.GP_WR_EXCESS).pow(2) * pl.col(ColName.NUM_GP)).sum()
+    ColName.GP_WR_VAR: agg_col(
+        (pl.col(ColName.GP_WR_EXCESS).pow(2) * pl.col(ColName.NUM_GP)).sum()
         / pl.col(ColName.DECK_TOTAL)
     ),
     ColName.GP_WR_STDEV: agg_col(pl.col(ColName.GP_WR_VAR).sqrt()),
-    ColName.GP_WR_Z: agg_col(pl.col(ColName.GP_WR_EXCESS) / pl.col(ColName.GP_WR_STDEV)),
+    ColName.GP_WR_Z: agg_col(
+        pl.col(ColName.GP_WR_EXCESS) / pl.col(ColName.GP_WR_STDEV)
+    ),
     ColName.GIH_TOTAL: agg_col(pl.col(ColName.NUM_GIH).sum()),
     ColName.WON_GIH_TOTAL: agg_col(pl.col(ColName.NUM_GIH_WON).sum()),
-    ColName.GIH_WR_MEAN: agg_col(pl.col(ColName.WON_GIH_TOTAL) / pl.col(ColName.GIH_TOTAL)),
-    ColName.GIH_WR_EXCESS: agg_col(pl.col(ColName.GIH_WR) - pl.col(ColName.GIH_WR_MEAN)),
+    ColName.GIH_WR_MEAN: agg_col(
+        pl.col(ColName.WON_GIH_TOTAL) / pl.col(ColName.GIH_TOTAL)
+    ),
+    ColName.GIH_WR_EXCESS: agg_col(
+        pl.col(ColName.GIH_WR) - pl.col(ColName.GIH_WR_MEAN)
+    ),
     ColName.GIH_WR_VAR: agg_col(
         (pl.col(ColName.GIH_WR_EXCESS).pow(2) * pl.col(ColName.NUM_GIH)).sum()
         / pl.col(ColName.GIH_TOTAL)
     ),
     ColName.GIH_WR_STDEV: agg_col(pl.col(ColName.GIH_WR_VAR).sqrt()),
-    ColName.GIH_WR_Z: agg_col(pl.col(ColName.GIH_WR_EXCESS) / pl.col(ColName.GIH_WR_STDEV)),
-    ColName.DECK_MANA_VALUE_AVG: agg_col(pl.col(ColName.DECK_MANA_VALUE) / pl.col(ColName.DECK_SPELLS)),
-    ColName.DECK_LANDS_AVG: agg_col(pl.col(ColName.DECK_LANDS) / pl.col(ColName.NUM_GAMES)),
-    ColName.DECK_SPELLS_AVG: agg_col(pl.col(ColName.DECK_SPELLS) / pl.col(ColName.NUM_GAMES)),
+    ColName.GIH_WR_Z: agg_col(
+        pl.col(ColName.GIH_WR_EXCESS) / pl.col(ColName.GIH_WR_STDEV)
+    ),
+    ColName.DECK_MANA_VALUE_AVG: agg_col(
+        pl.col(ColName.DECK_MANA_VALUE) / pl.col(ColName.DECK_SPELLS)
+    ),
+    ColName.DECK_LANDS_AVG: agg_col(
+        pl.col(ColName.DECK_LANDS) / pl.col(ColName.NUM_GAMES)
+    ),
+    ColName.DECK_SPELLS_AVG: agg_col(
+        pl.col(ColName.DECK_SPELLS) / pl.col(ColName.NUM_GAMES)
+    ),
 }
 
 for item in ColName:

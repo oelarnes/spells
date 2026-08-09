@@ -80,6 +80,7 @@ def _extract_value(set_code: str, name: str, card_dict: dict, field: CardAttr):
         case CardAttr.IMAGE_URL:
             return img_url
 
+
 def card_df(draft_set_code: str, names: list[str]) -> pl.DataFrame:
     draft_set_json = _fetch_mtg_json(draft_set_code)
     booster_info = draft_set_json["data"].get("booster")
@@ -134,7 +135,7 @@ def names_from_parquet(draft_set_code: str, event_type: EventType) -> list[str]:
         raise FileNotFoundError(f"No {event_type} draft file for {draft_set_code}")
     columns = pl.scan_parquet(draft_filepath).collect_schema().names()
     prefix = "pack_card_"
-    return [col[len(prefix):] for col in columns if col.startswith(prefix)]
+    return [col[len(prefix) :] for col in columns if col.startswith(prefix)]
 
 
 BASIC_LANDS = frozenset({"Plains", "Island", "Swamp", "Mountain", "Forest"})
@@ -174,7 +175,9 @@ def write_card_file(
         cache.spells_print(mode, f"Card file validated ({len(names)} cards match)")
         return 1
 
-    cache.spells_print(mode, "Fetching card data from mtgjson.com and writing card file")
+    cache.spells_print(
+        mode, "Fetching card data from mtgjson.com and writing card file"
+    )
     df = card_df(draft_set_code, names)
     os.makedirs(os.path.dirname(card_filepath), exist_ok=True)
     df.write_parquet(card_filepath)

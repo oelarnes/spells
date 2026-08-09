@@ -105,12 +105,3 @@ def apply(repairs: list[Repair]) -> Outcome:
             freed += size
 
     return Outcome(removed=removed, freed=freed, failures=tuple(failures))
-
-
-def prune_snapshots(inv: Inventory, set_code: str | None = None) -> list[Repair]:
-    """The snapshot subset of `plan`, for the `snapshots prune` command."""
-    return [
-        r
-        for r in plan(inv, set_code)
-        if r.anomaly.remedy == Remedy.PRUNE_LEGACY_SNAPSHOTS
-    ]

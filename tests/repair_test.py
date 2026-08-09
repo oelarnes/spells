@@ -49,9 +49,7 @@ def write_snapshots(home, store, set_code, *names):
 def test_plan_never_schedules_a_valid_snapshot_for_deletion(data_home):
     """Across every TimePeriod, in both snapshot shapes, mixed with legacy
     files in the same directory."""
-    write_snapshots(
-        data_home, "ratings", "TST", *VALID_SHAPES, *LEGACY_SHAPES
-    )
+    write_snapshots(data_home, "ratings", "TST", *VALID_SHAPES, *LEGACY_SHAPES)
 
     planned = {p.name for r in repair.plan(inventory.scan()) for p in r.paths}
 
@@ -75,9 +73,7 @@ def test_a_directory_of_only_valid_snapshots_yields_no_repair(data_home):
 
 
 def test_apply_leaves_valid_snapshots_on_disk(data_home):
-    d = write_snapshots(
-        data_home, "ratings", "TST", *VALID_SHAPES, *LEGACY_SHAPES
-    )
+    d = write_snapshots(data_home, "ratings", "TST", *VALID_SHAPES, *LEGACY_SHAPES)
 
     repair.apply(repair.plan(inventory.scan()))
 
@@ -122,25 +118,6 @@ def test_plan_can_be_limited_to_one_set(data_home):
 
     planned = repair.plan(inventory.scan(), set_code="TST")
     assert {r.anomaly.set_code for r in planned} == {"TST"}
-
-
-def test_prune_snapshots_excludes_non_snapshot_repairs(data_home):
-    write_snapshots(data_home, "ratings", "TST", *LEGACY_SHAPES)
-    external = data_home / "external" / "TST"
-    external.mkdir(parents=True)
-    (external / "TST_context.parquet").write_bytes(b"x" * 10)
-
-    inv = inventory.scan()
-    kinds = {r.anomaly.kind for r in repair.plan(inv)}
-    pruned = {r.anomaly.kind for r in repair.prune_snapshots(inv)}
-
-    assert AnomalyKind.LEGACY_CONTEXT in kinds
-    assert pruned == {AnomalyKind.LEGACY_SNAPSHOT}
-
-
-# ---------------------------------------------------------------------------
-# Applying
-# ---------------------------------------------------------------------------
 
 
 def test_apply_removes_files_and_reports_what_it_freed(data_home):

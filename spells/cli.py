@@ -672,15 +672,8 @@ def doctor(
     _render_advisories(inv, set_code)
 
 
-snapshots_app = typer.Typer(
-    help="Inspect and prune cached 17Lands API responses.",
-    no_args_is_help=True,
-)
-app.add_typer(snapshots_app, name="snapshots")
-
-
-@snapshots_app.command("list")
-def snapshots_list(
+@app.command()
+def snapshots(
     set_code: Annotated[
         str | None, typer.Argument(help="Limit to a single set.")
     ] = None,
@@ -747,28 +740,6 @@ def snapshots_list(
         "\n  [dim]`keep` cannot be refetched: 17Lands resolves a time period"
         "\n  against its own today, so a past window is gone once deleted.[/dim]"
     )
-
-
-@snapshots_app.command("prune")
-def snapshots_prune(
-    set_code: Annotated[
-        str | None, typer.Argument(help="Limit to a single set.")
-    ] = None,
-    yes: Annotated[
-        bool,
-        typer.Option("--yes", "-y", help="Delete without asking. Required headless."),
-    ] = False,
-) -> None:
-    """Delete pre-0.14 cached responses, which nothing can read."""
-    inv = inventory.scan()
-    repairs = repair.prune_snapshots(inv, set_code)
-
-    if not repairs:
-        console.print("  [green]No dead snapshots.[/green]")
-        return
-
-    _render_repairs(repairs)
-    _run_repairs(repairs, yes, "delete them")
 
 
 def cli() -> None:

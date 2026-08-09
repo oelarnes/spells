@@ -39,9 +39,7 @@ def _cache_key(args) -> str:
 
 
 @functools.lru_cache(maxsize=None)
-def get_names(
-    set_code: str
-) -> list[str]:
+def get_names(set_code: str) -> list[str]:
     card_fp = cache.data_file_path(set_code, View.CARD)
     card_view = pl.read_parquet(card_fp)
     return card_view.get_column("name").to_list()
@@ -435,7 +433,11 @@ def _base_agg_df(
 
             grouped = sum_col_df.group_by(group_by) if group_by else sum_col_df
             with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", "The old streaming engine is being deprecated", DeprecationWarning)
+                warnings.filterwarnings(
+                    "ignore",
+                    "The old streaming engine is being deprecated",
+                    DeprecationWarning,
+                )
                 join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
         for col in name_sum_cols:
@@ -502,9 +504,7 @@ def _normalize_context_keys(
 
     if isinstance(context, dict):
         if any(isinstance(k, tuple) for k in context):
-            return {
-                cell: context.get((cell[0], EventType(cell[1]))) for cell in cells
-            }
+            return {cell: context.get((cell[0], EventType(cell[1]))) for cell in cells}
         codes = {code for code, _ in cells}
         if context and all(k in codes for k in context):
             return {cell: context.get(cell[0]) for cell in cells}
