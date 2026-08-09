@@ -294,9 +294,7 @@ def fetch_draft(draft_id: str, card_data: bool = True) -> Draft:
 
     attr_map = None
     if card_data:
-        names = sorted(
-            {c[ColName.NAME] for p in data["picks"] for c in p["available"]}
-        )
+        names = sorted({c[ColName.NAME] for p in data["picks"] for c in p["available"]})
         attr_map = _card_attr_map(data[ColName.EXPANSION], names)
 
     return _draft_from_data(draft_id, data, attr_map)
@@ -321,7 +319,7 @@ def _cards_from_counts(
         card
         for col, count in row.items()
         if col.startswith(prefix) and count
-        for card in [_draft_card({ColName.NAME: col[len(prefix):]}, attr_map)] * count
+        for card in [_draft_card({ColName.NAME: col[len(prefix) :]}, attr_map)] * count
     ]
 
 
@@ -341,7 +339,7 @@ def _state_from_row(
 
     pool_counts = Counter(
         {
-            col[len(POOL_PREFIX):]: count
+            col[len(POOL_PREFIX) :]: count
             for col, count in row.items()
             if col.startswith(POOL_PREFIX) and count
         }
@@ -416,7 +414,7 @@ def draft_from_public_data(
     attr_map = {}
     if card_data:
         names = sorted(
-            col[len(PACK_CARD_PREFIX):]
+            col[len(PACK_CARD_PREFIX) :]
             for col in rows[0]
             if col.startswith(PACK_CARD_PREFIX)
         )
@@ -424,18 +422,22 @@ def draft_from_public_data(
 
     states = []
     pool: list[DraftCard] = []
-    for pack_num_0, pack_rows in itertools.groupby(rows, key=lambda r: r[ColName.PACK_NUMBER]):
+    for pack_num_0, pack_rows in itertools.groupby(
+        rows, key=lambda r: r[ColName.PACK_NUMBER]
+    ):
         pack_rows = list(pack_rows)
         first_pick = pack_rows[0][ColName.PICK_NUMBER]
         if first_pick > 0:
             pool_counts = Counter(
                 {
-                    col[len(POOL_PREFIX):]: count
+                    col[len(POOL_PREFIX) :]: count
                     for col, count in pack_rows[0].items()
                     if col.startswith(POOL_PREFIX) and count
                 }
             )
-            for s in _gap_states(pack_num_0, first_pick, pool_counts, list(pool), attr_map):
+            for s in _gap_states(
+                pack_num_0, first_pick, pool_counts, list(pool), attr_map
+            ):
                 states.append(s)
                 pool.extend(s.pack_cards[i] for i in s.picks_ind)
         for row in pack_rows:
@@ -465,9 +467,7 @@ def draft_view_df(draft: Draft) -> pl.DataFrame:
     if os.path.isfile(file_path):
         target_schema = pl.scan_parquet(file_path).collect_schema()
     else:
-        names = sorted(
-            {c.name for s in draft.picks for c in [*s.pack_cards, *s.pool]}
-        )
+        names = sorted({c.name for s in draft.picks for c in [*s.pack_cards, *s.pool]})
         has_pick_2 = any(len(s.picks_ind) > 1 for s in draft.picks)
         meta_schema = {
             ColName.EXPANSION: pl.String,
@@ -514,9 +514,9 @@ def draft_view_df(draft: Draft) -> pl.DataFrame:
             {
                 col: row.get(
                     col,
-                    pack_counts.get(col[len(PACK_CARD_PREFIX):], 0)
+                    pack_counts.get(col[len(PACK_CARD_PREFIX) :], 0)
                     if col.startswith(PACK_CARD_PREFIX)
-                    else pool_counts.get(col[len(POOL_PREFIX):], 0)
+                    else pool_counts.get(col[len(POOL_PREFIX) :], 0)
                     if col.startswith(POOL_PREFIX)
                     else None,
                 )

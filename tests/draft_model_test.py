@@ -39,7 +39,9 @@ def pick_obj(
         "pick_number": pick_number,
         "available": [card(n) for n in available],
         "pick": card(pick) if pick is not None else None,
-        "picks": [card(n) for n in (picks if picks is not None else ([pick] if pick else []))],
+        "picks": [
+            card(n) for n in (picks if picks is not None else ([pick] if pick else []))
+        ],
     }
 
 
@@ -47,7 +49,9 @@ FAKE_DATA = {
     "expansion": "TST",
     "num_seats": 8,
     "picks": [
-        pick_obj(0, 0, ["Aether Sprite", "Blazing Howl", "Crystal Idol"], "Aether Sprite"),
+        pick_obj(
+            0, 0, ["Aether Sprite", "Blazing Howl", "Crystal Idol"], "Aether Sprite"
+        ),
         pick_obj(0, 1, ["Ember Brute", "Tidal Reckoning"], "Tidal Reckoning"),
         pick_obj(1, 0, ["Stormcrash Wyvern", "Crystal Idol"], "Crystal Idol"),
     ],
@@ -62,8 +66,15 @@ def test_draft_from_data_structure():
     assert len(draft.picks) == 3
 
     first = draft.picks[0]
-    assert (first.pack_num, first.pick_num) == (1, 1)  # 0-indexed feed -> 1-indexed model
-    assert [c.name for c in first.pack_cards] == ["Aether Sprite", "Blazing Howl", "Crystal Idol"]
+    assert (first.pack_num, first.pick_num) == (
+        1,
+        1,
+    )  # 0-indexed feed -> 1-indexed model
+    assert [c.name for c in first.pack_cards] == [
+        "Aether Sprite",
+        "Blazing Howl",
+        "Crystal Idol",
+    ]
     assert first.pick_ind == 0
     assert first.picks_ind == [0]
     assert first.pool == []
@@ -93,7 +104,8 @@ def test_duplicate_names_consume_distinct_indices():
         "expansion": "TST",
         "picks": [
             pick_obj(
-                0, 0,
+                0,
+                0,
                 ["Crystal Idol", "Crystal Idol", "Aether Sprite"],
                 "Crystal Idol",
                 picks=["Crystal Idol", "Crystal Idol"],
@@ -106,7 +118,9 @@ def test_duplicate_names_consume_distinct_indices():
     assert state.pick_ind is None
     assert state.picks_ind == [0, 1]
     assert [c.name for c in _draft_from_data("abc123", data).picks[0].pack_cards] == [
-        "Crystal Idol", "Crystal Idol", "Aether Sprite",
+        "Crystal Idol",
+        "Crystal Idol",
+        "Aether Sprite",
     ]
 
 
@@ -192,7 +206,9 @@ def test_card_attr_map_falls_back_to_mtgjson(tmp_path, monkeypatch: pytest.Monke
     assert attr_map["Aether Sprite"]["set_code"] == "TST"
 
 
-def test_card_attr_map_empty_when_unavailable(tmp_path, monkeypatch: pytest.MonkeyPatch):
+def test_card_attr_map_empty_when_unavailable(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
     def boom(expansion, names):
         raise ValueError("no such set")
 
@@ -207,7 +223,9 @@ def test_fetch_draft_reads_cached_file(tmp_path, monkeypatch: pytest.MonkeyPatch
     file_path.write_text(json.dumps(FAKE_DATA))
 
     monkeypatch.setattr(
-        draft_model, "download_data_file", lambda url, target_dir, filename: str(file_path)
+        draft_model,
+        "download_data_file",
+        lambda url, target_dir, filename: str(file_path),
     )
     monkeypatch.setattr(
         draft_model, "_card_attr_map", lambda expansion, names: FAKE_ATTR_MAP
@@ -228,7 +246,9 @@ def test_fetch_draft_without_card_data(tmp_path, monkeypatch: pytest.MonkeyPatch
     file_path.write_text(json.dumps(FAKE_DATA))
 
     monkeypatch.setattr(
-        draft_model, "download_data_file", lambda url, target_dir, filename: str(file_path)
+        draft_model,
+        "download_data_file",
+        lambda url, target_dir, filename: str(file_path),
     )
 
     def no_call(expansion, names):
@@ -292,26 +312,61 @@ def view_row(draft_id, pack_number, pick_number, pack, pool, pick, rank="gold"):
 # VIEW_NAMES card, carrying every CARD_ATTR column.
 CARD_ATTR_ROWS = [
     {
-        "name": "Aether Sprite", "set_code": "TST", "color": "U", "rarity": "common",
-        "color_identity": "U", "card_type": "Creature", "subtype": "Faerie",
-        "mana_value": 2.0, "mana_cost": "{1}{U}", "power": "1", "toughness": "1",
-        "is_bonus_sheet": False, "is_dfc": False, "oracle_text": "Flying",
-        "card_json": "{}", "scryfall_id": "", "image_url": "",
+        "name": "Aether Sprite",
+        "set_code": "TST",
+        "color": "U",
+        "rarity": "common",
+        "color_identity": "U",
+        "card_type": "Creature",
+        "subtype": "Faerie",
+        "mana_value": 2.0,
+        "mana_cost": "{1}{U}",
+        "power": "1",
+        "toughness": "1",
+        "is_bonus_sheet": False,
+        "is_dfc": False,
+        "oracle_text": "Flying",
+        "card_json": "{}",
+        "scryfall_id": "",
+        "image_url": "",
     },
     {
-        "name": "Blazing Howl", "set_code": "TST", "color": "R", "rarity": "uncommon",
-        "color_identity": "R", "card_type": "Instant", "subtype": "",
-        "mana_value": 1.0, "mana_cost": "{R}", "power": None, "toughness": None,
-        "is_bonus_sheet": False, "is_dfc": False,
+        "name": "Blazing Howl",
+        "set_code": "TST",
+        "color": "R",
+        "rarity": "uncommon",
+        "color_identity": "R",
+        "card_type": "Instant",
+        "subtype": "",
+        "mana_value": 1.0,
+        "mana_cost": "{R}",
+        "power": None,
+        "toughness": None,
+        "is_bonus_sheet": False,
+        "is_dfc": False,
         "oracle_text": "Target creature gets +2/+0 until end of turn.",
-        "card_json": "{}", "scryfall_id": "", "image_url": "",
+        "card_json": "{}",
+        "scryfall_id": "",
+        "image_url": "",
     },
     {
-        "name": "Crystal Idol", "set_code": "TST", "color": "", "rarity": "common",
-        "color_identity": "", "card_type": "Artifact", "subtype": "",
-        "mana_value": 2.0, "mana_cost": "{2}", "power": None, "toughness": None,
-        "is_bonus_sheet": False, "is_dfc": False, "oracle_text": "{T}: Add {C}.",
-        "card_json": "{}", "scryfall_id": "", "image_url": "",
+        "name": "Crystal Idol",
+        "set_code": "TST",
+        "color": "",
+        "rarity": "common",
+        "color_identity": "",
+        "card_type": "Artifact",
+        "subtype": "",
+        "mana_value": 2.0,
+        "mana_cost": "{2}",
+        "power": None,
+        "toughness": None,
+        "is_bonus_sheet": False,
+        "is_dfc": False,
+        "oracle_text": "{T}: Add {C}.",
+        "card_json": "{}",
+        "scryfall_id": "",
+        "image_url": "",
     },
 ]
 
@@ -328,13 +383,20 @@ def fake_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFrame:
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
     write_card_view()
     rows = [
-        view_row("d1", 0, 0, {"Crystal Idol": 2, "Aether Sprite": 1}, {}, "Crystal Idol"),
+        view_row(
+            "d1", 0, 0, {"Crystal Idol": 2, "Aether Sprite": 1}, {}, "Crystal Idol"
+        ),
         view_row("d1", 0, 1, {"Blazing Howl": 1}, {"Crystal Idol": 1}, "Blazing Howl"),
         # d2: pick_number=0 row is present, but pool already has a card before
         # any pick — models a true game-mechanic promo/seed (row not missing)
         view_row(
-            "d2", 0, 0, {"Aether Sprite": 1}, {"Blazing Howl": 1},
-            "Aether Sprite", rank="bronze",
+            "d2",
+            0,
+            0,
+            {"Aether Sprite": 1},
+            {"Blazing Howl": 1},
+            "Aether Sprite",
+            rank="bronze",
         ),
     ]
     df = pl.DataFrame(rows, schema=VIEW_SCHEMA)
@@ -357,7 +419,9 @@ def test_draft_from_public_data_by_id(fake_view):
     assert (first.pack_num, first.pick_num) == (1, 1)
     # pack expands count columns with multiplicity, in column (name) order
     assert [c.name for c in first.pack_cards] == [
-        "Aether Sprite", "Crystal Idol", "Crystal Idol",
+        "Aether Sprite",
+        "Crystal Idol",
+        "Crystal Idol",
     ]
     assert first.pick_ind == 1
     assert first.picks_ind == [1]
@@ -369,7 +433,7 @@ def test_draft_from_public_data_by_id(fake_view):
 
 def test_draft_from_public_data_sampling(fake_view):
     draft = draft_from_public_data(
-        "TST", filter_spec={'rank': 'bronze'}, seed=1, card_data=False
+        "TST", filter_spec={"rank": "bronze"}, seed=1, card_data=False
     )
     assert draft.draft_id == "d2"
 
@@ -381,7 +445,7 @@ def test_draft_from_public_data_sampling(fake_view):
 
 def test_draft_from_public_data_no_match_raises(fake_view):
     with pytest.raises(ValueError):
-        draft_from_public_data("TST", filter_spec={'rank': 'mythic'}, card_data=False)
+        draft_from_public_data("TST", filter_spec={"rank": "mythic"}, card_data=False)
 
 
 def test_view_round_trip(fake_view):
@@ -469,7 +533,9 @@ def test_draft_from_public_data_missing_p1p1_synthesized(fake_view_missing_p1p1)
 
     p1p2 = draft.picks[1]
     assert (p1p2.pack_num, p1p2.pick_num) == (1, 2)
-    assert [c.name for c in p1p2.pool] == ["Aether Sprite"]  # synthetic pick accumulated
+    assert [c.name for c in p1p2.pool] == [
+        "Aether Sprite"
+    ]  # synthetic pick accumulated
 
 
 def test_draft_from_public_data_missing_p1p1_round_trip(fake_view_missing_p1p1):
@@ -501,12 +567,17 @@ def fake_pick_two_view(tmp_path, monkeypatch: pytest.MonkeyPatch) -> pl.DataFram
     write_card_view("TS2")
     rows = [
         view_row(
-            "d1", 0, 0,
+            "d1",
+            0,
+            0,
             {"Crystal Idol": 2, "Aether Sprite": 1, "Blazing Howl": 1},
-            {}, "Crystal Idol",
+            {},
+            "Crystal Idol",
         ),
         view_row(
-            "d1", 0, 1,
+            "d1",
+            0,
+            1,
             {"Aether Sprite": 1, "Blazing Howl": 1},
             {"Crystal Idol": 1},  # undercount: the pick_2 copy is missing
             "Aether Sprite",
@@ -529,7 +600,10 @@ def test_draft_from_public_data_pick_two(fake_pick_two_view):
     first = draft.picks[0]
     # pack in column order: Aether Sprite, Blazing Howl, Crystal Idol x2
     assert [c.name for c in first.pack_cards] == [
-        "Aether Sprite", "Blazing Howl", "Crystal Idol", "Crystal Idol",
+        "Aether Sprite",
+        "Blazing Howl",
+        "Crystal Idol",
+        "Crystal Idol",
     ]
     # pick-two: pick_ind None, both copies consume distinct indices
     assert first.pick_ind is None
@@ -564,7 +638,8 @@ def test_live_pick_two_feed():
         "expansion": "OM1",
         "picks": [
             pick_obj(
-                0, 0,
+                0,
+                0,
                 ["Aether Sprite", "Blazing Howl", "Crystal Idol", "Ember Brute"],
                 "Aether Sprite",
                 picks=["Aether Sprite", "Crystal Idol"],

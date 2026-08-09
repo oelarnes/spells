@@ -19,6 +19,7 @@ from spells.enums import View, ColName, EventType
 from spells.schema import schema
 from spells.draft_data import summon
 
+
 class FileFormat(StrEnum):
     CSV = "csv"
     PARQUET = "parquet"
@@ -30,7 +31,9 @@ def _add(
     force_download: bool = False,
 ) -> int:
     mode = "refresh" if force_download else "add"
-    cache.spells_print(mode, f"Adding {set_code} {event_type} to {cache.external_set_path(set_code)}")
+    cache.spells_print(
+        mode, f"Adding {set_code} {event_type} to {cache.external_set_path(set_code)}"
+    )
 
     download_data_set(
         set_code, View.DRAFT, event_type=event_type, force_download=force_download
@@ -48,16 +51,15 @@ def _add(
             "(summon does not support multi-pick formats yet)",
         )
     else:
-        get_set_context(
-            set_code, event_type=event_type, force_download=force_download
-        )
+        get_set_context(set_code, event_type=event_type, force_download=force_download)
     return 0
 
 
 def _add_card_only(set_code: str, event_type: EventType) -> int:
     mode = "add"
     cache.spells_print(
-        mode, f"Checking card file for {set_code} against existing {event_type} draft data"
+        mode,
+        f"Checking card file for {set_code} against existing {event_type} draft data",
     )
     try:
         names = cards.names_from_parquet(set_code, event_type)
@@ -77,7 +79,8 @@ def _refresh(set_code: str, event_type: EventType):
 def _refresh_card_only(set_code: str, event_type: EventType) -> int:
     mode = "refresh"
     cache.spells_print(
-        mode, f"Rebuilding card file for {set_code} from existing {event_type} draft data"
+        mode,
+        f"Rebuilding card file for {set_code} from existing {event_type} draft data",
     )
     try:
         names = cards.names_from_parquet(set_code, event_type)
@@ -218,5 +221,5 @@ def get_set_context(
     context_df.write_parquet(context_fp)
 
     cache.spells_print(mode, f"Wrote file {context_fp}")
-    
+
     return 0

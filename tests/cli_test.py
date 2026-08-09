@@ -341,3 +341,109 @@ def test_check_counts_a_missing_file_in_a_tracked_event_type_as_work(
     assert game["status"] == "absent"
     assert game["tracked"] is True
     assert game["actionable"] is True
+
+
+# ---------------------------------------------------------------------------
+# doctor / snapshots
+# ---------------------------------------------------------------------------
+
+
+LEGACY_SNAPSHOT = "PremierDraft_all_any_2026-06-23_2026-06-24.json"
+VALID_SNAPSHOT = "PremierDraft_all_any_ALL_TIME_2026-07-14.json"
+
+
+@pytest.fixture
+def snapshots(data_home):
+    d = data_home / "ratings" / "TST"
+    d.mkdir(parents=True)
+    for name in (LEGACY_SNAPSHOT, VALID_SNAPSHOT):
+        (d / name).write_text("[]")
+    return d
+
+
+def test_doctor_is_a_dry_run_by_default(snapshots):
+    result = runner.invoke(cli.app, ["doctor"])
+    assert result.exit_code == 0
+    assert "would remove" in result.stdout
+    assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+def test_doctor_tells_you_how_to_act_when_headless(snapshots):
+    """Nothing can be confirmed without a terminal, so the dry run has to name
+    the flag that would have done it."""
+    result = runner.invoke(cli.app, ["doctor"])
+    assert "--yes" in result.stdout
+    assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+def test_doctor_execute_with_yes_deletes_only_the_dead_snapshot(snapshots):
+    result = runner.invoke(cli.app, ["doctor", "--yes"])
+    assert result.exit_code == 0
+    assert not (snapshots / LEGACY_SNAPSHOT).exists()
+    assert (snapshots / VALID_SNAPSHOT).exists()
+
+
+def test_doctor_reports_advisories_without_offering_to_delete(data_home):
+    (data_home / "mystery").mkdir()
+    (data_home / "mystery" / "notes.txt").write_bytes(b"x")
+
+    result = runner.invoke(cli.app, ["doctor"])
+    assert "needs your judgement" in result.stdout
+    assert (data_home / "mystery").exists()
+
+
+def test_doctor_json_lists_paths(snapshots):
+    result = runner.invoke(cli.app, ["doctor", "--json"])
+    payload = json.loads(result.stdout)
+
+    (entry,) = payload["repairs"]
+    assert entry["kind"] == "legacy-snapshot"
+    assert entry["paths"] == [str(snapshots / LEGACY_SNAPSHOT)]
+
+
+def test_snapshots_list_separates_keep_from_dead(snapshots):
+    result = runner.invoke(cli.app, ["snapshots", "--json"])
+    payload = json.loads(result.stdout)
+
+    (entry,) = payload["sets"]
+    assert entry["ratings"]["valid"] == 1
+    assert entry["ratings"]["legacy"] == 1
+
+
+@pytest.fixture
+def at_a_terminal(monkeypatch):
+    """CliRunner's stdin is never a tty, so the interactive branch has to be
+    asked for explicitly."""
+    monkeypatch.setattr(cli, "_is_interactive", lambda: True)
+
+
+def test_doctor_offers_the_deletion_at_a_terminal(snapshots, at_a_terminal):
+    """At a terminal the prompt is the confirmation; no second invocation."""
+    result = runner.invoke(cli.app, ["doctor"], input="y\n")
+
+    assert result.exit_code == 0
+    assert not (snapshots / LEGACY_SNAPSHOT).exists()
+    assert (snapshots / VALID_SNAPSHOT).exists()
+
+
+def test_doctor_declining_the_prompt_deletes_nothing(snapshots, at_a_terminal):
+    result = runner.invoke(cli.app, ["doctor"], input="n\n")
+
+    assert result.exit_code == 0
+    assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+def test_doctor_prompt_defaults_to_declining(snapshots, at_a_terminal):
+    """A bare newline must not destroy anything."""
+    result = runner.invoke(cli.app, ["doctor"], input="\n")
+
+    assert result.exit_code == 0
+    assert (snapshots / LEGACY_SNAPSHOT).exists()
+
+
+def test_doctor_json_never_prompts_even_at_a_terminal(snapshots, at_a_terminal):
+    result = runner.invoke(cli.app, ["doctor", "--json"])
+
+    assert result.exit_code == 0
+    json.loads(result.stdout)
+    assert (snapshots / LEGACY_SNAPSHOT).exists()

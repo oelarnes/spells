@@ -164,9 +164,9 @@ def data_file_path(set_code, dataset_type: str, event_type: EventType | None = N
     if dataset_type == "card":
         return os.path.join(external_set_path(set_code), f"{set_code}_card.parquet")
 
-    assert event_type is not None, (
-        f"event_type is required to locate {dataset_type} files"
-    )
+    assert (
+        event_type is not None
+    ), f"event_type is required to locate {dataset_type} files"
     return os.path.join(
         external_set_path(set_code), f"{set_code}_{event_type}_{dataset_type}.parquet"
     )
@@ -244,7 +244,9 @@ def deck_color_file_path(
     time_period: TimePeriod,
     as_of: dt.date,
 ) -> tuple[str, str]:
-    target_dir, stub = deck_color_file_stub(set_code, event_type, user_group, time_period)
+    target_dir, stub = deck_color_file_stub(
+        set_code, event_type, user_group, time_period
+    )
     return target_dir, f"{stub}_{as_of.strftime('%Y-%m-%d')}.json"
 
 

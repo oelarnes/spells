@@ -79,7 +79,9 @@ def test_add_pick_two_skips_only_set_context(record_io):
 
 def test_refresh_card_only_rebuilds_from_existing_draft_file(record_io, monkeypatch):
     cleaned = []
-    monkeypatch.setattr(external.cache, "clean", lambda set_code: cleaned.append(set_code))
+    monkeypatch.setattr(
+        external.cache, "clean", lambda set_code: cleaned.append(set_code)
+    )
 
     result = external._refresh_card_only("TST", event_type=EventType.PREMIER)
 
@@ -125,7 +127,9 @@ def test_add_card_only_validates_consistent_file(tmp_path, monkeypatch):
     assert external._add_card_only("TST", event_type=EventType.PREMIER) == 1
 
 
-def test_add_card_only_raises_on_mismatch_rather_than_overwriting(tmp_path, monkeypatch):
+def test_add_card_only_raises_on_mismatch_rather_than_overwriting(
+    tmp_path, monkeypatch
+):
     """The spot-check case: a stale card file must fail loudly, not get silently
     rebuilt — that's what `refresh --card-only` is for."""
     from spells.cards import BASIC_LANDS

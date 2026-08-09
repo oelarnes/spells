@@ -39,6 +39,26 @@ class AnomalyKind(StrEnum):
     INCOMPLETE_SET = "incomplete-set"
 
 
+class Remedy(StrEnum):
+    DELETE_PATH = "delete-path"
+    PRUNE_LEGACY_SNAPSHOTS = "prune-legacy-snapshots"
+    ADVISORY = "advisory"
+
+
+# Only files spells can rebuild or can no longer read are removable. Anything
+# whose contents are unknown, or that spells never wrote, is reported for a
+# human to judge — deleting it is not ours to decide.
+REMEDIES = {
+    AnomalyKind.STRAY_DOWNLOAD: Remedy.DELETE_PATH,
+    AnomalyKind.LEGACY_CONTEXT: Remedy.DELETE_PATH,
+    AnomalyKind.ORPHAN_CACHE: Remedy.DELETE_PATH,
+    AnomalyKind.LEGACY_SNAPSHOT: Remedy.PRUNE_LEGACY_SNAPSHOTS,
+    AnomalyKind.ORPHAN_DIR: Remedy.ADVISORY,
+    AnomalyKind.UNKNOWN_FILE: Remedy.ADVISORY,
+    AnomalyKind.INCOMPLETE_SET: Remedy.ADVISORY,
+}
+
+
 @dataclass(frozen=True)
 class Anomaly:
     kind: AnomalyKind
@@ -46,6 +66,14 @@ class Anomaly:
     detail: str
     set_code: str | None = None
     size: int = 0
+
+    @property
+    def remedy(self) -> Remedy:
+        return REMEDIES[self.kind]
+
+    @property
+    def is_repairable(self) -> bool:
+        return self.remedy != Remedy.ADVISORY
 
 
 @dataclass(frozen=True)

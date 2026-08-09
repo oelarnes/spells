@@ -103,7 +103,7 @@ def context_cols(attr, silent: bool = True) -> dict[str, ColSpec]:
         ),
         f"not_picked_{attr}_sum": ColSpec(
             col_type=ColType.PICK_SUM,
-            expr=pl.col(f"seen_{attr}_pack_sum") - pl.col(f"pick_{attr}_sum")
+            expr=pl.col(f"seen_{attr}_pack_sum") - pl.col(f"pick_{attr}_sum"),
         ),
         f"least_{attr}_seen": ColSpec(
             col_type=ColType.PICK_SUM,

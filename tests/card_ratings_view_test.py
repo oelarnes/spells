@@ -51,7 +51,10 @@ from tests.conftest import (
 
 def test_returns_dataframe(fake_ratings_file):
     result = card_ratings_view(
-        FAKE_SET, columns=["num_gih", "gih_wr"], group_by=["name"], cache_usage=FAKE_AS_OF
+        FAKE_SET,
+        columns=["num_gih", "gih_wr"],
+        group_by=["name"],
+        cache_usage=FAKE_AS_OF,
     )
     assert isinstance(result, pl.DataFrame)
     assert set(result.columns) == {"name", "num_gih", "gih_wr"}
@@ -89,7 +92,10 @@ def test_no_parquet_files_needed(fake_ratings_file):
     # The external/ directory (parquet files) should never be created by this path.
     external_dir = fake_ratings_file / "external"
     card_ratings_view(
-        FAKE_SET, columns=["num_gih", "gih_wr"], group_by=["name"], cache_usage=FAKE_AS_OF
+        FAKE_SET,
+        columns=["num_gih", "gih_wr"],
+        group_by=["name"],
+        cache_usage=FAKE_AS_OF,
     )
     assert not external_dir.exists()
 
@@ -97,7 +103,10 @@ def test_no_parquet_files_needed(fake_ratings_file):
 def test_post_hoc_filter_is_the_pattern(fake_ratings_file):
     # There's no filter_spec — filter the returned DataFrame instead.
     result = card_ratings_view(
-        FAKE_SET, columns=["num_gih", "rarity"], group_by=["name"], cache_usage=FAKE_AS_OF
+        FAKE_SET,
+        columns=["num_gih", "rarity"],
+        group_by=["name"],
+        cache_usage=FAKE_AS_OF,
     )
     filtered = result.filter(pl.col("rarity") == "common")
     assert len(filtered) == 1
@@ -265,7 +274,9 @@ def test_last_cached_picks_the_most_recent_snapshot(fake_ratings_file):
     # different data so the two are distinguishable.
     ratings_dir = fake_ratings_file / "ratings" / FAKE_SET
     newer_as_of = FAKE_AS_OF + datetime.timedelta(days=5)
-    newer_ratings = [{**card, "ever_drawn_game_count": 999} for card in FAKE_CARD_RATINGS]
+    newer_ratings = [
+        {**card, "ever_drawn_game_count": 999} for card in FAKE_CARD_RATINGS
+    ]
     newer_filename = (
         f"{EventType.PREMIER}_all_any_{TimePeriod.ALL_TIME}"
         f"_{newer_as_of.strftime('%Y-%m-%d')}.json"
@@ -285,7 +296,9 @@ def test_last_cached_accepts_plain_string(fake_ratings_file):
     assert len(result) == len(FAKE_CARD_RATINGS)
 
 
-def test_last_cached_falls_back_to_live_query_when_nothing_cached(monkeypatch, tmp_path):
+def test_last_cached_falls_back_to_live_query_when_nothing_cached(
+    monkeypatch, tmp_path
+):
     monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
 
     def _fake_download(url, out, **kwargs):
@@ -339,7 +352,10 @@ def test_time_period_accepts_plain_string(fake_ratings_file):
 def test_rejects_unknown_time_period():
     with pytest.raises(ValueError):
         card_ratings_view(
-            FAKE_SET, columns=["num_gih"], group_by=["name"], time_period="LAST_FORTNIGHT"
+            FAKE_SET,
+            columns=["num_gih"],
+            group_by=["name"],
+            time_period="LAST_FORTNIGHT",
         )
 
 
