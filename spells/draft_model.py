@@ -21,6 +21,7 @@ import itertools
 import polars as pl
 
 from spells import cache
+from spells import console
 from spells.card_data_files import download_data_file
 from spells.cards import card_df, write_card_file, names_from_parquet
 from spells.draft_data import lazy_select
@@ -132,7 +133,7 @@ def _card_attr_map(expansion: str, names: list[str]) -> dict[str, dict]:
         try:
             df = card_df(expansion, names)
         except Exception:
-            cache.spells_print("draft", f"No card data available for {expansion}")
+            console.info(f"No card data available for {expansion}")
             return {}
 
     return {row[ColName.NAME]: row for row in df.to_dicts()}

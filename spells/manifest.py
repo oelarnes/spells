@@ -139,8 +139,10 @@ def _resolve_view_cols(
                         ), f"Column {col} can't be defined in any views!"
                         for view in col_views:
                             if view not in view_resolution:
-                                print(cdef)
-                                assert False, f"Something went wrong with col {col}"
+                                raise AssertionError(
+                                    f"Column {col} resolved to view {view}, "
+                                    f"which is not in the view resolution: {cdef}"
+                                )
 
                             view_resolution[view] = view_resolution[view].union({col})
                     else:

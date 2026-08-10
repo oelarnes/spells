@@ -6,13 +6,13 @@ import polars as pl
 
 from spells.enums import ColType, ColName
 from spells.columns import ColSpec
-from spells.cache import spells_print
+from spells import console
 
 
 def print_ext(ext: dict[str, ColSpec]) -> None:
-    spells_print("create", "Created extensions:")
+    console.info("Created extensions:")
     for key in ext:
-        print("\t" + key)
+        console.detail(key)
 
 
 def seen_greatest_name_fn(attr: str) -> Callable:
