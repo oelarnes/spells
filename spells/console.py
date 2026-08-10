@@ -47,3 +47,12 @@ def detail(content: str) -> None:
 def error(content: str) -> None:
     """Failures, on stderr and never suppressed."""
     _err.print(f"[red]{content}[/red]", soft_wrap=True)
+
+
+# Fred Cirera via https://stackoverflow.com/questions/1094841/get-a-human-readable-version-of-a-file-size
+def sizeof_fmt(num: float, suffix: str = "B") -> str:
+    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
+        if abs(num) < 1024.0:
+            return f"{num:3.1f}{unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f}Yi{suffix}"

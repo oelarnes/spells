@@ -7,6 +7,7 @@ authors = [
 ]
 dependencies = [
     "polars==1.22.0",
+    "questionary>=2.1",
     "requests>=2.32",
     "typer>=0.27.0",
 ]

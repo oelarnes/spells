@@ -11,6 +11,7 @@ from rich.table import Table
 
 from spells import cache, cards as cards_module, catalog, external, inventory
 from spells import console as spells_console
+from spells.console import sizeof_fmt
 from spells.cache import DataDir
 from spells.catalog import Freshness, Target
 from spells import repair
@@ -35,15 +36,6 @@ app = typer.Typer(
 
 console = Console()
 err_console = Console(stderr=True)
-
-
-# Fred Cirera via https://stackoverflow.com/questions/1094841/get-a-human-readable-version-of-a-file-size
-def sizeof_fmt(num: float, suffix: str = "B") -> str:
-    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
-        if abs(num) < 1024.0:
-            return f"{num:3.1f}{unit}{suffix}"
-        num /= 1024.0
-    return f"{num:.1f}Yi{suffix}"
 
 
 def _confirm(action: str, yes: bool) -> None:
@@ -255,7 +247,16 @@ def main(
     ] = False,
 ) -> None:
     spells_console.set_quiet(quiet)
-    if ctx.invoked_subcommand is None:
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # the walkthrough needs a terminal to prompt into; anything else — a pipe,
+    # cron, `spells | less` — gets the report it would have got before
+    if _is_interactive() and not quiet:
+        from spells import wizard
+
+        wizard.run()
+    else:
         status()
 
 
