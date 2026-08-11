@@ -43,6 +43,7 @@ ANOMALY_HELP = {
     AnomalyKind.ORPHAN_DIR: "directories spells does not write",
     AnomalyKind.UNKNOWN_FILE: "unrecognized files",
     AnomalyKind.INCOMPLETE_SET: "sets missing dataset files",
+    AnomalyKind.EMPTY_SET: "set directories with nothing in them",
 }
 
 
