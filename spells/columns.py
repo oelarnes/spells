@@ -190,7 +190,8 @@ _specs: dict[str, ColSpec] = {
     ColName.NUM_DRAFTS: ColSpec(
         col_type=ColType.PICK_SUM,
         expr=pl.when(
-            (pl.col(ColName.PACK_NUMBER) == 0)
+            (pl.col(ColName.PICK_ORDINAL) == 1)
+            & (pl.col(ColName.PACK_NUMBER) == 0)
             & (
                 pl.col(ColName.PICK_NUMBER)
                 == pl.when(pl.col(ColName.EXPANSION).is_in(P1P1_MISSING_SETS))
@@ -207,6 +208,14 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.PICK_2: ColSpec(
         col_type=ColType.FILTER_ONLY,
+        views=[View.DRAFT],
+    ),
+    ColName.PICK_ORDINAL: ColSpec(
+        # 1 everywhere except the second pick of a pick-two row, so a column
+        # that only holds for the first can say which it means. Grouping by it
+        # separates the card a drafter reached for from the one they took
+        # alongside it — the two are not interchangeable.
+        col_type=ColType.GROUP_BY,
         views=[View.DRAFT],
     ),
     ColName.PICK_MAINDECK_RATE: ColSpec(
