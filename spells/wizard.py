@@ -495,15 +495,6 @@ def clear_cache(
     cache.clean("all")
 
 
-HANDLERS = {
-    "download": download,
-    "remove": remove,
-    "summon": try_summon,
-    "repair": free_space,
-    "cache": clear_cache,
-}
-
-
 # ---------------------------------------------------------------------------
 # Flow
 # ---------------------------------------------------------------------------
@@ -543,13 +534,21 @@ def _menu(
             )
         )
 
+    actions.append(Action("status", "Show status", ""))
     actions.append(Action("quit", "Quit", ""))
     return actions
 
 
-def _opening(inv: inventory.Inventory, cat: catalog.Catalog) -> list[CheckRow]:
-    """Everything the flat commands would have told you, before being asked."""
+def show_status(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> None:
+    """Everything the flat commands would have told you.
+
+    Drawn once on the way in, and again on request: a download scrolls it off
+    the screen, and the menu alone does not say what is already here.
+    """
     render.banner()
+    _echo_command("spells status")
 
     if _held(inv):
         render._render_status(
@@ -562,9 +561,8 @@ def _opening(inv: inventory.Inventory, cat: catalog.Catalog) -> list[CheckRow]:
 
     if cat.is_fallback:
         console.error("Could not reach 17Lands; only local actions are available.")
-        return []
+        return
 
-    rows = _check(inv, cat)
     stale = sorted({r.target.expansion for r in rows if r.freshness == Freshness.STALE})
     unadded = catalog.unadded(cat, _held(inv))
 
@@ -577,7 +575,22 @@ def _opening(inv: inventory.Inventory, cat: catalog.Catalog) -> list[CheckRow]:
         console.info("")
         console.info(f"{len(unadded)} set(s) published, not downloaded:")
         console.detail(", ".join(unadded[:NAMED]) + more)
+
+
+def _opening(inv: inventory.Inventory, cat: catalog.Catalog) -> list[CheckRow]:
+    rows = _check(inv, cat)
+    show_status(inv, cat, rows)
     return rows
+
+
+HANDLERS = {
+    "download": download,
+    "remove": remove,
+    "summon": try_summon,
+    "repair": free_space,
+    "cache": clear_cache,
+    "status": show_status,
+}
 
 
 def run() -> None:

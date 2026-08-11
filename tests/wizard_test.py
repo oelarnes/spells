@@ -193,7 +193,7 @@ def test_menu_offers_only_what_applies(data_home, no_network, cat):
 
     keys = [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
     # nothing dead to repair and no cache yet, so neither is offered
-    assert keys == ["download", "remove", "summon", "quit"]
+    assert keys == ["download", "remove", "summon", "status", "quit"]
 
 
 def test_menu_offers_cleanup_when_there_are_dead_files(data_home, no_network, cat):
@@ -750,3 +750,38 @@ def test_the_shipped_script_ignores_sets_with_nothing_downloaded(data_home):
     module = real_runpy.run_path(str(wizard.EXAMPLE), run_name="not_main")
 
     assert list(module["event_types_by_set"](inventory.scan())) == ["REAL"]
+
+
+def test_status_can_be_shown_again_from_the_menu(data_home, no_network, cat):
+    """A download scrolls the opening screen away, and the menu alone does not
+    say what is already here."""
+    write_set(data_home, "TST")
+    inv = inventory.scan()
+
+    assert "status" in [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
+
+
+def test_showing_status_again_needs_no_second_check(
+    data_home, no_network, cat, monkeypatch, capsys
+):
+    """The loop already re-checked after the last action, so redrawing must not
+    go back to the network."""
+    write_set(data_home, "TST")
+    inv = inventory.scan()
+    rows = wizard._check(inv, cat)
+
+    monkeypatch.setattr(
+        wizard, "_check", lambda *a: pytest.fail("re-checked when redrawing")
+    )
+    wizard.show_status(inv, cat, rows)
+
+    out = capsys.readouterr().out
+    assert "TST" in out
+    assert "spells status" in out
+
+
+def test_showing_status_on_an_empty_home_explains_itself(
+    data_home, no_network, cat, capsys
+):
+    wizard.show_status(inventory.scan(), cat, [])
+    assert "No 17Lands data yet" in capsys.readouterr().out
