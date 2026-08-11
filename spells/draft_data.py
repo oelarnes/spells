@@ -485,6 +485,51 @@ def _base_agg_df(
     return joined_df
 
 
+# one event type for every set, several for every set, or a different choice
+# per set
+EventTypeSpec = (
+    EventType
+    | str
+    | list[EventType | str]
+    | dict[str, "EventType | str | list[EventType | str]"]
+)
+
+
+def _event_type_cells(
+    event_type: EventTypeSpec, codes: list[str]
+) -> list[tuple[str, EventType]]:
+    """Which (set, event type) pairs to aggregate.
+
+    One value or list applies to every set, which is the product this has
+    always taken. A dict gives each set its own, for a collection where the
+    sets are not all held in the same formats — asking for one a set does not
+    have is an error rather than an empty result, so the product is only right
+    when every set has every event type named.
+
+    A dict must name every set asked for: defaulting the rest to Premier would
+    turn a mistyped set code into a silently different query.
+    """
+    if isinstance(event_type, dict):
+        if missing := [code for code in codes if code not in event_type]:
+            raise ValueError(
+                f"No event type given for {', '.join(sorted(missing))}. Name "
+                "every set in the dict, or pass one value to use for all."
+            )
+        per_code = {code: event_type[code] for code in codes}
+    else:
+        per_code = {code: event_type for code in codes}
+
+    cells = []
+    for code in codes:
+        chosen = per_code[code]
+        chosen = chosen if isinstance(chosen, list) else [chosen]
+        if not chosen:
+            raise ValueError(f"No event type given for {code}")
+        # dict.fromkeys rather than set: cell order drives the frame order
+        cells.extend((code, et) for et in dict.fromkeys(EventType(e) for e in chosen))
+    return cells
+
+
 def _normalize_context_keys(
     context: pl.DataFrame | dict | Any | None,
     cells: list[tuple[str, EventType]],
@@ -555,7 +600,7 @@ def summon(
     write_cache: bool = True,
     card_context: pl.DataFrame | dict | None = None,
     set_context: pl.DataFrame | dict | None = None,
-    event_type: EventType | list[EventType] = EventType.PREMIER,
+    event_type: EventTypeSpec = EventType.PREMIER,
 ) -> pl.DataFrame:
     specs = get_specs()
 
@@ -569,62 +614,57 @@ def summon(
 
     assert codes, "Please ask for at least one set"
 
-    event_types = event_type if isinstance(event_type, list) else [event_type]
-    event_types = [EventType(et) for et in event_types]
-
-    cells = [(code, et) for code in codes for et in event_types]
+    cells = _event_type_cells(event_type, codes)
     card_context_by_cell = _normalize_context_keys(card_context, cells)
     set_context_by_cell = _normalize_context_keys(set_context, cells)
 
     m = None
 
     concat_dfs = []
-    for code in codes:
-        for code_event_type in event_types:
-            cell = (code, code_event_type)
+    for cell in cells:
+        code, code_event_type = cell
+        logging.info(f"Calculating agg df for {code} {code_event_type}")
+        col_def_map = _hydrate_col_defs(
+            code,
+            specs,
+            card_context_by_cell[cell],
+            set_context_by_cell[cell],
+            code_event_type,
+        )
+        m = manifest.create(col_def_map, columns, group_by, filter_spec)
 
-            logging.info(f"Calculating agg df for {code} {code_event_type}")
-            col_def_map = _hydrate_col_defs(
+        calc_fn = functools.partial(
+            _base_agg_df,
+            code,
+            m,
+            code_event_type,
+            use_streaming=use_streaming,
+        )
+        agg_df = _fetch_or_cache(
+            calc_fn,
+            code,
+            (
                 code,
-                specs,
-                card_context_by_cell[cell],
-                set_context_by_cell[cell],
-                code_event_type,
+                code_event_type.value,
+                sorted(m.view_cols.get(View.DRAFT, set())),
+                sorted(m.view_cols.get(View.GAME, set())),
+                sorted(c.signature or "" for c in m.col_def_map.values()),
+                sorted(m.base_view_group_by),
+                filter_spec,
+            ),
+            read_cache=read_cache,
+            write_cache=write_cache,
+        )
+        if View.CARD in m.view_cols:
+            card_cols = m.view_cols[View.CARD].union({ColName.NAME})
+            fp = cache.data_file_path(code, View.CARD)
+            card_df = pl.read_parquet(fp)
+            select_df = _view_select(
+                card_df, card_cols, m.col_def_map, is_agg_view=False
             )
-            m = manifest.create(col_def_map, columns, group_by, filter_spec)
+            agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
 
-            calc_fn = functools.partial(
-                _base_agg_df,
-                code,
-                m,
-                code_event_type,
-                use_streaming=use_streaming,
-            )
-            agg_df = _fetch_or_cache(
-                calc_fn,
-                code,
-                (
-                    code,
-                    code_event_type.value,
-                    sorted(m.view_cols.get(View.DRAFT, set())),
-                    sorted(m.view_cols.get(View.GAME, set())),
-                    sorted(c.signature or "" for c in m.col_def_map.values()),
-                    sorted(m.base_view_group_by),
-                    filter_spec,
-                ),
-                read_cache=read_cache,
-                write_cache=write_cache,
-            )
-            if View.CARD in m.view_cols:
-                card_cols = m.view_cols[View.CARD].union({ColName.NAME})
-                fp = cache.data_file_path(code, View.CARD)
-                card_df = pl.read_parquet(fp)
-                select_df = _view_select(
-                    card_df, card_cols, m.col_def_map, is_agg_view=False
-                )
-                agg_df = agg_df.join(select_df, on="name", how="full", coalesce=True)
-
-            concat_dfs.append(agg_df)
+        concat_dfs.append(agg_df)
 
     assert (
         m is not None
@@ -636,7 +676,7 @@ def summon(
 @make_verbose()
 def card_ratings_view(
     set_code: str | list[str],
-    event_type: EventType | list[EventType] = EventType.PREMIER,
+    event_type: EventTypeSpec = EventType.PREMIER,
     player_cohort: str = "all",
     deck_colors: str | list[str] = "any",
     time_period: TimePeriod = TimePeriod.ALL_TIME,
@@ -671,37 +711,35 @@ def card_ratings_view(
 
     assert codes, "Please ask for at least one set"
 
-    event_types = event_type if isinstance(event_type, list) else [event_type]
-    event_types = [EventType(et) for et in event_types]
+    cells = _event_type_cells(event_type, codes)
 
     time_period = TimePeriod(time_period)
 
     m = None
 
     concat_dfs = []
-    for code in codes:
-        for code_event_type in event_types:
-            agg_df = base_ratings_df(
-                set_code=code,
-                event_type=code_event_type,
-                player_cohort=player_cohort,
-                deck_colors=deck_colors,
-                time_period=time_period,
-                cache_usage=cache_usage,
-            )
-            names = agg_df[ColName.NAME].to_list()
+    for code, code_event_type in cells:
+        agg_df = base_ratings_df(
+            set_code=code,
+            event_type=code_event_type,
+            player_cohort=player_cohort,
+            deck_colors=deck_colors,
+            time_period=time_period,
+            cache_usage=cache_usage,
+        )
+        names = agg_df[ColName.NAME].to_list()
 
-            col_def_map = _hydrate_col_defs(
-                code,
-                specs,
-                None,
-                None,
-                code_event_type,
-                card_only=True,
-                names=names,
-            )
-            m = manifest.create(col_def_map, columns, group_by, None)
-            concat_dfs.append(agg_df)
+        col_def_map = _hydrate_col_defs(
+            code,
+            specs,
+            None,
+            None,
+            code_event_type,
+            card_only=True,
+            names=names,
+        )
+        m = manifest.create(col_def_map, columns, group_by, None)
+        concat_dfs.append(agg_df)
 
     assert (
         m is not None
