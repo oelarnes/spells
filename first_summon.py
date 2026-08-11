@@ -12,9 +12,9 @@ from spells.enums import ColName, EventType
 def event_types_by_set(inv: inventory.Inventory) -> dict[str, list[EventType]]:
     """Each downloaded set, mapped to the event types it actually has.
 
-    `event_type` takes whichever shape suits the question. Leave it out
-    entirely for Premier draft alone, pass a list to ask every set for the same
-    ones, or pass a mapping like this one to give each set its own.
+    Passing one list instead would ask every set for every event type, and
+    asking for one a set does not have fails the read rather than returning
+    nothing for it.
     """
     return {
         set_inv.set_code: sorted(set_inv.events, key=str)
