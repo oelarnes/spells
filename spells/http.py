@@ -24,12 +24,19 @@ from rich.progress import (
 from urllib3.util.retry import Retry
 
 USER_AGENT = "spells-mtg"
-TIMEOUT = 30
+
+# Separately, because they fail for different reasons: a handshake that has not
+# completed in a few seconds is not going to, while a large download can be slow
+# for a long time and still be healthy.
+TIMEOUT = (5, 30)
 
 # S3 and the Prismic CDN are both occasionally flaky, and the nightly DEq run is
-# unattended, so idempotent requests get a few automatic attempts.
+# unattended, so idempotent requests get a few automatic attempts. Connections
+# are the exception: an address that never answers costs the full timeout each
+# time, and `catalog.resolve` waits on every one of them before it can return.
 RETRY = Retry(
     total=3,
+    connect=1,
     backoff_factor=0.5,
     status_forcelist=(429, 500, 502, 503, 504),
     allowed_methods=("GET", "HEAD"),

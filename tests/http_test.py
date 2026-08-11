@@ -192,6 +192,24 @@ def test_requests_carry_a_timeout(tmp_path, fake_session):
     assert session.calls[0][2]["timeout"] == http.TIMEOUT
 
 
+def test_connecting_is_given_less_time_than_transferring():
+    """A handshake that has not completed in a few seconds will not, but a big
+    download can be slow for a long time and still be healthy."""
+    connect, read = http.TIMEOUT
+    assert connect < read
+
+
+def test_a_dead_address_is_not_retried_to_the_full_budget():
+    """`catalog.resolve` waits on every HEAD before it can return, so one
+    address that never answers used to stall the walkthrough for two minutes
+    with no way to interrupt it — the pool joins its workers on the way out."""
+    assert http.RETRY.connect < http.RETRY.total
+
+    connect, _ = http.TIMEOUT
+    worst_case = (http.RETRY.connect + 1) * connect
+    assert worst_case <= 15
+
+
 def test_sessions_are_per_thread():
     """catalog.resolve HEADs concurrently, and Session is not thread-safe.
 
