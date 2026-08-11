@@ -13,6 +13,9 @@ way out of being needed.
 """
 
 from dataclasses import dataclass, replace
+from pathlib import Path
+import runpy
+import shutil
 
 import questionary
 from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
@@ -430,6 +433,44 @@ def free_space(
         console.error(f"could not remove {path}: {error}")
 
 
+EXAMPLE = Path(__file__).parent / "examples" / "first_summon.py"
+
+
+def try_summon(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> None:
+    """Run the example query, then offer to hand over the script.
+
+    Running it proves the install works on real data; keeping it is the point,
+    since the next thing anyone wants is the same query with different columns.
+    """
+    if not _held(inv):
+        console.info("Download a set first — there is nothing to summon yet.")
+        return
+
+    console.info("Aggregating every downloaded set. The first run is the slow one.")
+    _echo_command(f"python {EXAMPLE.name}")
+    console.info("")
+
+    try:
+        runpy.run_path(str(EXAMPLE), run_name="__main__")
+    except Exception as e:  # a broken query should not take the walkthrough down
+        console.error(f"{type(e).__name__}: {e}")
+        return
+
+    destination = Path.cwd() / EXAMPLE.name
+    question = (
+        f"Overwrite {destination}?"
+        if destination.exists()
+        else f"Copy the script to {destination}?"
+    )
+    if not _ask(questionary.confirm(question, default=False, qmark="  ")):
+        return
+
+    shutil.copy(EXAMPLE, destination)
+    console.info(f"Wrote {destination}")
+
+
 def clear_cache(
     inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
 ) -> None:
@@ -457,6 +498,7 @@ def clear_cache(
 HANDLERS = {
     "download": download,
     "remove": remove,
+    "summon": try_summon,
     "repair": free_space,
     "cache": clear_cache,
 }
@@ -482,6 +524,9 @@ def _menu(
 
     if _held(inv):
         actions.append(Action("remove", "Remove datasets", ""))
+        actions.append(
+            Action("summon", "Run an example query", "check the install works")
+        )
 
     repairs = repair.plan(inv)
     if repairs:

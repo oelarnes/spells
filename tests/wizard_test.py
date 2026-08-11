@@ -192,7 +192,8 @@ def test_menu_offers_only_what_applies(data_home, no_network, cat):
     inv = inventory.scan()
 
     keys = [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
-    assert keys == ["download", "remove", "quit"]  # nothing dead, no cache yet
+    # nothing dead to repair and no cache yet, so neither is offered
+    assert keys == ["download", "remove", "summon", "quit"]
 
 
 def test_menu_offers_cleanup_when_there_are_dead_files(data_home, no_network, cat):
@@ -633,3 +634,102 @@ def test_backing_out_of_the_event_type_step_removes_nothing(
 
     wizard.remove(inventory.scan(), cat, [])
     assert removals == []
+
+
+# ---------------------------------------------------------------------------
+# The example query
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def ran(monkeypatch):
+    """Stand in for the script: the fake data home has no readable parquet."""
+    calls = []
+    monkeypatch.setattr(wizard.runpy, "run_path", lambda p, **kw: calls.append(p) or {})
+    return calls
+
+
+@pytest.fixture
+def elsewhere(tmp_path, monkeypatch):
+    cwd = tmp_path / "somewhere"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    return cwd
+
+
+def test_example_query_needs_data_first(data_home, answers, no_network, cat, ran):
+    wizard.try_summon(inventory.scan(), cat, [])
+    assert ran == []
+
+
+def test_example_query_runs_the_shipped_script(
+    data_home, answers, no_network, cat, ran, elsewhere
+):
+    write_set(data_home, "TST")
+    answers.append(False)
+
+    wizard.try_summon(inventory.scan(), cat, [])
+
+    assert ran == [str(wizard.EXAMPLE)]
+
+
+def test_declining_leaves_the_working_directory_alone(
+    data_home, answers, no_network, cat, ran, elsewhere
+):
+    write_set(data_home, "TST")
+    answers.append(False)
+
+    wizard.try_summon(inventory.scan(), cat, [])
+    assert list(elsewhere.iterdir()) == []
+
+
+def test_accepting_copies_the_script_next_to_you(
+    data_home, answers, no_network, cat, ran, elsewhere
+):
+    write_set(data_home, "TST")
+    answers.append(True)
+
+    wizard.try_summon(inventory.scan(), cat, [])
+
+    copied = elsewhere / wizard.EXAMPLE.name
+    assert copied.exists()
+    assert copied.read_text() == wizard.EXAMPLE.read_text()
+
+
+def test_copying_over_an_existing_file_says_so(
+    data_home, answers, no_network, cat, ran, elsewhere, capsys
+):
+    write_set(data_home, "TST")
+    (elsewhere / wizard.EXAMPLE.name).write_text("mine")
+    answers.append(False)
+
+    wizard.try_summon(inventory.scan(), cat, [])
+
+    assert (elsewhere / wizard.EXAMPLE.name).read_text() == "mine"
+
+
+def test_a_failing_query_does_not_take_the_walkthrough_down(
+    data_home, answers, no_network, cat, monkeypatch, elsewhere, capsys
+):
+    write_set(data_home, "TST")
+
+    def boom(path, **kw):
+        raise RuntimeError("polars said no")
+
+    monkeypatch.setattr(wizard.runpy, "run_path", boom)
+
+    wizard.try_summon(inventory.scan(), cat, [])  # returns rather than raising
+    assert "polars said no" in capsys.readouterr().err
+
+
+def test_the_shipped_script_only_names_installed_event_types(data_home):
+    """Naming an event type with no parquet fails the read rather than
+    returning nothing for it."""
+    import runpy as real_runpy
+
+    write_set(data_home, "TST", EventType.PREMIER)
+    module = real_runpy.run_path(str(wizard.EXAMPLE), run_name="not_main")
+
+    sets, event_types = module["installed"]()
+    assert sets == ["TST"]
+    assert event_types == [EventType.PREMIER]
