@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
+import re
 import urllib.parse
 
 import requests
@@ -115,9 +116,25 @@ def _link(field) -> str | None:
     for block in field or []:
         for span in block.get("spans", []):
             if span.get("type") == "hyperlink":
-                if url := span.get("data", {}).get("url"):
+                if url := span.get("data", {}).get("url", "").strip():
                     return url
     return None
+
+
+_URL_EXPANSION = re.compile(r"_data_public\.(?P<expansion>.+)\.[^.]+\.csv\.gz$")
+
+
+def _expansion(label: str, *urls: str | None) -> str:
+    """The expansion as it appears in the filename, not as it is displayed.
+
+    The catalog's own field is prose — "Powered Cube" is published as
+    `Cube_-_Powered` — and the filename is what has to match both the download
+    URL and the directory it lands in.
+    """
+    for url in urls:
+        if url and (match := _URL_EXPANSION.search(url)):
+            return match.group("expansion")
+    return label
 
 
 def _event_type(format_name: str) -> EventType | None:
@@ -141,18 +158,20 @@ def parse(document: dict) -> Catalog:
     """
     datasets = []
     for entry in document.get("data", {}).get("datasets", []):
-        expansion = _text(entry.get("expansion"))
+        label = _text(entry.get("expansion"))
         format_name = _text(entry.get("format"))
-        if not expansion or not format_name:
+        if not label or not format_name:
             continue
+        draft_url = _link(entry.get("draft_data"))
+        game_url = _link(entry.get("game_data"))
         datasets.append(
             Dataset(
-                expansion=expansion,
+                expansion=_expansion(label, draft_url, game_url),
                 format_name=format_name,
                 event_type=_event_type(format_name),
                 last_updated=_parse_date(_text(entry.get("last_updated"))),
-                draft_url=_link(entry.get("draft_data")),
-                game_url=_link(entry.get("game_data")),
+                draft_url=draft_url,
+                game_url=game_url,
             )
         )
     return Catalog(datasets=tuple(datasets))

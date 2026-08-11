@@ -45,6 +45,90 @@ def test_parse_marks_unpublished_dataset_as_no_url(parsed):
     assert khm.game_url is not None
 
 
+def _document(label: str, draft_url: str | None, game_url: str | None = None) -> dict:
+    def rich_text(text: str) -> list[dict]:
+        return [{"type": "paragraph", "text": text, "spans": []}]
+
+    def link(url: str | None) -> list[dict]:
+        if url is None:
+            return rich_text("-")
+        return [
+            {
+                "type": "paragraph",
+                "text": "link",
+                "spans": [{"type": "hyperlink", "data": {"url": url}}],
+            }
+        ]
+
+    return {
+        "data": {
+            "datasets": [
+                {
+                    "expansion": rich_text(label),
+                    "format": rich_text("PremierDraft"),
+                    "last_updated": rich_text("2026-07-26"),
+                    "draft_data": link(draft_url),
+                    "game_data": link(game_url),
+                }
+            ]
+        }
+    }
+
+
+CUBE_DRAFT_URL = (
+    "https://17lands-public.s3.amazonaws.com/analysis_data/draft_data/"
+    "draft_data_public.Cube_-_Powered.PremierDraft.csv.gz"
+)
+
+
+def test_expansion_comes_from_the_filename_not_the_display_name():
+    """17Lands displays the Powered Cube as prose but publishes it as
+    `Cube_-_Powered`; the filename is what a download has to ask for."""
+    cat = catalog.parse(_document("Powered Cube", CUBE_DRAFT_URL))
+
+    assert cat.expansions == ("Cube_-_Powered",)
+    assert cat.get("Cube_-_Powered", EventType.PREMIER) is not None
+    assert cat.get("Powered Cube", EventType.PREMIER) is None
+
+
+def test_a_derived_expansion_rebuilds_its_own_url():
+    """The templated fallback and the published link have to agree, or an
+    offline `add` would ask for a name that was never published."""
+    cat = catalog.parse(_document("Powered Cube", CUBE_DRAFT_URL))
+
+    assert (
+        catalog.fallback_url("Cube_-_Powered", View.DRAFT, EventType.PREMIER)
+        == CUBE_DRAFT_URL
+    )
+    assert cat.get("Cube_-_Powered", EventType.PREMIER).draft_url == CUBE_DRAFT_URL
+
+
+def test_expansion_falls_back_to_the_label_when_nothing_is_published():
+    cat = catalog.parse(_document("KHM", None, None))
+
+    assert cat.expansions == ("KHM",)
+
+
+def test_expansion_is_read_from_game_data_when_draft_is_unpublished():
+    game_url = (
+        "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/"
+        "game_data_public.Cube_-_Powered.PremierDraft.csv.gz"
+    )
+    cat = catalog.parse(_document("Powered Cube", None, game_url))
+
+    assert cat.expansions == ("Cube_-_Powered",)
+
+
+def test_urls_are_stripped_of_stray_whitespace():
+    """Several game links are authored with a leading space. requests happens
+    to tolerate it, so this keeps a latent break from becoming a real one."""
+    padded = f"  {CUBE_DRAFT_URL} "
+    cat = catalog.parse(_document("Powered Cube", padded))
+
+    assert cat.datasets[0].draft_url == CUBE_DRAFT_URL
+    assert cat.expansions == ("Cube_-_Powered",)
+
+
 def test_parse_keeps_unsupported_formats_but_leaves_event_type_unset(parsed):
     sealed = [d for d in parsed.datasets if d.format_name == "Sealed"]
     assert len(sealed) == 1
