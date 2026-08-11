@@ -5,36 +5,47 @@ Run it with `python first_summon.py`, then change something and run it again.
 across; every name comes from `spells.enums.ColName`.
 """
 
+from collections import defaultdict
+
+import polars as pl
+
 from spells import inventory, summon
-from spells.enums import ColName
+from spells.enums import ColName, EventType
 
 
-def installed() -> tuple[list[str], list[str]]:
-    """Only what is downloaded.
+def by_event_types(inv: inventory.Inventory) -> dict[tuple[EventType, ...], list[str]]:
+    """Downloaded sets, grouped by exactly which event types they have.
 
-    Naming an event type with no parquet on disk fails the read rather than
-    returning nothing for it, so the query is built from the inventory instead
-    of from everything 17Lands publishes.
+    `summon` takes the product of the sets and the event types it is given, so
+    a single call naming every event type fails the read for any set missing
+    one rather than skipping it. Grouping first means each call asks only for
+    cells that exist — one call per distinct combination instead of one per
+    set.
     """
-    inv = inventory.scan()
-    sets = sorted(s.set_code for s in inv.sets.values() if s.has_external)
-    event_types = sorted({e for s in inv.sets.values() for e in s.events}, key=str)
-    return sets, event_types
+    groups = defaultdict(list)
+    for set_inv in inv.sets.values():
+        if set_inv.has_external:
+            groups[tuple(sorted(set_inv.events, key=str))].append(set_inv.set_code)
+    return dict(groups)
 
 
 def main() -> None:
-    sets, event_types = installed()
-    if not sets:
+    groups = by_event_types(inventory.scan())
+    if not groups:
         print("No sets downloaded yet. Run `spells` to get some.")
         return
 
-    df = summon(
-        sets,
-        columns=[ColName.NUM_TAKEN, ColName.NUM_GAMES],
-        group_by=[ColName.EXPANSION, ColName.EVENT_TYPE],
-        event_type=event_types,
-    )
-    print(df)
+    frames = [
+        summon(
+            sorted(set_codes),
+            columns=[ColName.NUM_TAKEN, ColName.NUM_GAMES],
+            group_by=[ColName.EXPANSION, ColName.EVENT_TYPE],
+            event_type=list(event_types),
+        )
+        for event_types, set_codes in groups.items()
+    ]
+
+    print(pl.concat(frames).sort([ColName.EXPANSION, ColName.EVENT_TYPE]))
 
 
 if __name__ == "__main__":
