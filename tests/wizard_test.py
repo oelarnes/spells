@@ -484,13 +484,12 @@ def test_escape_leaves_the_remove_list(data_home, answers, no_network, cat, remo
     assert removals == []
 
 
-def test_escape_is_bound_on_every_prompt(monkeypatch):
-    """questionary binds ctrl-c but not escape, so the walkthrough adds it.
+def test_back_and_quit_are_bound_on_every_prompt():
+    """questionary binds ctrl-c but has no key for backing out or quitting.
 
-    Not eagerly: escape is also the first byte of an arrow-key sequence.
+    Eager, like its own `a` and `i`: a plain letter needs no disambiguation.
     """
     from prompt_toolkit.key_binding import KeyBindings
-    from prompt_toolkit.keys import Keys
 
     class FakeApp:
         key_bindings = KeyBindings()
@@ -501,21 +500,42 @@ def test_escape_is_bound_on_every_prompt(monkeypatch):
         def ask(self):
             return "answered"
 
-    prompt = FakePrompt()
-    assert wizard._ask(prompt) == "answered"
+    assert wizard._ask(FakePrompt()) == "answered"
 
-    bound = [b for b in FakeApp.key_bindings.bindings if Keys.Escape in b.keys]
-    assert bound
-    assert not any(b.eager() for b in bound)
+    bound = {k for b in FakeApp.key_bindings.bindings for k in b.keys}
+    assert {wizard.BACK_KEY, wizard.QUIT_KEY} <= bound
+    assert all(b.eager() for b in FakeApp.key_bindings.bindings)
 
 
-def test_prompts_say_escape_goes_back(data_home, no_network, cat, monkeypatch):
-    """Escape is invisible unless the prompt says so."""
-    messages = []
+def test_quitting_from_a_nested_prompt_leaves_the_walkthrough(
+    data_home, monkeypatch, no_network, cat, downloads
+):
+    """Quitting three prompts deep must not need every step in between to
+    recognize and forward it."""
+    write_set(data_home, "TST")
+
+    def quit_immediately(prompt):
+        raise wizard.Quit
+
+    monkeypatch.setattr(wizard, "_ask", quit_immediately)
+
+    wizard.run()  # returns rather than propagating
+    assert downloads == []
+
+
+def test_pick_prompts_name_the_keys_questionary_cannot(
+    data_home, no_network, cat, monkeypatch
+):
+    """`b` and `q` are invisible unless the instruction says so, and
+    questionary's own line cannot mention keys it does not know about."""
+    instructions = []
     monkeypatch.setattr(
         questionary,
         "checkbox",
-        lambda message, choices, **kw: messages.append(message) or None,
+        lambda message, choices, instruction=None, **kw: instructions.append(
+            instruction
+        )
+        or None,
     )
     monkeypatch.setattr(wizard, "_ask", lambda p: None)
 
@@ -524,83 +544,5 @@ def test_prompts_say_escape_goes_back(data_home, no_network, cat, monkeypatch):
     wizard.download(inv, cat, wizard._check(inv, cat))
     wizard.remove(inv, cat, [])
 
-    assert messages and all("esc" in m for m in messages)
-
-
-# ---------------------------------------------------------------------------
-# Derived cache
-# ---------------------------------------------------------------------------
-
-
-def write_cache(home, set_code, files=3):
-    d = home / "cache" / set_code
-    d.mkdir(parents=True, exist_ok=True)
-    for i in range(files):
-        (d / f"{i}.parquet").write_bytes(b"x" * 100)
-    return d
-
-
-def test_menu_offers_clearing_the_cache_when_there_is_one(data_home, no_network, cat):
-    write_set(data_home, "TST")
-    write_cache(data_home, "TST")
-
-    inv = inventory.scan()
-    keys = [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
-    assert "cache" in keys
-
-
-def test_menu_omits_the_cache_option_when_there_is_none(data_home, no_network, cat):
-    write_set(data_home, "TST")
-
-    inv = inventory.scan()
-    keys = [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
-    assert "cache" not in keys
-
-
-def test_clearing_the_cache_removes_every_set_at_once(
-    data_home, answers, no_network, cat
-):
-    """No per-set choice: derived results rebuild on demand, so the only
-    question is whether to reclaim the space."""
-    write_set(data_home, "TST")
-    write_set(data_home, "TS2")
-    write_cache(data_home, "TST")
-    write_cache(data_home, "TS2")
-    answers.append(True)
-
-    wizard.clear_cache(inventory.scan(), cat, [])
-
-    assert not (data_home / "cache" / "TST").exists()
-    assert not (data_home / "cache" / "TS2").exists()
-
-
-def test_declining_leaves_the_cache_alone(data_home, answers, no_network, cat):
-    write_set(data_home, "TST")
-    cached = write_cache(data_home, "TST")
-    answers.append(False)
-
-    wizard.clear_cache(inventory.scan(), cat, [])
-    assert cached.exists()
-
-
-def test_clearing_the_cache_never_touches_downloaded_data(
-    data_home, answers, no_network, cat
-):
-    external_dir = write_set(data_home, "TST")
-    write_cache(data_home, "TST")
-    answers.append(True)
-
-    wizard.clear_cache(inventory.scan(), cat, [])
-
-    assert sorted(p.name for p in external_dir.iterdir())
-
-
-def test_clearing_the_cache_prints_the_equivalent_command(
-    data_home, answers, no_network, cat, capsys
-):
-    write_set(data_home, "TST")
-    write_cache(data_home, "TST")
-    answers.append(True)
-
-    wizard.clear_cache(inventory.scan(), cat, [])
-    assert "spells clean all" in capsys.readouterr().out
+    assert instructions
+    assert all(i and "<b> back" in i and "<q> quit" in i for i in instructions)

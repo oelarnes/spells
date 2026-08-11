@@ -15,7 +15,6 @@ way out of being needed.
 from dataclasses import dataclass, replace
 
 import questionary
-from prompt_toolkit.keys import Keys
 
 from spells import cache, catalog, console, external, inventory, render, repair
 from spells.catalog import CheckRow, Freshness, Target
@@ -23,6 +22,13 @@ from spells.enums import EventType, View
 
 # how many set codes to name before the list stops fitting a narrow terminal
 NAMED = 4
+
+BACK_KEY = "b"
+QUIT_KEY = "q"
+
+# questionary writes this line itself but cannot mention keys it does not know
+# about, so the whole thing is replaced rather than added to
+PICK_KEYS = "(arrows move, <space> select, <a> all, <i> invert, <b> back, <q> quit)"
 
 # the current format and the one before it, ticked on a first run
 FIRST_RUN_SETS = 2
@@ -45,25 +51,39 @@ class Action:
     detail: str
 
 
-def _bind_escape(prompt) -> None:
-    """Make escape leave a prompt, which questionary does not bind itself.
+class Quit(Exception):
+    """Raised out of a prompt to leave the walkthrough entirely.
 
-    Deliberately not eager: escape is also the first byte of every arrow-key
-    sequence, so firing on sight would break navigation. Non-eager lets
-    prompt_toolkit wait long enough to tell a lone escape from `esc [ A`.
+    An exception rather than a sentinel return, so quitting from three prompts
+    deep does not need every step in between to recognize and forward it — the
+    same way questionary itself handles ctrl-c.
+    """
+
+
+def _bind_keys(prompt) -> None:
+    """Add `b` and `q`, which questionary has no keys for.
+
+    Eager, like questionary's own `a` and `i`: an ordinary letter needs no
+    disambiguation. Escape would read more naturally but is the first byte of
+    every arrow-key sequence, so it cannot be answered until prompt_toolkit has
+    waited to see whether more follows.
     """
     bindings = getattr(getattr(prompt, "application", None), "key_bindings", None)
     if bindings is None:
         return
 
-    @bindings.add(Keys.Escape)
-    def _(event):
+    @bindings.add(BACK_KEY, eager=True)
+    def _back(event):
         event.app.exit(result=None)
+
+    @bindings.add(QUIT_KEY, eager=True)
+    def _quit(event):
+        event.app.exit(exception=Quit)
 
 
 def _ask(prompt) -> object | None:
-    """None means the user left — escape, ctrl-c, or an empty selection."""
-    _bind_escape(prompt)
+    """None means the user backed out — `b`, ctrl-c, or an empty selection."""
+    _bind_keys(prompt)
     try:
         return prompt.ask()
     except KeyboardInterrupt:
@@ -223,7 +243,8 @@ def download(
 
     picked_sets = _ask(
         questionary.checkbox(
-            "Which sets to download? (esc goes back)",
+            "Which sets to download?",
+            instruction=PICK_KEYS,
             choices=[
                 questionary.Choice(
                     f"{expansion:<16}{_reasons_for(offers, expansion)}",
@@ -243,7 +264,8 @@ def download(
     if len(event_types) > 1:
         picked_events = _ask(
             questionary.checkbox(
-                "Which event types? (esc goes back)",
+                "Which event types?",
+                instruction=PICK_KEYS,
                 choices=[
                     questionary.Choice(
                         str(e),
@@ -283,7 +305,8 @@ def remove(
 
     picked = _ask(
         questionary.checkbox(
-            "Which sets to remove? (esc goes back)",
+            "Which sets to remove?",
+            instruction=PICK_KEYS,
             choices=[
                 questionary.Choice(
                     f"{code:<16}"
@@ -447,26 +470,29 @@ def run() -> None:
     """Entry point for a bare `spells` at a terminal."""
     cat = catalog.fetch()
     inv = inventory.scan()
-    rows = _opening(inv, cat)
 
-    while True:
-        console.info("")
-        choice = _ask(
-            questionary.select(
-                "What would you like to do?",
-                choices=[
-                    questionary.Choice(
-                        f"{a.label:<22}{a.detail}" if a.detail else a.label,
-                        value=a.key,
-                    )
-                    for a in _menu(inv, cat, rows)
-                ],
-                qmark="  ",
+    try:
+        rows = _opening(inv, cat)
+        while True:
+            console.info("")
+            choice = _ask(
+                questionary.select(
+                    "What would you like to do?",
+                    choices=[
+                        questionary.Choice(
+                            f"{a.label:<22}{a.detail}" if a.detail else a.label,
+                            value=a.key,
+                        )
+                        for a in _menu(inv, cat, rows)
+                    ],
+                    qmark="  ",
+                )
             )
-        )
-        if choice in (None, "quit"):
-            return
+            if choice in (None, "quit"):
+                return
 
-        HANDLERS[str(choice)](inv, cat, rows)
-        inv = inventory.scan()
-        rows = _check(inv, cat)
+            HANDLERS[str(choice)](inv, cat, rows)
+            inv = inventory.scan()
+            rows = _check(inv, cat)
+    except Quit:
+        return
