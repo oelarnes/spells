@@ -5,25 +5,36 @@ Everything here is a front end over `inventory`, `catalog`, `repair`, and
 having to know the commands exist, which is the whole problem for a first-time
 user staring at an empty data home.
 
-Two rules shape it. The menu offers only what the data home actually needs, so
-a set that is already current is never presented as a chore. And every action
-prints the command that would have done the same thing, so the wizard teaches
-its way out of being needed.
+Two rules shape it. The opening screen states everything the flat commands
+would have told you — what is on disk, and what 17Lands has that you do not —
+so the menu is a decision rather than an investigation. And every action prints
+the command that would have done the same thing, so the walkthrough teaches its
+way out of being needed.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import questionary
 
-from spells import catalog, console, external, inventory, repair
-from spells.catalog import Freshness, Target
+from spells import catalog, console, external, inventory, render, repair
+from spells.catalog import CheckRow, Freshness, Target
 from spells.enums import EventType, View
 
-CANCEL = "cancel"
+# how many set codes to name before the list stops fitting a narrow terminal
+NAMED = 4
 
-# Long enough to scroll, short enough that a new user is not reading a wall of
-# expansions they have never heard of.
-BROWSE_LIMIT = 12
+# the current format and the one before it, ticked on a first run
+FIRST_RUN_SETS = 2
+
+
+@dataclass(frozen=True)
+class Candidate:
+    """One downloadable (set, event type), and why it is being offered."""
+
+    expansion: str
+    event_type: EventType
+    reason: str
+    wanted: bool
 
 
 @dataclass(frozen=True)
@@ -49,14 +60,19 @@ def _held(inv: inventory.Inventory) -> set[str]:
     return {s.set_code for s in inv.sets.values() if s.has_external}
 
 
-def _stale_targets(inv: inventory.Inventory, cat: catalog.Catalog) -> list[Target]:
+def _targets(inv: inventory.Inventory, cat: catalog.Catalog) -> list[Target]:
+    """Every published dataset for a set on disk, alongside what is there."""
     targets = []
     for set_inv in inv.sets.values():
         if not set_inv.has_external:
             continue
-        for event_type, files in set_inv.events.items():
-            for view in (View.DRAFT, View.GAME):
-                local = getattr(files, view, None)
+        published = {
+            d.event_type for d in cat.for_expansion(set_inv.set_code) if d.is_supported
+        }
+        for event_type in sorted(published | set(set_inv.events)):
+            files = set_inv.events.get(event_type)
+            for view in render.CHECKED_VIEWS:
+                local = getattr(files, view, None) if files else None
                 targets.append(
                     Target(
                         set_inv.set_code,
@@ -68,15 +84,77 @@ def _stale_targets(inv: inventory.Inventory, cat: catalog.Catalog) -> list[Targe
     return targets
 
 
-def _sets_needing_update(inv: inventory.Inventory, cat: catalog.Catalog) -> list[str]:
-    rows = catalog.resolve(_stale_targets(inv, cat), cat)
-    return sorted(
-        {
-            r.target.expansion
-            for r in rows
-            if r.freshness in (Freshness.STALE, Freshness.ABSENT)
-        }
+def _check(inv: inventory.Inventory, cat: catalog.Catalog) -> list[CheckRow]:
+    if cat.is_fallback:
+        return []
+    return catalog.resolve(_targets(inv, cat), cat)
+
+
+def candidates(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> list[Candidate]:
+    """What is worth downloading, newest set first.
+
+    Pre-selected when it is an update to something tracked, a gap in a set
+    partly downloaded, or a set never added; left unticked when it is an event
+    type published for a set you have but evidently did not want.
+    """
+    tracked = {
+        (r.target.expansion, r.target.event_type)
+        for r in rows
+        if r.target.local_mtime is not None
+    }
+
+    offers: dict[tuple[str, EventType], tuple[str, bool]] = {}
+    for row in rows:
+        key = (row.target.expansion, row.target.event_type)
+        if row.freshness == Freshness.STALE:
+            offers[key] = ("update available", True)
+        elif row.freshness == Freshness.ABSENT and key not in offers:
+            offers[key] = (
+                ("incomplete", True) if key in tracked else ("not downloaded", False)
+            )
+
+    # "new" only means anything relative to what is already here, so on a first
+    # run nothing is new and everything is merely available.
+    started = bool(_held(inv))
+    for expansion in catalog.unadded(cat, _held(inv)):
+        for dataset in cat.for_expansion(expansion):
+            if dataset.is_supported and dataset.draft_url:
+                offers.setdefault(
+                    (expansion, dataset.event_type),
+                    (
+                        "new set" if started else "available",
+                        started and dataset.event_type == EventType.PREMIER,
+                    ),
+                )
+
+    order = {e: i for i, e in enumerate(catalog.in_release_order(cat, cat.expansions))}
+    offered = sorted(
+        (
+            Candidate(expansion, event_type, reason, wanted)
+            for (expansion, event_type), (reason, wanted) in offers.items()
+        ),
+        key=lambda c: (order.get(c.expansion, len(order)), str(c.event_type)),
     )
+    return offered if started else _first_run_defaults(offered)
+
+
+def _first_run_defaults(offered: list[Candidate]) -> list[Candidate]:
+    """Tick the current format and the one before it.
+
+    Every published set is unticked at this point, since none of them is new to
+    a data home with nothing in it. Leaving it there means a new user has to
+    know which codes are current before they can start, while ticking all of
+    them would put tens of gigabytes one keypress away.
+    """
+    newest = list(dict.fromkeys(c.expansion for c in offered))[:FIRST_RUN_SETS]
+    return [
+        replace(c, wanted=True)
+        if c.expansion in newest and c.event_type == EventType.PREMIER
+        else c
+        for c in offered
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -84,59 +162,18 @@ def _sets_needing_update(inv: inventory.Inventory, cat: catalog.Catalog) -> list
 # ---------------------------------------------------------------------------
 
 
-def _choose_expansion(cat: catalog.Catalog, held: set[str]) -> str | None:
-    candidates = [
-        e
-        for e in catalog.in_release_order(cat, cat.expansions)
-        if e not in held and cat.is_addable(e)
-    ]
-    if not candidates:
-        console.info("Every published set is already downloaded.")
-        return None
+def _reasons_for(offers: list[Candidate], expansion: str) -> str:
+    """Why a set is listed.
 
-    def label(expansion: str) -> str:
-        when = cat.updated(expansion)
-        return f"{expansion:<16}{when.isoformat() if when else ''}"
-
-    choices = [questionary.Choice(label(e), value=e) for e in candidates[:BROWSE_LIMIT]]
-    if len(candidates) > BROWSE_LIMIT:
-        choices.append(
-            questionary.Choice(
-                f"... {len(candidates) - BROWSE_LIMIT} older sets", value="__more__"
-            )
-        )
-    choices.append(questionary.Choice("Back", value=CANCEL))
-
-    picked = _ask(questionary.select("Which set?", choices=choices, qmark="  "))
-    if picked == "__more__":
-        picked = _ask(
-            questionary.select(
-                "Which set?",
-                choices=[questionary.Choice(label(e), value=e) for e in candidates]
-                + [questionary.Choice("Back", value=CANCEL)],
-                qmark="  ",
-            )
-        )
-    return None if picked in (None, CANCEL) else str(picked)
-
-
-def _choose_event_type(cat: catalog.Catalog, expansion: str) -> EventType | None:
-    published = [
-        d.event_type
-        for d in cat.for_expansion(expansion)
-        if d.is_supported and d.url(View.DRAFT)
-    ]
-    if len(published) == 1:
-        return published[0]
-
-    choices = [questionary.Choice(str(e), value=e) for e in published]
-    choices.append(questionary.Choice("Back", value=CANCEL))
-    picked = _ask(
-        questionary.select(
-            f"Which event type for {expansion}?", choices=choices, qmark="  "
-        )
-    )
-    return None if picked in (None, CANCEL) else picked
+    The reasons that pre-selected it, if any, since those are what the user is
+    being asked to agree with. Otherwise the event types on offer — saying "not
+    downloaded" next to a set you plainly have reads as though the whole thing
+    were missing, when only an event type is.
+    """
+    same_set = [c for c in offers if c.expansion == expansion]
+    if wanted := [c.reason for c in same_set if c.wanted]:
+        return ", ".join(dict.fromkeys(wanted))
+    return ", ".join(dict.fromkeys(str(c.event_type) for c in same_set))
 
 
 def _download_size(cat: catalog.Catalog, expansion: str, event_type: EventType) -> int:
@@ -151,62 +188,117 @@ def _download_size(cat: catalog.Catalog, expansion: str, event_type: EventType) 
     return total
 
 
-def add_set(inv: inventory.Inventory, cat: catalog.Catalog) -> None:
-    expansion = _choose_expansion(cat, _held(inv))
-    if expansion is None:
+def download(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> None:
+    offers = candidates(inv, cat, rows)
+    if not offers:
+        console.info("Nothing to download; everything published is already here.")
         return
 
-    event_type = _choose_event_type(cat, expansion)
-    if event_type is None:
+    picked_sets = _ask(
+        questionary.checkbox(
+            "Which sets? (space toggles, enter confirms)",
+            choices=[
+                questionary.Choice(
+                    f"{expansion:<16}{_reasons_for(offers, expansion)}",
+                    value=expansion,
+                    checked=any(c.wanted for c in offers if c.expansion == expansion),
+                )
+                for expansion in dict.fromkeys(c.expansion for c in offers)
+            ],
+            qmark="  ",
+        )
+    )
+    if not picked_sets:
         return
 
-    size = _download_size(cat, expansion, event_type)
-    size_note = f" (~{console.sizeof_fmt(size)} compressed)" if size else ""
+    scoped = [c for c in offers if c.expansion in picked_sets]
+    event_types = sorted({c.event_type for c in scoped}, key=str)
+    if len(event_types) > 1:
+        picked_events = _ask(
+            questionary.checkbox(
+                "Which event types?",
+                choices=[
+                    questionary.Choice(
+                        str(e),
+                        value=e,
+                        checked=any(c.wanted for c in scoped if c.event_type == e),
+                    )
+                    for e in event_types
+                ],
+                qmark="  ",
+            )
+        )
+        if not picked_events:
+            return
+        scoped = [c for c in scoped if c.event_type in picked_events]
+
+    size = sum(_download_size(cat, c.expansion, c.event_type) for c in scoped)
+    note = f", ~{console.sizeof_fmt(size)} compressed" if size else ""
     if not _ask(
         questionary.confirm(
-            f"Download {expansion} {event_type}{size_note}?", default=True, qmark="  "
+            f"Download {len(scoped)} dataset(s){note}?", default=True, qmark="  "
         )
     ):
         return
 
-    _echo_command(f"spells add {expansion} {event_type}")
-    external._add(expansion, event_type=event_type)
+    for candidate in scoped:
+        _echo_command(f"spells add {candidate.expansion} {candidate.event_type}")
+        external._add(candidate.expansion, event_type=candidate.event_type)
 
 
-def update_sets(inv: inventory.Inventory, cat: catalog.Catalog) -> None:
-    stale = _sets_needing_update(inv, cat)
-    if not stale:
-        console.info("Everything you have is current.")
+def remove(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> None:
+    held = sorted(_held(inv))
+    if not held:
+        console.info("Nothing downloaded.")
         return
 
     picked = _ask(
         questionary.checkbox(
-            "Which sets should be brought up to date?",
-            choices=[questionary.Choice(s, value=s, checked=True) for s in stale],
+            "Remove which sets? (space toggles, enter confirms)",
+            choices=[
+                questionary.Choice(
+                    f"{code:<16}"
+                    f"{console.sizeof_fmt(inv.sets[code].external_bytes):>10}  "
+                    f"{', '.join(str(e) for e in inv.sets[code].events)}",
+                    value=code,
+                )
+                for code in held
+            ],
             qmark="  ",
         )
     )
     if not picked:
         return
 
-    for expansion in picked:
-        set_inv = inv.sets.get(expansion)
-        events = list(set_inv.events) if set_inv else [EventType.PREMIER]
-        for event_type in events:
-            _echo_command(f"spells add {expansion} {event_type}")
-            external._add(expansion, event_type=event_type)
+    freed = sum(inv.sets[c].total_bytes for c in picked)
+    if not _ask(
+        questionary.confirm(
+            f"Delete {len(picked)} set(s), freeing {console.sizeof_fmt(freed)}?",
+            default=False,
+            qmark="  ",
+        )
+    ):
+        return
+
+    for code in picked:
+        _echo_command(f"spells remove {code} --yes")
+        external._remove(code)
 
 
-def free_space(inv: inventory.Inventory, cat: catalog.Catalog) -> None:
+def free_space(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> None:
     repairs = repair.plan(inv)
     if not repairs:
         console.info("Nothing to clean up.")
         return
 
+    render._render_repairs(repairs)
     files = sum(r.files for r in repairs)
-    freed = sum(r.size for r in repairs)
-    console.info(f"{files} unusable file(s) taking {console.sizeof_fmt(freed)}.")
-
     if not _ask(
         questionary.confirm(f"Delete {files} file(s)?", default=False, qmark="  ")
     ):
@@ -221,105 +313,96 @@ def free_space(inv: inventory.Inventory, cat: catalog.Catalog) -> None:
         console.error(f"could not remove {path}: {error}")
 
 
-def show_summary(inv: inventory.Inventory, cat: catalog.Catalog) -> None:
-    _echo_command("spells status")
-    sets = [s for s in inv.sets.values() if s.has_external]
-    console.info(
-        f"{len(sets)} set(s), {console.sizeof_fmt(inv.total_bytes)} in {inv.data_home}"
-    )
-    for set_inv in sorted(sets, key=lambda s: s.set_code):
-        events = ", ".join(str(e) for e in set_inv.events)
-        console.detail(f"{set_inv.set_code:<16}{events}")
+HANDLERS = {"download": download, "remove": remove, "clean": free_space}
 
 
 # ---------------------------------------------------------------------------
-# Flows
+# Flow
 # ---------------------------------------------------------------------------
 
 
-def _bootstrap(cat: catalog.Catalog) -> None:
-    """First run: there is nothing on disk, so there is exactly one useful
-    thing to do and no menu is worth showing."""
-    console.info("No 17Lands data here yet.")
-    console.detail("spells keeps draft and game datasets under this directory,")
-    console.detail("then answers questions about them with `summon`.\n")
-
-    add_set(inventory.scan(), cat)
-
-    inv = inventory.scan()
-    if any(s.has_external for s in inv.sets.values()):
-        console.info("\nReady. From here:")
-        console.detail("spells status        what you have")
-        console.detail("spells check         whether 17Lands has anything newer")
-        console.detail("spells              this walkthrough again")
-
-
-def _menu(inv: inventory.Inventory, cat: catalog.Catalog) -> list[Action]:
-    """Only what this data home actually needs, so nothing already fine is
-    offered as a task."""
+def _menu(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> list[Action]:
+    """Only what this data home actually offers, so nothing already fine is
+    presented as a chore."""
     actions = []
 
-    unadded = catalog.unadded(cat, _held(inv))
-    if unadded:
-        actions.append(
-            Action("add", "Add a set", f"{len(unadded)} published, not downloaded")
-        )
-    else:
-        actions.append(Action("add", "Add a set", ""))
+    offers = candidates(inv, cat, rows)
+    if offers:
+        wanted = sum(1 for c in offers if c.wanted)
+        detail = f"{wanted} suggested" if wanted else f"{len(offers)} available"
+        actions.append(Action("download", "Download datasets", detail))
 
-    stale = _sets_needing_update(inv, cat)
-    if stale:
-        actions.append(
-            Action("update", "Update out-of-date data", f"{len(stale)} set(s)")
-        )
+    if _held(inv):
+        actions.append(Action("remove", "Remove datasets", ""))
 
     repairs = repair.plan(inv)
     if repairs:
-        freed = sum(r.size for r in repairs)
-        actions.append(
-            Action("clean", "Free up space", f"{console.sizeof_fmt(freed)} unusable")
-        )
+        freed = console.sizeof_fmt(sum(r.size for r in repairs))
+        actions.append(Action("clean", "Free up space", f"{freed} unusable"))
 
-    actions.append(Action("summary", "Show what I have", ""))
     actions.append(Action("quit", "Quit", ""))
     return actions
 
 
-HANDLERS = {
-    "add": add_set,
-    "update": update_sets,
-    "clean": free_space,
-    "summary": show_summary,
-}
+def _opening(inv: inventory.Inventory, cat: catalog.Catalog) -> list[CheckRow]:
+    """Everything the flat commands would have told you, before being asked."""
+    render.banner()
+
+    if _held(inv):
+        render._render_status(
+            inv, list(inv.sets.values()), inv.all_anomalies, detailed=False
+        )
+    else:
+        console.info(f"No 17Lands data yet in {inv.data_home}")
+        console.detail("spells keeps draft and game datasets there,")
+        console.detail("then answers questions about them with `summon`.")
+
+    if cat.is_fallback:
+        console.error("Could not reach 17Lands; only local actions are available.")
+        return []
+
+    rows = _check(inv, cat)
+    stale = sorted({r.target.expansion for r in rows if r.freshness == Freshness.STALE})
+    unadded = catalog.unadded(cat, _held(inv))
+
+    if stale:
+        console.info("")
+        console.info(f"{len(stale)} set(s) have newer data:")
+        console.detail(", ".join(stale))
+    if unadded:
+        more = f", +{len(unadded) - NAMED} more" if len(unadded) > NAMED else ""
+        console.info("")
+        console.info(f"{len(unadded)} set(s) published, not downloaded:")
+        console.detail(", ".join(unadded[:NAMED]) + more)
+    return rows
 
 
 def run() -> None:
     """Entry point for a bare `spells` at a terminal."""
     cat = catalog.fetch()
-    if cat.is_fallback:
-        console.error("Could not reach 17Lands; only local actions are available.")
-
     inv = inventory.scan()
-    if not any(s.has_external for s in inv.sets.values()):
-        _bootstrap(cat)
-        return
+    rows = _opening(inv, cat)
 
     while True:
-        inv = inventory.scan()
-        actions = _menu(inv, cat)
+        console.info("")
         choice = _ask(
             questionary.select(
                 "What would you like to do?",
                 choices=[
                     questionary.Choice(
-                        f"{a.label:<26}{a.detail}" if a.detail else a.label, value=a.key
+                        f"{a.label:<22}{a.detail}" if a.detail else a.label,
+                        value=a.key,
                     )
-                    for a in actions
+                    for a in _menu(inv, cat, rows)
                 ],
                 qmark="  ",
             )
         )
         if choice in (None, "quit"):
             return
-        HANDLERS[str(choice)](inv, cat)
-        console.info("")
+
+        HANDLERS[str(choice)](inv, cat, rows)
+        inv = inventory.scan()
+        rows = _check(inv, cat)
