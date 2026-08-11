@@ -11,6 +11,8 @@ import pathlib
 
 import pytest
 
+import questionary
+
 from spells import catalog, inventory, wizard
 from spells.catalog import Catalog, Dataset, RemoteFile
 from spells.enums import EventType
@@ -190,7 +192,7 @@ def test_menu_offers_only_what_applies(data_home, no_network, cat):
     inv = inventory.scan()
 
     keys = [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
-    assert keys == ["download", "remove", "quit"]  # nothing dead to clean up
+    assert keys == ["download", "remove", "quit"]  # nothing dead, no cache yet
 
 
 def test_menu_offers_cleanup_when_there_are_dead_files(data_home, no_network, cat):
@@ -200,7 +202,7 @@ def test_menu_offers_cleanup_when_there_are_dead_files(data_home, no_network, ca
     (snaps / LEGACY_SNAPSHOT).write_text("[]")
 
     inv = inventory.scan()
-    assert "clean" in [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
+    assert "repair" in [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
 
 
 def test_menu_has_nothing_to_remove_on_a_first_run(data_home, no_network, cat):
@@ -444,3 +446,151 @@ def test_a_pre_selected_set_is_labelled_by_reason(data_home, no_network, cat):
     offers = offers_for(inventory.scan(), cat)
 
     assert wizard._reasons_for(offers, "NEW") == "new set"
+
+
+# ---------------------------------------------------------------------------
+# Backing out
+# ---------------------------------------------------------------------------
+
+
+def test_backing_out_of_the_download_list_downloads_nothing(
+    data_home, answers, no_network, cat, downloads
+):
+    write_set(data_home, "TST")
+    inv = inventory.scan()
+    answers.append([wizard.BACK])
+
+    wizard.download(inv, cat, wizard._check(inv, cat))
+    assert downloads == []
+
+
+def test_backing_out_wins_over_anything_else_ticked(
+    data_home, answers, no_network, cat, downloads
+):
+    """Someone who selected it meant to leave, whatever the cursor passed over."""
+    write_set(data_home, "TST")
+    inv = inventory.scan()
+    answers.append([wizard.BACK, "NEW"])
+
+    wizard.download(inv, cat, wizard._check(inv, cat))
+    assert downloads == []
+
+
+def test_backing_out_of_the_event_type_step_downloads_nothing(
+    data_home, answers, no_network, cat, downloads
+):
+    write_set(data_home, "TST", mtime=OLDER)
+    inv = inventory.scan()
+    answers.extend([["TST"], [wizard.BACK]])
+
+    wizard.download(inv, cat, wizard._check(inv, cat))
+    assert downloads == []
+
+
+def test_backing_out_of_the_remove_list_deletes_nothing(
+    data_home, answers, no_network, cat, removals
+):
+    write_set(data_home, "TST")
+    answers.append([wizard.BACK])
+
+    wizard.remove(inventory.scan(), cat, [])
+    assert removals == []
+
+
+def test_every_multi_select_offers_a_way_out(data_home, no_network, cat, monkeypatch):
+    """Backing out has to be visible in the list, not folklore about pressing
+    enter on an empty selection."""
+    write_set(data_home, "TST", mtime=OLDER)
+    seen = []
+
+    monkeypatch.setattr(
+        questionary,
+        "checkbox",
+        lambda message, choices, **kw: seen.append([c.value for c in choices]) or None,
+    )
+    monkeypatch.setattr(wizard, "_ask", lambda p: None)
+
+    inv = inventory.scan()
+    wizard.download(inv, cat, wizard._check(inv, cat))
+    wizard.remove(inv, cat, [])
+
+    assert seen and all(wizard.BACK in choices for choices in seen)
+
+
+# ---------------------------------------------------------------------------
+# Derived cache
+# ---------------------------------------------------------------------------
+
+
+def write_cache(home, set_code, files=3):
+    d = home / "cache" / set_code
+    d.mkdir(parents=True, exist_ok=True)
+    for i in range(files):
+        (d / f"{i}.parquet").write_bytes(b"x" * 100)
+    return d
+
+
+def test_menu_offers_clearing_the_cache_when_there_is_one(data_home, no_network, cat):
+    write_set(data_home, "TST")
+    write_cache(data_home, "TST")
+
+    inv = inventory.scan()
+    keys = [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
+    assert "cache" in keys
+
+
+def test_menu_omits_the_cache_option_when_there_is_none(data_home, no_network, cat):
+    write_set(data_home, "TST")
+
+    inv = inventory.scan()
+    keys = [a.key for a in wizard._menu(inv, cat, wizard._check(inv, cat))]
+    assert "cache" not in keys
+
+
+def test_clearing_the_cache_removes_every_set_at_once(
+    data_home, answers, no_network, cat
+):
+    """No per-set choice: derived results rebuild on demand, so the only
+    question is whether to reclaim the space."""
+    write_set(data_home, "TST")
+    write_set(data_home, "TS2")
+    write_cache(data_home, "TST")
+    write_cache(data_home, "TS2")
+    answers.append(True)
+
+    wizard.clear_cache(inventory.scan(), cat, [])
+
+    assert not (data_home / "cache" / "TST").exists()
+    assert not (data_home / "cache" / "TS2").exists()
+
+
+def test_declining_leaves_the_cache_alone(data_home, answers, no_network, cat):
+    write_set(data_home, "TST")
+    cached = write_cache(data_home, "TST")
+    answers.append(False)
+
+    wizard.clear_cache(inventory.scan(), cat, [])
+    assert cached.exists()
+
+
+def test_clearing_the_cache_never_touches_downloaded_data(
+    data_home, answers, no_network, cat
+):
+    external_dir = write_set(data_home, "TST")
+    write_cache(data_home, "TST")
+    answers.append(True)
+
+    wizard.clear_cache(inventory.scan(), cat, [])
+
+    assert sorted(p.name for p in external_dir.iterdir())
+
+
+def test_clearing_the_cache_prints_the_equivalent_command(
+    data_home, answers, no_network, cat, capsys
+):
+    write_set(data_home, "TST")
+    write_cache(data_home, "TST")
+    answers.append(True)
+
+    wizard.clear_cache(inventory.scan(), cat, [])
+    assert "spells clean all" in capsys.readouterr().out

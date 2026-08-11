@@ -16,12 +16,16 @@ from dataclasses import dataclass, replace
 
 import questionary
 
-from spells import catalog, console, external, inventory, render, repair
+from spells import cache, catalog, console, external, inventory, render, repair
 from spells.catalog import CheckRow, Freshness, Target
 from spells.enums import EventType, View
 
 # how many set codes to name before the list stops fitting a narrow terminal
 NAMED = 4
+
+# an explicit way out of a multi-select, since "tick nothing and press enter"
+# is a thing you have to already know
+BACK = "__back__"
 
 # the current format and the one before it, ticked on a first run
 FIRST_RUN_SETS = 2
@@ -54,6 +58,13 @@ def _ask(prompt) -> object | None:
 
 def _echo_command(command: str) -> None:
     console.info(f"[dim]$[/dim] [bold]{command}[/bold]")
+
+
+def _cache_totals(inv: inventory.Inventory) -> tuple[int, int]:
+    return (
+        sum(s.cache_files for s in inv.sets.values()),
+        sum(s.cache_bytes for s in inv.sets.values()),
+    )
 
 
 def _held(inv: inventory.Inventory) -> set[str]:
@@ -162,6 +173,16 @@ def _first_run_defaults(offered: list[Candidate]) -> list[Candidate]:
 # ---------------------------------------------------------------------------
 
 
+def _back_choice() -> questionary.Choice:
+    return questionary.Choice("← back, change nothing", value=BACK)
+
+
+def _backed_out(picked) -> bool:
+    """Backing out wins over anything else ticked: someone who selected it
+    meant to leave, whatever else the cursor passed over."""
+    return not picked or BACK in picked
+
+
 def _reasons_for(offers: list[Candidate], expansion: str) -> str:
     """Why a set is listed.
 
@@ -199,7 +220,8 @@ def download(
     picked_sets = _ask(
         questionary.checkbox(
             "Which sets? (space toggles, enter confirms)",
-            choices=[
+            choices=[_back_choice()]
+            + [
                 questionary.Choice(
                     f"{expansion:<16}{_reasons_for(offers, expansion)}",
                     value=expansion,
@@ -210,7 +232,7 @@ def download(
             qmark="  ",
         )
     )
-    if not picked_sets:
+    if _backed_out(picked_sets):
         return
 
     scoped = [c for c in offers if c.expansion in picked_sets]
@@ -219,7 +241,8 @@ def download(
         picked_events = _ask(
             questionary.checkbox(
                 "Which event types?",
-                choices=[
+                choices=[_back_choice()]
+                + [
                     questionary.Choice(
                         str(e),
                         value=e,
@@ -230,7 +253,7 @@ def download(
                 qmark="  ",
             )
         )
-        if not picked_events:
+        if _backed_out(picked_events):
             return
         scoped = [c for c in scoped if c.event_type in picked_events]
 
@@ -259,7 +282,8 @@ def remove(
     picked = _ask(
         questionary.checkbox(
             "Remove which sets? (space toggles, enter confirms)",
-            choices=[
+            choices=[_back_choice()]
+            + [
                 questionary.Choice(
                     f"{code:<16}"
                     f"{console.sizeof_fmt(inv.sets[code].external_bytes):>10}  "
@@ -271,7 +295,7 @@ def remove(
             qmark="  ",
         )
     )
-    if not picked:
+    if _backed_out(picked):
         return
 
     freed = sum(inv.sets[c].total_bytes for c in picked)
@@ -313,7 +337,36 @@ def free_space(
         console.error(f"could not remove {path}: {error}")
 
 
-HANDLERS = {"download": download, "remove": remove, "clean": free_space}
+def clear_cache(
+    inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
+) -> None:
+    """Derived query results only. They rebuild on demand, so this needs no
+    per-set choice — the only question is whether to reclaim the space."""
+    files, size = _cache_totals(inv)
+    if not files:
+        console.info("No derived cache to clear.")
+        return
+
+    if not _ask(
+        questionary.confirm(
+            f"Clear {files} cached result(s), {console.sizeof_fmt(size)}? "
+            "They rebuild on demand.",
+            default=True,
+            qmark="  ",
+        )
+    ):
+        return
+
+    _echo_command("spells clean all")
+    cache.clean("all")
+
+
+HANDLERS = {
+    "download": download,
+    "remove": remove,
+    "repair": free_space,
+    "cache": clear_cache,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -340,7 +393,17 @@ def _menu(
     repairs = repair.plan(inv)
     if repairs:
         freed = console.sizeof_fmt(sum(r.size for r in repairs))
-        actions.append(Action("clean", "Free up space", f"{freed} unusable"))
+        actions.append(Action("repair", "Remove unusable files", freed))
+
+    files, size = _cache_totals(inv)
+    if files:
+        actions.append(
+            Action(
+                "cache",
+                "Clear derived cache",
+                f"{console.sizeof_fmt(size)}, rebuilds on demand",
+            )
+        )
 
     actions.append(Action("quit", "Quit", ""))
     return actions
