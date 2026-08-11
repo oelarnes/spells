@@ -722,9 +722,9 @@ def test_a_failing_query_does_not_take_the_walkthrough_down(
     assert "polars said no" in capsys.readouterr().err
 
 
-def test_the_shipped_script_groups_sets_by_their_own_event_types(data_home):
-    """`summon` takes the product of the sets and event types it is given, so
-    one call naming every event type fails the read for a set missing one."""
+def test_the_shipped_script_maps_each_set_to_its_own_event_types(data_home):
+    """One flat list would ask every set for every event type, and asking for
+    one a set does not have fails the read."""
     import runpy as real_runpy
 
     write_set(data_home, "ONE", EventType.PREMIER)
@@ -732,11 +732,11 @@ def test_the_shipped_script_groups_sets_by_their_own_event_types(data_home):
     write_set(data_home, "TWO", EventType.TRADITIONAL)
 
     module = real_runpy.run_path(str(wizard.EXAMPLE), run_name="not_main")
-    groups = module["by_event_types"](inventory.scan())
+    by_set = module["event_types_by_set"](inventory.scan())
 
-    assert groups == {
-        (EventType.PREMIER,): ["ONE"],
-        (EventType.PREMIER, EventType.TRADITIONAL): ["TWO"],
+    assert by_set == {
+        "ONE": [EventType.PREMIER],
+        "TWO": [EventType.PREMIER, EventType.TRADITIONAL],
     }
 
 
@@ -748,6 +748,5 @@ def test_the_shipped_script_ignores_sets_with_nothing_downloaded(data_home):
     write_set(data_home, "REAL", EventType.PREMIER)
 
     module = real_runpy.run_path(str(wizard.EXAMPLE), run_name="not_main")
-    groups = module["by_event_types"](inventory.scan())
 
-    assert list(groups.values()) == [["REAL"]]
+    assert list(module["event_types_by_set"](inventory.scan())) == ["REAL"]
