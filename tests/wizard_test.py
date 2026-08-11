@@ -722,14 +722,32 @@ def test_a_failing_query_does_not_take_the_walkthrough_down(
     assert "polars said no" in capsys.readouterr().err
 
 
-def test_the_shipped_script_only_names_installed_event_types(data_home):
-    """Naming an event type with no parquet fails the read rather than
-    returning nothing for it."""
+def test_the_shipped_script_groups_sets_by_their_own_event_types(data_home):
+    """`summon` takes the product of the sets and event types it is given, so
+    one call naming every event type fails the read for a set missing one."""
     import runpy as real_runpy
 
-    write_set(data_home, "TST", EventType.PREMIER)
-    module = real_runpy.run_path(str(wizard.EXAMPLE), run_name="not_main")
+    write_set(data_home, "ONE", EventType.PREMIER)
+    write_set(data_home, "TWO", EventType.PREMIER)
+    write_set(data_home, "TWO", EventType.TRADITIONAL)
 
-    sets, event_types = module["installed"]()
-    assert sets == ["TST"]
-    assert event_types == [EventType.PREMIER]
+    module = real_runpy.run_path(str(wizard.EXAMPLE), run_name="not_main")
+    groups = module["by_event_types"](inventory.scan())
+
+    assert groups == {
+        (EventType.PREMIER,): ["ONE"],
+        (EventType.PREMIER, EventType.TRADITIONAL): ["TWO"],
+    }
+
+
+def test_the_shipped_script_ignores_sets_with_nothing_downloaded(data_home):
+    import runpy as real_runpy
+
+    (data_home / "ratings" / "GHOST").mkdir(parents=True)
+    (data_home / "ratings" / "GHOST" / LEGACY_SNAPSHOT).write_text("[]")
+    write_set(data_home, "REAL", EventType.PREMIER)
+
+    module = real_runpy.run_path(str(wizard.EXAMPLE), run_name="not_main")
+    groups = module["by_event_types"](inventory.scan())
+
+    assert list(groups.values()) == [["REAL"]]
