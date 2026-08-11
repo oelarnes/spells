@@ -151,6 +151,7 @@ def _make_draft_row(
     event_match_wins=0,
     event_match_losses=0,
     event_type=EventType.PREMIER,
+    pick_2=None,
 ):
     """One pick row. All cards are present in the pack; one is picked."""
     row = {
@@ -169,6 +170,8 @@ def _make_draft_row(
         "user_n_games_bucket": user_n_games_bucket,
         "user_game_win_rate_bucket": user_game_win_rate_bucket,
     }
+    if pick_2 is not None:
+        row["pick_2"] = pick_2
     for name in FAKE_CARD_NAMES:
         row[f"pack_card_{name}"] = 1
         row[f"pool_{name}"] = 0
@@ -240,7 +243,7 @@ def _make_game_row(
     return row
 
 
-def _draft_schema():
+def _draft_schema(pick_two=False):
     return {
         "expansion": pl.String,
         "event_type": pl.String,
@@ -252,6 +255,7 @@ def _draft_schema():
         "pack_number": pl.Int8,
         "pick_number": pl.Int8,
         "pick": pl.String,
+        **({"pick_2": pl.String} if pick_two else {}),
         "pick_maindeck_rate": pl.Float64,
         "pick_sideboard_in_rate": pl.Float64,
         "user_n_games_bucket": pl.Int16,
@@ -319,7 +323,8 @@ def _write_set_parquets(
         }
     ).write_parquet(set_dir / f"{set_code}_{event_type}_context.parquet")
 
-    pl.DataFrame(draft_rows, schema=_draft_schema()).write_parquet(
+    pick_two = "pick_2" in draft_rows[0]
+    pl.DataFrame(draft_rows, schema=_draft_schema(pick_two)).write_parquet(
         set_dir / f"{set_code}_{event_type}_draft.parquet"
     )
 
@@ -754,6 +759,45 @@ def fake_trad_set(
     )
 
     yield tmp_path
+
+
+PICK_TWO_ROW_COUNT = 3
+
+
+@pytest.fixture()
+def fake_pick_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[int, None, None]:
+    """Writes set TST with both Premier and pick-two draft parquets.
+
+    The pick-two file is one draft over PICK_TWO_ROW_COUNT rows, each naming a
+    different card in `pick` and `pick_2`, so the two picks stay tellable apart.
+    Yields the row count: picks are twice that, drafts are one.
+    """
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    ext = tmp_path / "external"
+
+    _write_set_parquets(ext, FAKE_SET, _tst_draft_rows(), _tst_game_rows())
+    _write_set_parquets(
+        ext, FAKE_SET, _tst_pick_two_draft_rows(), event_type=EventType.PICK_TWO
+    )
+
+    yield PICK_TWO_ROW_COUNT
+
+
+def _tst_pick_two_draft_rows():
+    return [
+        _make_draft_row(
+            FAKE_SET,
+            "x001",
+            0,
+            pick_number,
+            FAKE_CARD_NAMES[2 * pick_number],
+            pick_2=FAKE_CARD_NAMES[2 * pick_number + 1],
+            event_type=EventType.PICK_TWO,
+        )
+        for pick_number in range(PICK_TWO_ROW_COUNT)
+    ]
 
 
 @pytest.fixture()

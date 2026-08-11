@@ -30,6 +30,17 @@ from spells.card_data_files import base_ratings_df, CacheUsage
 
 DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 
+# measured against the first pick of a row and published without a counterpart
+# for the second, so they describe only that card
+FIRST_PICK_ONLY = (ColName.PICK_MAINDECK_RATE, ColName.PICK_SIDEBOARD_IN_RATE)
+
+# every draft row is a first pick until a pick-two row is split into two
+PICK_ORDINAL_FIRST = pl.lit(1, dtype=pl.Int8).alias(ColName.PICK_ORDINAL)
+
+# bumped when the meaning of a pick-two aggregate changes, since the column
+# definitions can stay identical while every total moves
+PICK_TWO_AGG_VERSION = 2
+
 
 def _cache_key(args) -> str:
     """
@@ -391,6 +402,40 @@ def _fetch_or_cache(
     return df
 
 
+def _pick_events(
+    draft_df: pl.LazyFrame, view: View, event_type: EventType
+) -> pl.LazyFrame:
+    """The draft view as one row per pick rather than per pick row.
+
+    A pick-two row records two picks, so it becomes two rows: the second is the
+    same row with `pick_2` standing in as `pick`. Doing this on the raw frame,
+    before any column expression is evaluated, means every expression written
+    against `pick` counts both without knowing there were two.
+
+    `pick_ordinal` says which of the two a row is, so a column that only holds
+    for the first can say so — `num_drafts` counts drafts rather than cards,
+    and 17Lands computes the maindeck rates from the first pick alone.
+    """
+    first = draft_df.with_columns(PICK_ORDINAL_FIRST)
+    if view != View.DRAFT or event_type != EventType.PICK_TWO:
+        return first
+
+    second = draft_df.drop(ColName.PICK).rename({ColName.PICK_2: ColName.PICK})
+    second = second.with_columns(
+        pl.lit(2, dtype=pl.Int8).alias(ColName.PICK_ORDINAL),
+        # 17Lands derives these from the first pick and publishes no
+        # counterpart for the second, so they are absent here rather than
+        # describing the wrong card. Should a `pick_2_` counterpart appear,
+        # rename it in beside `pick` instead of nulling.
+        *(
+            pl.lit(None, dtype=pl.Float64).alias(col)
+            for col in FIRST_PICK_ONLY
+            if col in draft_df.collect_schema().names()
+        ),
+    )
+    return pl.concat([first.drop(ColName.PICK_2), second], how="vertical_relaxed")
+
+
 def _base_agg_df(
     set_code: str,
     m: manifest.Manifest,
@@ -407,7 +452,7 @@ def _base_agg_df(
         if view == View.CARD:
             continue
         df_path = cache.data_file_path(set_code, view, event_type)
-        base_view_df = pl.scan_parquet(df_path)
+        base_view_df = _pick_events(pl.scan_parquet(df_path), view, event_type)
         base_df_prefilter = _view_select(
             base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
         )
@@ -651,6 +696,14 @@ def summon(
                 sorted(c.signature or "" for c in m.col_def_map.values()),
                 sorted(m.base_view_group_by),
                 filter_spec,
+                # counting both picks changed every pick-two total without
+                # changing a column definition, so anything cached under the
+                # old meaning has to miss
+                *(
+                    (PICK_TWO_AGG_VERSION,)
+                    if code_event_type == EventType.PICK_TWO
+                    else ()
+                ),
             ),
             read_cache=read_cache,
             write_cache=write_cache,
@@ -777,7 +830,7 @@ def lazy_select(
     )
 
     df_path = cache.data_file_path(set_code, view, event_type)
-    base_view_df = pl.scan_parquet(df_path)
+    base_view_df = pl.scan_parquet(df_path).with_columns(PICK_ORDINAL_FIRST)
 
     select_cols = frozenset(columns)
 

@@ -82,6 +82,7 @@ class ColName(StrEnum):
     NUM_DRAFTS = "num_drafts"
     PICK = "pick"
     PICK_2 = "pick_2"  # PickTwoDraft only
+    PICK_ORDINAL = "pick_ordinal"  # 1, or 2 for the second of a pick-two pick
     PICK_MAINDECK_RATE = "pick_maindeck_rate"
     PICK_SIDEBOARD_IN_RATE = "pick_sideboard_in_rate"
     PACK_CARD = "pack_card"
