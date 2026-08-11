@@ -15,6 +15,7 @@ way out of being needed.
 from dataclasses import dataclass, replace
 
 import questionary
+from prompt_toolkit.keys import Keys
 
 from spells import cache, catalog, console, external, inventory, render, repair
 from spells.catalog import CheckRow, Freshness, Target
@@ -22,10 +23,6 @@ from spells.enums import EventType, View
 
 # how many set codes to name before the list stops fitting a narrow terminal
 NAMED = 4
-
-# an explicit way out of a multi-select, since "tick nothing and press enter"
-# is a thing you have to already know
-BACK = "__back__"
 
 # the current format and the one before it, ticked on a first run
 FIRST_RUN_SETS = 2
@@ -48,8 +45,25 @@ class Action:
     detail: str
 
 
+def _bind_escape(prompt) -> None:
+    """Make escape leave a prompt, which questionary does not bind itself.
+
+    Deliberately not eager: escape is also the first byte of every arrow-key
+    sequence, so firing on sight would break navigation. Non-eager lets
+    prompt_toolkit wait long enough to tell a lone escape from `esc [ A`.
+    """
+    bindings = getattr(getattr(prompt, "application", None), "key_bindings", None)
+    if bindings is None:
+        return
+
+    @bindings.add(Keys.Escape)
+    def _(event):
+        event.app.exit(result=None)
+
+
 def _ask(prompt) -> object | None:
-    """questionary returns None when interrupted; treat that as backing out."""
+    """None means the user left — escape, ctrl-c, or an empty selection."""
+    _bind_escape(prompt)
     try:
         return prompt.ask()
     except KeyboardInterrupt:
@@ -173,16 +187,6 @@ def _first_run_defaults(offered: list[Candidate]) -> list[Candidate]:
 # ---------------------------------------------------------------------------
 
 
-def _back_choice() -> questionary.Choice:
-    return questionary.Choice("← back, change nothing", value=BACK)
-
-
-def _backed_out(picked) -> bool:
-    """Backing out wins over anything else ticked: someone who selected it
-    meant to leave, whatever else the cursor passed over."""
-    return not picked or BACK in picked
-
-
 def _reasons_for(offers: list[Candidate], expansion: str) -> str:
     """Why a set is listed.
 
@@ -219,9 +223,8 @@ def download(
 
     picked_sets = _ask(
         questionary.checkbox(
-            "Which sets? (space toggles, enter confirms)",
-            choices=[_back_choice()]
-            + [
+            "Which sets to download? (esc goes back)",
+            choices=[
                 questionary.Choice(
                     f"{expansion:<16}{_reasons_for(offers, expansion)}",
                     value=expansion,
@@ -232,7 +235,7 @@ def download(
             qmark="  ",
         )
     )
-    if _backed_out(picked_sets):
+    if not picked_sets:
         return
 
     scoped = [c for c in offers if c.expansion in picked_sets]
@@ -240,9 +243,8 @@ def download(
     if len(event_types) > 1:
         picked_events = _ask(
             questionary.checkbox(
-                "Which event types?",
-                choices=[_back_choice()]
-                + [
+                "Which event types? (esc goes back)",
+                choices=[
                     questionary.Choice(
                         str(e),
                         value=e,
@@ -253,7 +255,7 @@ def download(
                 qmark="  ",
             )
         )
-        if _backed_out(picked_events):
+        if not picked_events:
             return
         scoped = [c for c in scoped if c.event_type in picked_events]
 
@@ -281,9 +283,8 @@ def remove(
 
     picked = _ask(
         questionary.checkbox(
-            "Remove which sets? (space toggles, enter confirms)",
-            choices=[_back_choice()]
-            + [
+            "Which sets to remove? (esc goes back)",
+            choices=[
                 questionary.Choice(
                     f"{code:<16}"
                     f"{console.sizeof_fmt(inv.sets[code].external_bytes):>10}  "
@@ -295,7 +296,7 @@ def remove(
             qmark="  ",
         )
     )
-    if _backed_out(picked):
+    if not picked:
         return
 
     freed = sum(inv.sets[c].total_bytes for c in picked)

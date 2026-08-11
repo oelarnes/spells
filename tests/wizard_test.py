@@ -453,68 +453,78 @@ def test_a_pre_selected_set_is_labelled_by_reason(data_home, no_network, cat):
 # ---------------------------------------------------------------------------
 
 
-def test_backing_out_of_the_download_list_downloads_nothing(
+def test_escape_leaves_the_download_list(
     data_home, answers, no_network, cat, downloads
 ):
+    """`_ask` returns None on escape, the same as ctrl-c."""
     write_set(data_home, "TST")
     inv = inventory.scan()
-    answers.append([wizard.BACK])
+    answers.append(None)
 
     wizard.download(inv, cat, wizard._check(inv, cat))
     assert downloads == []
 
 
-def test_backing_out_wins_over_anything_else_ticked(
-    data_home, answers, no_network, cat, downloads
-):
-    """Someone who selected it meant to leave, whatever the cursor passed over."""
-    write_set(data_home, "TST")
-    inv = inventory.scan()
-    answers.append([wizard.BACK, "NEW"])
-
-    wizard.download(inv, cat, wizard._check(inv, cat))
-    assert downloads == []
-
-
-def test_backing_out_of_the_event_type_step_downloads_nothing(
+def test_escape_leaves_the_event_type_step(
     data_home, answers, no_network, cat, downloads
 ):
     write_set(data_home, "TST", mtime=OLDER)
     inv = inventory.scan()
-    answers.extend([["TST"], [wizard.BACK]])
+    answers.extend([["TST"], None])
 
     wizard.download(inv, cat, wizard._check(inv, cat))
     assert downloads == []
 
 
-def test_backing_out_of_the_remove_list_deletes_nothing(
-    data_home, answers, no_network, cat, removals
-):
+def test_escape_leaves_the_remove_list(data_home, answers, no_network, cat, removals):
     write_set(data_home, "TST")
-    answers.append([wizard.BACK])
+    answers.append(None)
 
     wizard.remove(inventory.scan(), cat, [])
     assert removals == []
 
 
-def test_every_multi_select_offers_a_way_out(data_home, no_network, cat, monkeypatch):
-    """Backing out has to be visible in the list, not folklore about pressing
-    enter on an empty selection."""
-    write_set(data_home, "TST", mtime=OLDER)
-    seen = []
+def test_escape_is_bound_on_every_prompt(monkeypatch):
+    """questionary binds ctrl-c but not escape, so the walkthrough adds it.
 
+    Not eagerly: escape is also the first byte of an arrow-key sequence.
+    """
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.keys import Keys
+
+    class FakeApp:
+        key_bindings = KeyBindings()
+
+    class FakePrompt:
+        application = FakeApp()
+
+        def ask(self):
+            return "answered"
+
+    prompt = FakePrompt()
+    assert wizard._ask(prompt) == "answered"
+
+    bound = [b for b in FakeApp.key_bindings.bindings if Keys.Escape in b.keys]
+    assert bound
+    assert not any(b.eager() for b in bound)
+
+
+def test_prompts_say_escape_goes_back(data_home, no_network, cat, monkeypatch):
+    """Escape is invisible unless the prompt says so."""
+    messages = []
     monkeypatch.setattr(
         questionary,
         "checkbox",
-        lambda message, choices, **kw: seen.append([c.value for c in choices]) or None,
+        lambda message, choices, **kw: messages.append(message) or None,
     )
     monkeypatch.setattr(wizard, "_ask", lambda p: None)
 
+    write_set(data_home, "TST", mtime=OLDER)
     inv = inventory.scan()
     wizard.download(inv, cat, wizard._check(inv, cat))
     wizard.remove(inv, cat, [])
 
-    assert seen and all(wizard.BACK in choices for choices in seen)
+    assert messages and all("esc" in m for m in messages)
 
 
 # ---------------------------------------------------------------------------
