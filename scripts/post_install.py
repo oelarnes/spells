@@ -3,14 +3,14 @@ import os
 import sys
 from pathlib import Path
 
-from spells.cache import spells_print
+from spells import console
 
 
 def modify_activation_script():
-    spells_print("install", "configuring environment for spells")
+    console.info("configuring environment for spells")
     venv_path = os.environ.get("VIRTUAL_ENV")
     if not venv_path:
-        print("No virtual environment found")
+        console.error("No virtual environment found")
         return
 
     if sys.platform == "win32":
@@ -19,7 +19,7 @@ def modify_activation_script():
         activate_script = Path(venv_path) / "bin" / "activate"
 
     if not activate_script.exists():
-        print(f"Activation script not found at {activate_script}")
+        console.error(f"Activation script not found at {activate_script}")
         return
 
     with open(activate_script, "a") as f:

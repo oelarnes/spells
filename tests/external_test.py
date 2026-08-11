@@ -201,3 +201,51 @@ def test_write_card_file_raises_on_inconsistent_names(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError, match="inconsistent"):
         write_card_file("TST", ["Card A", "Card C"])
+
+
+def _write_set(home, set_code, *event_types):
+    d = home / "external" / set_code
+    d.mkdir(parents=True, exist_ok=True)
+    for event_type in event_types:
+        for view in ("draft", "game", "context"):
+            (d / f"{set_code}_{event_type}_{view}.parquet").write_bytes(b"x" * 10)
+    (d / f"{set_code}_card.parquet").write_bytes(b"x" * 10)
+    return d
+
+
+def test_remove_event_type_keeps_the_rest_of_the_set(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    d = _write_set(tmp_path, "TST", EventType.PREMIER, EventType.TRADITIONAL)
+
+    assert external._remove_event_type("TST", EventType.TRADITIONAL) == 0
+
+    left = sorted(p.name for p in d.iterdir())
+    assert not any(str(EventType.TRADITIONAL) in name for name in left)
+    assert any(str(EventType.PREMIER) in name for name in left)
+    assert "TST_card.parquet" in left
+
+
+def test_remove_event_type_takes_the_set_when_it_was_the_last(tmp_path, monkeypatch):
+    """A card file with no draft data beside it is not a set anyone can use,
+    and nothing can rebuild from it."""
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    d = _write_set(tmp_path, "TST", EventType.PREMIER)
+
+    assert external._remove_event_type("TST", EventType.PREMIER) == 0
+    assert not d.exists()
+
+
+def test_remove_event_type_reports_a_set_it_does_not_have(tmp_path, monkeypatch):
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+
+    assert external._remove_event_type("NOPE", EventType.PREMIER) == 1
+
+
+def test_remove_event_type_reports_an_event_type_it_does_not_have(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("SPELLS_DATA_HOME", str(tmp_path))
+    d = _write_set(tmp_path, "TST", EventType.PREMIER)
+
+    assert external._remove_event_type("TST", EventType.TRADITIONAL) == 1
+    assert d.exists()  # nothing touched
