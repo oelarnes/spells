@@ -484,27 +484,35 @@ def test_escape_leaves_the_remove_list(data_home, answers, no_network, cat, remo
     assert removals == []
 
 
-def test_back_and_quit_are_bound_on_every_prompt():
-    """questionary binds ctrl-c but has no key for backing out or quitting.
+@pytest.mark.parametrize(
+    "build",
+    [
+        pytest.param(lambda: questionary.confirm("x"), id="confirm"),
+        pytest.param(lambda: questionary.select("x", choices=["a"]), id="select"),
+        pytest.param(lambda: questionary.checkbox("x", choices=["a"]), id="checkbox"),
+    ],
+)
+def test_back_and_quit_bind_to_every_real_prompt(build):
+    """Against real questionary objects, not a stand-in.
 
-    Eager, like its own `a` and `i`: a plain letter needs no disambiguation.
+    `confirm` is built on a PromptSession, which hands the application bindings
+    already merged with its own — an object with no `.add`. Binding by appending
+    raised AttributeError on every confirmation in the walkthrough, and a fake
+    prompt carrying a plain KeyBindings did not notice.
     """
-    from prompt_toolkit.key_binding import KeyBindings
+    prompt = build()
+    wizard._bind_keys(prompt)
 
-    class FakeApp:
-        key_bindings = KeyBindings()
+    keys = {k for b in prompt.application.key_bindings.bindings for k in b.keys}
+    assert {wizard.BACK_KEY, wizard.QUIT_KEY} <= keys
 
-    class FakePrompt:
-        application = FakeApp()
 
+def test_binding_tolerates_a_prompt_with_no_application():
+    class Bare:
         def ask(self):
             return "answered"
 
-    assert wizard._ask(FakePrompt()) == "answered"
-
-    bound = {k for b in FakeApp.key_bindings.bindings for k in b.keys}
-    assert {wizard.BACK_KEY, wizard.QUIT_KEY} <= bound
-    assert all(b.eager() for b in FakeApp.key_bindings.bindings)
+    assert wizard._ask(Bare()) == "answered"
 
 
 def test_quitting_from_a_nested_prompt_leaves_the_walkthrough(
@@ -546,3 +554,82 @@ def test_pick_prompts_name_the_keys_questionary_cannot(
 
     assert instructions
     assert all(i and "<b> back" in i and "<q> quit" in i for i in instructions)
+
+
+# ---------------------------------------------------------------------------
+# Removing one event type
+# ---------------------------------------------------------------------------
+
+
+def test_remove_asks_which_event_types_when_several_are_held(
+    data_home, answers, no_network, cat, removals, monkeypatch
+):
+    partial = []
+    monkeypatch.setattr(
+        wizard.external,
+        "_remove_event_type",
+        lambda s, e: partial.append((s, e)) or 0,
+    )
+    write_set(data_home, "TST", EventType.PREMIER)
+    write_set(data_home, "TST", EventType.TRADITIONAL)
+    answers.extend([["TST"], [EventType.TRADITIONAL], True])
+
+    wizard.remove(inventory.scan(), cat, [])
+
+    assert partial == [("TST", EventType.TRADITIONAL)]
+    assert removals == []  # the set survives, so no whole-set removal
+
+
+def test_remove_does_not_ask_when_only_one_event_type_is_held(
+    data_home, answers, no_network, cat, removals
+):
+    write_set(data_home, "TST")
+    answers.extend([["TST"], True])
+
+    wizard.remove(inventory.scan(), cat, [])
+
+    assert answers == []  # sets, then confirm — no event-type step
+    assert removals == ["TST"]
+
+
+def test_taking_every_event_type_removes_the_whole_set(
+    data_home, answers, no_network, cat, removals, monkeypatch
+):
+    """Otherwise the card file and directory would be left behind."""
+    partial = []
+    monkeypatch.setattr(
+        wizard.external,
+        "_remove_event_type",
+        lambda s, e: partial.append((s, e)) or 0,
+    )
+    write_set(data_home, "TST", EventType.PREMIER)
+    write_set(data_home, "TST", EventType.TRADITIONAL)
+    answers.extend([["TST"], [EventType.PREMIER, EventType.TRADITIONAL], True])
+
+    wizard.remove(inventory.scan(), cat, [])
+
+    assert removals == ["TST"]
+    assert partial == []
+
+
+def test_removal_size_counts_only_the_chosen_event_types(data_home, no_network, cat):
+    write_set(data_home, "TST", EventType.PREMIER)
+    write_set(data_home, "TST", EventType.TRADITIONAL)
+    inv = inventory.scan()
+
+    one = wizard._removal_size(inv, "TST", [EventType.TRADITIONAL])
+    both = wizard._removal_size(inv, "TST", [EventType.PREMIER, EventType.TRADITIONAL])
+
+    assert 0 < one < both
+    assert both == inv.sets["TST"].total_bytes  # card file included when all goes
+
+
+def test_backing_out_of_the_event_type_step_removes_nothing(
+    data_home, answers, no_network, cat, removals
+):
+    write_set(data_home, "TST", EventType.PREMIER)
+    write_set(data_home, "TST", EventType.TRADITIONAL)
+    answers.extend([["TST"], None])
+
+    wizard.remove(inventory.scan(), cat, [])
+    assert removals == []

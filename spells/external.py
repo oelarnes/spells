@@ -113,6 +113,42 @@ def _remove(set_code: str):
     return cache.clean(set_code)
 
 
+def _remove_event_type(set_code: str, event_type: EventType) -> int:
+    """Delete one event type's datasets, leaving the rest of the set.
+
+    The card file describes the whole set, so it only goes when the last event
+    type does — a card file with no draft data beside it is not something the
+    scanner would call a set, and nothing can rebuild from it.
+    """
+    dir_path = cache.external_set_path(set_code)
+    if not os.path.isdir(dir_path):
+        console.info(f"No external cache found for set {set_code}")
+        return 1
+
+    prefix = f"{set_code}_{event_type}_"
+    removed = 0
+    with os.scandir(dir_path) as entries:
+        for entry in entries:
+            if entry.name.startswith(prefix):
+                os.remove(entry.path)
+                removed += 1
+
+    if not removed:
+        console.info(f"No {event_type} data found for set {set_code}")
+        return 1
+
+    console.info(f"Removed {removed} {event_type} files for set {set_code}")
+
+    leftovers = [e.name for e in os.scandir(dir_path)]
+    if all(name == f"{set_code}_card.parquet" for name in leftovers):
+        for name in leftovers:
+            os.remove(os.path.join(dir_path, name))
+        os.rmdir(dir_path)
+        console.info(f"Removed {set_code}; no event types left")
+
+    return cache.clean(set_code)
+
+
 def _process_zipped_file(gzip_path, target_path):
     csv_path = gzip_path[:-3]
     # if polars supports streaming from file obj, we can just stream straight

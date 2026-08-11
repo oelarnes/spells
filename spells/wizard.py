@@ -15,6 +15,7 @@ way out of being needed.
 from dataclasses import dataclass, replace
 
 import questionary
+from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 
 from spells import cache, catalog, console, external, inventory, render, repair
 from spells.catalog import CheckRow, Freshness, Target
@@ -63,22 +64,30 @@ class Quit(Exception):
 def _bind_keys(prompt) -> None:
     """Add `b` and `q`, which questionary has no keys for.
 
+    Merged rather than added to: `confirm` is built on a PromptSession, which
+    combines its own bindings with questionary's and hands the application an
+    already-merged set that cannot be appended to.
+
     Eager, like questionary's own `a` and `i`: an ordinary letter needs no
     disambiguation. Escape would read more naturally but is the first byte of
     every arrow-key sequence, so it cannot be answered until prompt_toolkit has
     waited to see whether more follows.
     """
-    bindings = getattr(getattr(prompt, "application", None), "key_bindings", None)
-    if bindings is None:
+    app = getattr(prompt, "application", None)
+    if app is None or getattr(app, "key_bindings", None) is None:
         return
 
-    @bindings.add(BACK_KEY, eager=True)
+    extra = KeyBindings()
+
+    @extra.add(BACK_KEY, eager=True)
     def _back(event):
         event.app.exit(result=None)
 
-    @bindings.add(QUIT_KEY, eager=True)
+    @extra.add(QUIT_KEY, eager=True)
     def _quit(event):
         event.app.exit(exception=Quit)
+
+    app.key_bindings = merge_key_bindings([app.key_bindings, extra])
 
 
 def _ask(prompt) -> object | None:
@@ -295,6 +304,30 @@ def download(
         external._add(candidate.expansion, event_type=candidate.event_type)
 
 
+def _removal_size(
+    inv: inventory.Inventory, code: str, event_types: list[EventType]
+) -> int:
+    """Bytes freed by dropping these event types from one set.
+
+    The card file and derived cache only count when the last event type goes,
+    since those survive a partial removal.
+    """
+    set_inv = inv.sets[code]
+    wanted = [e for e in set_inv.events if e in event_types]
+    if set(wanted) == set(set_inv.events):
+        return set_inv.total_bytes
+
+    return sum(
+        info.size
+        for event_type in wanted
+        for info in (
+            getattr(set_inv.events[event_type], view)
+            for view in inventory.DATASET_VIEWS
+        )
+        if info is not None
+    )
+
+
 def remove(
     inv: inventory.Inventory, cat: catalog.Catalog, rows: list[CheckRow]
 ) -> None:
@@ -322,10 +355,38 @@ def remove(
     if not picked:
         return
 
-    freed = sum(inv.sets[c].total_bytes for c in picked)
+    held_events = sorted({e for c in picked for e in inv.sets[c].events}, key=str)
+    if len(held_events) > 1:
+        picked_events = _ask(
+            questionary.checkbox(
+                "Which event types?",
+                instruction=PICK_KEYS,
+                choices=[
+                    questionary.Choice(str(e), value=e, checked=True)
+                    for e in held_events
+                ],
+                qmark="  ",
+            )
+        )
+        if not picked_events:
+            return
+        held_events = list(picked_events)
+
+    targets = [
+        (code, event_type)
+        for code in picked
+        for event_type in inv.sets[code].events
+        if event_type in held_events
+    ]
+    if not targets:
+        console.info("Nothing selected on disk.")
+        return
+
+    freed = sum(_removal_size(inv, code, held_events) for code in picked)
     if not _ask(
         questionary.confirm(
-            f"Delete {len(picked)} set(s), freeing {console.sizeof_fmt(freed)}?",
+            f"Delete {len(targets)} dataset(s), freeing "
+            f"{console.sizeof_fmt(freed)}?",
             default=False,
             qmark="  ",
         )
@@ -333,8 +394,16 @@ def remove(
         return
 
     for code in picked:
-        _echo_command(f"spells remove {code} --yes")
-        external._remove(code)
+        wanted = [e for e in inv.sets[code].events if e in held_events]
+        # taking every event type takes the card file and directory with it,
+        # which the whole-set path already does
+        if set(wanted) == set(inv.sets[code].events):
+            _echo_command(f"spells remove {code} --yes")
+            external._remove(code)
+        else:
+            for event_type in wanted:
+                _echo_command(f"spells remove {code} {event_type}")
+                external._remove_event_type(code, event_type)
 
 
 def free_space(
