@@ -1,5 +1,19 @@
 # 🪄 spells ✨
 
+## Start here
+
+With the environment active, run:
+
+```
+$ spells
+```
+
+That walks you through downloading sets, updating them, and clearing out files
+that are no longer readable — and prints the equivalent command for whatever it
+does, so the individual verbs below are still there when you want them.
+
+---
+
 **spells** is a python package that tutors up blazing-fast and extensible analysis of the public data sets provided by [17Lands](https://www.17lands.com/) and exiles the annoying and slow parts of your workflow. Spells exposes one first-class function, `summon`, which summons a Polars DataFrame to the battlefield.
 
 ```
