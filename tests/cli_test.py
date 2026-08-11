@@ -617,3 +617,20 @@ def test_cards_does_not_report_itself_as_add(card_set):
     output = runner.invoke(cli.app, ["cards", "TST"]).output
     assert "Checking card file" in output
     assert "add" not in output.split("Checking")[0]
+
+
+def test_status_omits_the_snapshots_column_when_there_are_none(data_home):
+    """Snapshots only exist for callers of the private ratings API, so for most
+    users the column is a header over a column of dashes."""
+    out = runner.invoke(cli.app, ["status"]).output
+
+    assert "snapshots" not in out
+    assert "event types" in out
+
+
+def test_status_shows_the_snapshots_column_when_there_are_some(data_home):
+    snaps = data_home / "ratings" / "TST"
+    snaps.mkdir(parents=True)
+    (snaps / "PremierDraft_all_any_ALL_TIME_2026-07-14.json").write_text("[]")
+
+    assert "snapshots" in runner.invoke(cli.app, ["status"]).output

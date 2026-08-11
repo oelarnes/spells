@@ -81,23 +81,30 @@ def _render_status(
         console.print("  [dim]No data found. Try `spells add DSK`.[/dim]")
         return
 
+    # snapshots only exist for callers of the private ratings API, so for most
+    # users the column would be a header over a column of dashes
+    show_snapshots = any(s.ratings.total or s.deck_color.total for s in sets)
+
     table = Table(box=None, pad_edge=False, header_style="bold")
     table.add_column("set")
     table.add_column("external", justify="right")
     table.add_column("cards", justify="center")
     table.add_column("cache", justify="right")
-    table.add_column("snapshots", justify="right")
+    if show_snapshots:
+        table.add_column("snapshots", justify="right")
     table.add_column("event types")
 
     for s in sets:
-        table.add_row(
+        row = [
             s.set_code,
             sizeof_fmt(s.external_bytes) if s.external_bytes else "[dim]—[/dim]",
             "✓" if s.card_file else "[dim]—[/dim]",
             str(s.cache_files) if s.cache_files else "[dim]—[/dim]",
-            _snapshot_summary(s),
-            _event_summary(s),
-        )
+        ]
+        if show_snapshots:
+            row.append(_snapshot_summary(s))
+        row.append(_event_summary(s))
+        table.add_row(*row)
 
     console.print(Padding(table, (0, 0, 0, 2)))
 
