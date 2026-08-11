@@ -34,6 +34,9 @@ DF = TypeVar("DF", pl.LazyFrame, pl.DataFrame)
 # for the second, so they describe only that card
 FIRST_PICK_ONLY = (ColName.PICK_MAINDECK_RATE, ColName.PICK_SIDEBOARD_IN_RATE)
 
+# every draft row is a first pick until a pick-two row is split into two
+PICK_ORDINAL_FIRST = pl.lit(1, dtype=pl.Int8).alias(ColName.PICK_ORDINAL)
+
 # bumped when the meaning of a pick-two aggregate changes, since the column
 # definitions can stay identical while every total moves
 PICK_TWO_AGG_VERSION = 2
@@ -413,7 +416,7 @@ def _pick_events(
     for the first can say so — `num_drafts` counts drafts rather than cards,
     and 17Lands computes the maindeck rates from the first pick alone.
     """
-    first = _with_pick_ordinal(draft_df, view)
+    first = draft_df.with_columns(PICK_ORDINAL_FIRST)
     if view != View.DRAFT or event_type != EventType.PICK_TWO:
         return first
 
@@ -431,18 +434,6 @@ def _pick_events(
         ),
     )
     return pl.concat([first.drop(ColName.PICK_2), second], how="vertical_relaxed")
-
-
-def _with_pick_ordinal(draft_df: pl.LazyFrame, view: View) -> pl.LazyFrame:
-    """Make `pick_ordinal` available without splitting any row.
-
-    A row-level view keeps one row per pick row, with `pick_2` beside `pick`,
-    so the row is always the first pick. The column still has to resolve there:
-    the same definitions serve both that view and the aggregation.
-    """
-    if view != View.DRAFT:
-        return draft_df
-    return draft_df.with_columns(pl.lit(1, dtype=pl.Int8).alias(ColName.PICK_ORDINAL))
 
 
 def _base_agg_df(
@@ -839,7 +830,7 @@ def lazy_select(
     )
 
     df_path = cache.data_file_path(set_code, view, event_type)
-    base_view_df = _with_pick_ordinal(pl.scan_parquet(df_path), view)
+    base_view_df = pl.scan_parquet(df_path).with_columns(PICK_ORDINAL_FIRST)
 
     select_cols = frozenset(columns)
 

@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 
 from spells import summon
-from spells.draft_data import _pick_events, _with_pick_ordinal
+from spells.draft_data import PICK_ORDINAL_FIRST, _pick_events
 from spells.enums import ColName, EventType, View
 
 PREMIER = EventType.PREMIER
@@ -63,11 +63,13 @@ def test_a_single_pick_row_stays_one_event(rows):
     assert out[ColName.PICK_ORDINAL].to_list() == [1, 1]
 
 
-def test_the_game_view_is_untouched():
+def test_the_game_view_is_never_split():
+    """It carries the ordinal too, which costs nothing because a view only ever
+    selects the columns asked of it — but a game is one row however it drafted."""
     game = pl.LazyFrame({"draft_id": ["a"], "won": [1]})
-    assert _pick_events(game, View.GAME, PICK_TWO).collect().to_dicts() == [
-        {"draft_id": "a", "won": 1}
-    ]
+    out = _pick_events(game, View.GAME, PICK_TWO).collect()
+
+    assert out[["draft_id", "won"]].to_dicts() == [{"draft_id": "a", "won": 1}]
 
 
 def test_first_pick_only_columns_are_absent_from_the_second_event(rows):
@@ -90,7 +92,7 @@ def test_first_pick_only_columns_survive_on_the_first_event(rows):
 def test_a_row_level_view_keeps_one_row_and_both_picks(rows):
     """`lazy_select` reconstructs drafts, so it must not split anything — but
     the column still has to resolve, since one set of definitions serves both."""
-    out = _with_pick_ordinal(rows, View.DRAFT).collect()
+    out = rows.with_columns(PICK_ORDINAL_FIRST).collect()
 
     assert len(out) == 2
     assert ColName.PICK_2 in out.columns
