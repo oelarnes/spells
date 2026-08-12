@@ -116,6 +116,35 @@ def test_pick_two_counts_both_picks(fake_pick_two):
     assert df[ColName.NUM_TAKEN].sum() == 2 * fake_pick_two
 
 
+def test_per_pack_columns_do_not_double(fake_pick_two):
+    """Both picks come out of one pack, so a card was offered once however many
+    picks the row records. 17Lands counts it that way and `num_seen` is compared
+    against theirs, so this is not a matter of taste."""
+    df = summon(
+        "TST",
+        columns=[ColName.NUM_SEEN],
+        event_type=PICK_TWO,
+        read_cache=False,
+        write_cache=False,
+    )
+    # every card is in every pack, so each row offers all of them once
+    assert df[ColName.NUM_SEEN].sum() == fake_pick_two * len(df)
+
+
+def test_per_pack_and_per_pick_columns_agree_in_one_query(fake_pick_two):
+    """The two live on separate row counts, so asking for both at once is what
+    breaks if a single base frame feeds them."""
+    df = summon(
+        "TST",
+        columns=[ColName.NUM_SEEN, ColName.NUM_TAKEN],
+        event_type=PICK_TWO,
+        read_cache=False,
+        write_cache=False,
+    )
+    assert df[ColName.NUM_SEEN].sum() == fake_pick_two * len(df)
+    assert df[ColName.NUM_TAKEN].sum() == 2 * fake_pick_two
+
+
 def test_num_drafts_counts_drafts_not_cards(fake_pick_two):
     """The second pick is the same draft, so this one must not double."""
     df = summon(
