@@ -71,6 +71,16 @@ def test_status_reports_anomalies(data_home):
     assert "stray-download" in result.stdout
 
 
+def test_status_renders_an_empty_set_directory(data_home):
+    """The anomaly summary looks up help text per kind, so a kind with no entry
+    took down every caller that renders status — the walkthrough included."""
+    (data_home / "external" / "STH").mkdir(parents=True)
+
+    result = runner.invoke(cli.app, ["status"])
+    assert result.exit_code == 0, result.exception
+    assert "empty-set" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # add / refresh dispatch
 # ---------------------------------------------------------------------------

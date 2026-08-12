@@ -11,9 +11,9 @@ import json
 
 import pytest
 
-from spells import inventory
+from spells import inventory, repair
 from spells.enums import EventType, TimePeriod
-from spells.inventory import AnomalyKind, is_valid_snapshot
+from spells.inventory import AnomalyKind, Remedy, is_valid_snapshot
 
 
 @pytest.fixture
@@ -252,6 +252,67 @@ def test_draft_logs_are_counted(data_home):
 
     inv = inventory.scan()
     assert inv.draft_logs == 3
+
+
+# ---------------------------------------------------------------------------
+# Empty set directories
+# ---------------------------------------------------------------------------
+
+
+def _empty_anomalies(inv):
+    return [a for a in inv.all_anomalies if a.kind == AnomalyKind.EMPTY_SET]
+
+
+def test_an_empty_set_directory_is_reported(data_home):
+    """`add` makes the directory before downloading, so a 404 leaves a shell.
+    Nothing else catches it: no files means no event, so no incomplete set."""
+    (data_home / "external" / "Powered Cube").mkdir(parents=True)
+
+    (anomaly,) = _empty_anomalies(inventory.scan())
+    assert anomaly.set_code == "Powered Cube"
+    assert anomaly.path == data_home / "external" / "Powered Cube"
+
+
+def test_an_empty_set_directory_is_removable(data_home):
+    """Advisory is the default for anything spells did not write, but an empty
+    directory has no contents to judge."""
+    (data_home / "external" / "TST").mkdir(parents=True)
+
+    (anomaly,) = _empty_anomalies(inventory.scan())
+    assert anomaly.is_repairable
+    assert anomaly.remedy == Remedy.DELETE_PATH
+
+
+def test_a_set_directory_with_files_is_not_empty(data_home):
+    write_external(data_home, "TST", "TST_card.parquet")
+
+    assert _empty_anomalies(inventory.scan()) == []
+
+
+@pytest.mark.parametrize("store", ["external", "cache", "ratings", "deck_color"])
+def test_every_per_set_store_is_checked(data_home, store):
+    (data_home / store / "TST").mkdir(parents=True)
+
+    (anomaly,) = _empty_anomalies(inventory.scan())
+    assert store in anomaly.detail
+
+
+def test_draft_logs_are_not_mistaken_for_set_directories(data_home):
+    """`draft` holds log files directly, so its subdirectories are not sets."""
+    (data_home / "draft" / "somedir").mkdir(parents=True)
+
+    assert _empty_anomalies(inventory.scan()) == []
+
+
+def test_repair_deletes_an_empty_set_directory(data_home):
+    shell = data_home / "external" / "Powered Cube"
+    shell.mkdir(parents=True)
+
+    repairs = repair.plan(inventory.scan())
+    assert [p for r in repairs for p in r.paths] == [shell]
+
+    repair.apply(repairs)
+    assert not shell.exists()
 
 
 def test_sets_are_unioned_across_stores(data_home):

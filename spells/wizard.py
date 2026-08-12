@@ -521,8 +521,10 @@ def _menu(
 
     repairs = repair.plan(inv)
     if repairs:
-        freed = console.sizeof_fmt(sum(r.size for r in repairs))
-        actions.append(Action("repair", "Remove unusable files", freed))
+        size = sum(r.size for r in repairs)
+        # an empty directory reclaims nothing, and "0.0B" reads like a no-op
+        detail = console.sizeof_fmt(size) if size else f"{len(repairs)} to tidy up"
+        actions.append(Action("repair", "Remove unusable files", detail))
 
     files, size = _cache_totals(inv)
     if files:

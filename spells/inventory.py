@@ -28,6 +28,9 @@ _LOG_DIR = ".logs"
 
 KNOWN_DIRS = frozenset({*(d.value for d in DataDir), "ad_hoc", _LOG_DIR})
 
+# stores laid out one directory per set; `draft` holds log files directly
+SET_STORES = (DataDir.EXTERNAL, DataDir.CACHE, DataDir.RATINGS, DataDir.DECK_COLOR)
+
 
 class AnomalyKind(StrEnum):
     STRAY_DOWNLOAD = "stray-download"
@@ -37,6 +40,7 @@ class AnomalyKind(StrEnum):
     ORPHAN_DIR = "orphan-dir"
     UNKNOWN_FILE = "unknown-file"
     INCOMPLETE_SET = "incomplete-set"
+    EMPTY_SET = "empty-set"
 
 
 class Remedy(StrEnum):
@@ -47,11 +51,13 @@ class Remedy(StrEnum):
 
 # Only files spells can rebuild or can no longer read are removable. Anything
 # whose contents are unknown, or that spells never wrote, is reported for a
-# human to judge — deleting it is not ours to decide.
+# human to judge — deleting it is not ours to decide. An empty directory is
+# removable because there is nothing in it to judge.
 REMEDIES = {
     AnomalyKind.STRAY_DOWNLOAD: Remedy.DELETE_PATH,
     AnomalyKind.LEGACY_CONTEXT: Remedy.DELETE_PATH,
     AnomalyKind.ORPHAN_CACHE: Remedy.DELETE_PATH,
+    AnomalyKind.EMPTY_SET: Remedy.DELETE_PATH,
     AnomalyKind.LEGACY_SNAPSHOT: Remedy.PRUNE_LEGACY_SNAPSHOTS,
     AnomalyKind.ORPHAN_DIR: Remedy.ADVISORY,
     AnomalyKind.UNKNOWN_FILE: Remedy.ADVISORY,
@@ -338,6 +344,22 @@ def scan() -> Inventory:
         for set_dir in _set_dirs(store):
             inv = set_inv(set_dir.name)
             setattr(inv, attr, _scan_snapshots(inv, set_dir, store))
+
+    # `add` makes the set directory before it downloads, so a download that
+    # never lands leaves a shell behind, as does a set whose snapshots were all
+    # pruned. Nothing else reports it: with no files there is no event to be
+    # missing, and so no incomplete set either.
+    for store in SET_STORES:
+        for set_dir in _set_dirs(store):
+            if not any(set_dir.iterdir()):
+                set_inv(set_dir.name).anomalies.append(
+                    Anomaly(
+                        AnomalyKind.EMPTY_SET,
+                        set_dir,
+                        f"nothing in the {store} directory for this set",
+                        set_dir.name,
+                    )
+                )
 
     for inv in inventory.sets.values():
         if inv.cache_files and not inv.has_external:
