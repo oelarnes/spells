@@ -39,7 +39,7 @@ PICK_ORDINAL_FIRST = pl.lit(1, dtype=pl.Int8).alias(ColName.PICK_ORDINAL)
 
 # bumped when the meaning of a pick-two aggregate changes, since the column
 # definitions can stay identical while every total moves
-PICK_TWO_AGG_VERSION = 2
+PICK_TWO_AGG_VERSION = 3
 
 
 def _cache_key(args) -> str:
@@ -402,6 +402,18 @@ def _fetch_or_cache(
     return df
 
 
+def _prepared(
+    frame: pl.LazyFrame, cols_for_view: frozenset[str], m: manifest.Manifest
+) -> pl.LazyFrame:
+    """Resolve a base view's columns and apply the manifest filter.
+
+    Taken per frame rather than once, because the per-pick and per-pack
+    aggregations do not agree on how many rows a pick-two row is.
+    """
+    selected = _view_select(frame, cols_for_view, m.col_def_map, is_agg_view=False)
+    return selected.filter(m.filter.expr) if m.filter is not None else selected
+
+
 def _pick_events(
     draft_df: pl.LazyFrame, view: View, event_type: EventType
 ) -> pl.LazyFrame:
@@ -452,15 +464,7 @@ def _base_agg_df(
         if view == View.CARD:
             continue
         df_path = cache.data_file_path(set_code, view, event_type)
-        base_view_df = _pick_events(pl.scan_parquet(df_path), view, event_type)
-        base_df_prefilter = _view_select(
-            base_view_df, cols_for_view, m.col_def_map, is_agg_view=False
-        )
-
-        if m.filter is not None:
-            base_df = base_df_prefilter.filter(m.filter.expr)
-        else:
-            base_df = base_df_prefilter
+        raw_df = pl.scan_parquet(df_path)
 
         sum_cols = tuple(
             c
@@ -477,7 +481,11 @@ def _base_agg_df(
                 (pl.col(ColName.PICK).alias(ColName.NAME),) if is_name_gb else ()
             )
 
-            sum_col_df = base_df.select(nonname_gb + name_col_tuple + sum_cols)
+            # per pick, so a pick-two row counts as the two picks it records
+            per_pick_df = _prepared(
+                _pick_events(raw_df, view, event_type), cols_for_view, m
+            )
+            sum_col_df = per_pick_df.select(nonname_gb + name_col_tuple + sum_cols)
 
             grouped = sum_col_df.group_by(group_by) if group_by else sum_col_df
             with warnings.catch_warnings():
@@ -488,11 +496,19 @@ def _base_agg_df(
                 )
                 join_dfs.append(grouped.sum().collect(streaming=use_streaming))
 
+        # per pack, and both picks of a pick-two row come out of one pack, so
+        # this counts the row once however many picks it records
+        per_pack_df = (
+            _prepared(raw_df.with_columns(PICK_ORDINAL_FIRST), cols_for_view, m)
+            if name_sum_cols
+            else None
+        )
+
         for col in name_sum_cols:
             names = get_names(set_code)
             expr = tuple(pl.col(f"{col}_{name}").alias(name) for name in names)
 
-            pre_agg_df = base_df.select(expr + nonname_gb)
+            pre_agg_df = per_pack_df.select(expr + nonname_gb)
 
             if nonname_gb:
                 agg_df = pre_agg_df.group_by(nonname_gb).sum()
