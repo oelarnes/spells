@@ -64,17 +64,17 @@ def test_add_traditional_downloads_full_set_with_context(record_io):
     assert record_io["context"] == [("TST", EventType.TRADITIONAL)]
 
 
-def test_add_pick_two_skips_only_set_context(record_io):
+def test_add_pick_two_builds_a_set_context_like_any_other(record_io):
+    """The context carries the ALSA mask, which is the one thing a pick-two
+    format does not share with the rest."""
     external._add("OM1", event_type=EventType.PICK_TWO)
 
-    # draft + game + card download identically; only the summon-driven set
-    # context is skipped for multi-pick formats
     assert record_io["download"] == [
         ("OM1", View.DRAFT, EventType.PICK_TWO),
         ("OM1", View.GAME, EventType.PICK_TWO),
     ]
     assert record_io["card"] == [("OM1", FAKE_NAMES)]
-    assert record_io["context"] == []
+    assert record_io["context"] == [("OM1", EventType.PICK_TWO)]
 
 
 def test_refresh_card_only_rebuilds_from_existing_draft_file(record_io, monkeypatch):
