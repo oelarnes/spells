@@ -11,7 +11,8 @@ import polars as pl
 import pytest
 
 from spells import summon
-from spells.draft_data import PICK_ORDINAL_FIRST, _pick_events
+from spells.columns import PACKS_SEEN_COL
+from spells.draft_data import _pick_events, _pick_ordinal_col
 from spells.enums import ColName, EventType, View
 
 PREMIER = EventType.PREMIER
@@ -92,7 +93,7 @@ def test_first_pick_only_columns_survive_on_the_first_event(rows):
 def test_a_row_level_view_keeps_one_row_and_both_picks(rows):
     """`lazy_select` reconstructs drafts, so it must not split anything — but
     the column still has to resolve, since one set of definitions serves both."""
-    out = rows.with_columns(PICK_ORDINAL_FIRST).collect()
+    out = rows.with_columns(_pick_ordinal_col(1)).collect()
 
     assert len(out) == 2
     assert ColName.PICK_2 in out.columns
@@ -143,6 +144,37 @@ def test_per_pack_and_per_pick_columns_agree_in_one_query(fake_pick_two):
     )
     assert df[ColName.NUM_SEEN].sum() == fake_pick_two * len(df)
     assert df[ColName.NUM_TAKEN].sum() == 2 * fake_pick_two
+
+
+def test_a_pick_two_pack_is_seen_half_as_many_picks_deep():
+    """17Lands stops calling a card seen a fixed distance into the pack. Two
+    cards a pick covers that distance in half the picks, and their published
+    ALSA agrees: at 4 it matches per-card to 0.01, at 8 it is off by 0.25."""
+    rows = pl.DataFrame({ColName.EVENT_TYPE: [str(PREMIER), str(PICK_TWO)]})
+
+    assert rows.select(PACKS_SEEN_COL.alias("d"))["d"].to_list() == [8, 4]
+
+
+def test_the_depth_is_read_off_the_row(fake_pick_two):
+    """One query spanning both formats gives each its own depth, which an
+    argument threaded in from the caller could not do."""
+    rows = pl.DataFrame(
+        {ColName.EVENT_TYPE: [str(PICK_TWO), str(PREMIER), str(PICK_TWO)]}
+    )
+
+    assert rows.select(PACKS_SEEN_COL.alias("d"))["d"].to_list() == [4, 8, 4]
+
+
+def test_both_formats_aggregate_together(fake_pick_two):
+    df = summon(
+        "TST",
+        columns=[ColName.NUM_SEEN],
+        group_by=[ColName.EVENT_TYPE],
+        event_type=[PREMIER, PICK_TWO],
+        read_cache=False,
+        write_cache=False,
+    )
+    assert set(df[ColName.EVENT_TYPE]) == {str(PREMIER), str(PICK_TWO)}
 
 
 def test_num_drafts_counts_drafts_not_cards(fake_pick_two):

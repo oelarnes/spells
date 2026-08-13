@@ -16,6 +16,12 @@ class ColSpec:
 
 P1P1_MISSING_SETS = frozenset({"TLA", "TMT", "ECL"})
 
+PACKS_SEEN_COL = (
+    pl.when(pl.col(ColName.EVENT_TYPE) == EventType.PICK_TWO)
+    .then(pl.lit(4))
+    .otherwise(pl.lit(8))
+)
+
 
 @dataclass(frozen=True)
 class ColDef:
@@ -76,9 +82,11 @@ _specs: dict[str, ColSpec] = {
     ColName.FORMAT_DAY: ColSpec(
         col_type=ColType.GROUP_BY,
         expr=lambda set_context: (
-            pl.col(ColName.DRAFT_DATE) - pl.lit(set_context["release_date"])
-        ).dt.total_days()
-        + 1,
+            (
+                pl.col(ColName.DRAFT_DATE) - pl.lit(set_context["release_date"])
+            ).dt.total_days()
+            + 1
+        ),
     ),
     ColName.DRAFT_DAY_OF_WEEK: ColSpec(
         col_type=ColType.GROUP_BY,
@@ -176,8 +184,10 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.PICK_INDEX: ColSpec(
         col_type=ColType.GROUP_BY,
-        expr=lambda set_context: pl.col(ColName.PICK_NUMBER)
-        + pl.col(ColName.PACK_NUMBER) * set_context["picks_per_pack"],
+        expr=lambda set_context: (
+            pl.col(ColName.PICK_NUMBER)
+            + pl.col(ColName.PACK_NUMBER) * set_context["picks_per_pack"]
+        ),
     ),
     ColName.TAKEN_AT: ColSpec(
         col_type=ColType.PICK_SUM,
@@ -210,11 +220,8 @@ _specs: dict[str, ColSpec] = {
         col_type=ColType.FILTER_ONLY,
         views=[View.DRAFT],
     ),
+    # Added to distinguish pick 1 pass from pick 2 pass for PICK_SUM columns
     ColName.PICK_ORDINAL: ColSpec(
-        # 1 everywhere except the second pick of a pick-two row, so a column
-        # that only holds for the first can say which it means. Grouping by it
-        # separates the card a drafter reached for from the one they took
-        # alongside it — the two are not interchangeable.
         col_type=ColType.GROUP_BY,
         views=[View.DRAFT],
     ),
@@ -232,21 +239,22 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.LAST_SEEN: ColSpec(
         col_type=ColType.NAME_SUM,
-        expr=lambda name: pl.col(f"pack_card_{name}")
-        * pl.min_horizontal(ColName.PICK_NUM, 8),
+        expr=lambda name: (
+            pl.col(f"pack_card_{name}")
+            * pl.min_horizontal(ColName.PICK_NUM, PACKS_SEEN_COL)
+        ),
     ),
     ColName.NUM_SEEN: ColSpec(
         col_type=ColType.NAME_SUM,
-        expr=lambda name: pl.col(f"pack_card_{name}") * (pl.col(ColName.PICK_NUM) <= 8),
+        expr=lambda name: (
+            pl.col(f"pack_card_{name}") * (pl.col(ColName.PICK_NUM) <= PACKS_SEEN_COL)
+        ),
     ),
     ColName.POOL: ColSpec(
         col_type=ColType.NAME_SUM,
         views=[View.DRAFT],
     ),
     ColName.POOL_COUNT: ColSpec(
-        # Cards in the pool before this pick, summed across pool_ columns. Note
-        # this undercounts multi-pick formats (PickTwoDraft), whose public
-        # pool_ columns only track the `pick` card, not pick_2.
         col_type=ColType.PICK_SUM,
         views=[View.DRAFT],
         expr=lambda names: pl.sum_horizontal(
@@ -440,13 +448,16 @@ _specs: dict[str, ColSpec] = {
     ),
     ColName.DECK_MANA_VALUE: ColSpec(
         col_type=ColType.NAME_SUM,
-        expr=lambda name, card_context: card_context[name][ColName.MANA_VALUE]
-        * pl.col(f"deck_{name}"),
+        expr=lambda name, card_context: (
+            card_context[name][ColName.MANA_VALUE] * pl.col(f"deck_{name}")
+        ),
     ),
     ColName.DECK_LANDS: ColSpec(
         col_type=ColType.NAME_SUM,
-        expr=lambda name, card_context: pl.col(f"deck_{name}")
-        * (1 if "Land" in card_context[name][ColName.CARD_TYPE] else 0),
+        expr=lambda name, card_context: (
+            pl.col(f"deck_{name}")
+            * (1 if "Land" in card_context[name][ColName.CARD_TYPE] else 0)
+        ),
     ),
     ColName.DECK_SPELLS: ColSpec(
         col_type=ColType.NAME_SUM,
