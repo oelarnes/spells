@@ -116,8 +116,10 @@ def test_incomplete_set_is_flagged(data_home):
     assert "game" in anomaly.detail and "context" in anomaly.detail
 
 
-def test_pick_two_set_is_complete_without_context(data_home):
-    # summon skips set context for multi-pick formats
+def test_pick_two_set_needs_a_context_like_any_other(data_home):
+    """It used to be excused one, back when summon ignored the second pick.
+    The context carries the ALSA mask now, so a set without one reads a pack
+    eight picks deep when it should read four."""
     write_external(
         data_home,
         "OM1",
@@ -127,8 +129,8 @@ def test_pick_two_set_is_complete_without_context(data_home):
     )
     inv = inventory.scan()
 
-    assert inv.sets["OM1"].events[EventType.PICK_TWO].is_complete
-    assert inv.sets["OM1"].anomalies == []
+    assert not inv.sets["OM1"].events[EventType.PICK_TWO].is_complete
+    assert inv.sets["OM1"].events[EventType.PICK_TWO].missing == ("context",)
 
 
 def test_multiple_event_types(data_home):

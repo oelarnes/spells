@@ -45,13 +45,7 @@ def _add(
         set_code, View.GAME, event_type=event_type, force_download=force_download
     )
 
-    if event_type == EventType.PICK_TWO:
-        console.info(
-            f"Skipping set context for {event_type} "
-            "(summon does not support multi-pick formats yet)",
-        )
-    else:
-        get_set_context(set_code, event_type=event_type, force_download=force_download)
+    get_set_context(set_code, event_type=event_type, force_download=force_download)
     return 0
 
 

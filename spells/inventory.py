@@ -98,10 +98,7 @@ class EventFiles:
 
     @property
     def missing(self) -> tuple[str, ...]:
-        # summon skips set context for multi-pick formats, so pick-two sets are
-        # complete without one.
-        expected = ("draft", "game") if self.is_pick_two else DATASET_VIEWS
-        return tuple(v for v in expected if getattr(self, v) is None)
+        return tuple(v for v in DATASET_VIEWS if getattr(self, v) is None)
 
     @property
     def is_pick_two(self) -> bool:

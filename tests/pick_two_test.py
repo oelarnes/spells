@@ -147,17 +147,14 @@ def test_per_pack_and_per_pick_columns_agree_in_one_query(fake_pick_two):
 
 
 def test_a_pick_two_pack_is_seen_half_as_many_picks_deep():
-    """17Lands stops calling a card seen a fixed distance into the pack. Two
-    cards a pick covers that distance in half the picks, and their published
-    ALSA agrees: at 4 it matches per-card to 0.01, at 8 it is off by 0.25."""
+    """Two cards a pick covers the same ground in half the picks."""
     rows = pl.DataFrame({ColName.EVENT_TYPE: [str(PREMIER), str(PICK_TWO)]})
 
     assert rows.select(PACKS_SEEN_COL.alias("d"))["d"].to_list() == [8, 4]
 
 
 def test_the_depth_is_read_off_the_row(fake_pick_two):
-    """One query spanning both formats gives each its own depth, which an
-    argument threaded in from the caller could not do."""
+    """One query spanning both formats gives each its own depth."""
     rows = pl.DataFrame(
         {ColName.EVENT_TYPE: [str(PICK_TWO), str(PREMIER), str(PICK_TWO)]}
     )
