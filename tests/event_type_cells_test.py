@@ -94,6 +94,13 @@ def test_an_empty_choice_is_an_error_not_an_empty_frame():
         _event_type_cells([], ["AAA"])
 
 
-def test_an_unknown_event_type_still_raises():
-    with pytest.raises(ValueError):
-        _event_type_cells({"AAA": "NotADraft"}, ["AAA"])
+def test_an_unknown_event_type_passes_through():
+    """A value 17lands has added but spells has not is usable without a
+    release; a real typo surfaces as an empty API response or a missing file."""
+    assert _event_type_cells({"AAA": "NotADraft"}, ["AAA"]) == [("AAA", "NotADraft")]
+
+
+def test_an_enum_member_and_its_string_collapse():
+    assert _event_type_cells({"AAA": [PREMIER, "PremierDraft"]}, ["AAA"]) == [
+        ("AAA", PREMIER)
+    ]

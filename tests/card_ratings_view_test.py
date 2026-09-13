@@ -349,14 +349,26 @@ def test_time_period_accepts_plain_string(fake_ratings_file):
     assert len(result) == len(FAKE_CARD_RATINGS)
 
 
-def test_rejects_unknown_time_period():
-    with pytest.raises(ValueError):
-        card_ratings_view(
-            FAKE_SET,
-            columns=["num_gih"],
-            group_by=["name"],
-            time_period="LAST_FORTNIGHT",
-        )
+def test_non_enum_event_type_and_time_period(fake_ratings_file):
+    """Values absent from the enums still resolve, so a new 17lands event type
+    or time period can be tried interactively before spells is released. The
+    annotations stay strict, so production code using one is flagged."""
+    filename = (
+        f"FutureDraft_all_any_SOME_PERIOD" f"_{FAKE_AS_OF.strftime('%Y-%m-%d')}.json"
+    )
+    ratings_dir = fake_ratings_file / "ratings" / FAKE_SET
+    (ratings_dir / filename).write_text(json.dumps(FAKE_CARD_RATINGS))
+
+    result = card_ratings_view(
+        FAKE_SET,
+        event_type="FutureDraft",
+        time_period="SOME_PERIOD",
+        columns=["num_gih"],
+        group_by=["name", "event_type"],
+        cache_usage=FAKE_AS_OF,
+    )
+    assert len(result) == len(FAKE_CARD_RATINGS)
+    assert set(result["event_type"].to_list()) == {"FutureDraft"}
 
 
 def test_future_cache_usage_date_rejected(fake_ratings_file):
