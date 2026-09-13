@@ -551,7 +551,7 @@ def _event_type_cells(
         chosen = chosen if isinstance(chosen, list) else [chosen]
         if not chosen:
             raise ValueError(f"No event type given for {code}")
-        cells.extend((code, et) for et in dict.fromkeys(EventType(e) for e in chosen))
+        cells.extend((code, et) for et in dict.fromkeys(chosen))
     return cells
 
 
@@ -569,15 +569,13 @@ def _normalize_context_keys(
             if ColName.EXPANSION in cell_df.columns:
                 cell_df = cell_df.filter(pl.col(ColName.EXPANSION) == code)
             if ColName.EVENT_TYPE in cell_df.columns:
-                cell_df = cell_df.filter(
-                    pl.col(ColName.EVENT_TYPE) == EventType(event_type)
-                )
+                cell_df = cell_df.filter(pl.col(ColName.EVENT_TYPE) == event_type)
             result[(code, event_type)] = cell_df
         return result
 
     if isinstance(context, dict):
         if any(isinstance(k, tuple) for k in context):
-            return {cell: context.get((cell[0], EventType(cell[1]))) for cell in cells}
+            return {cell: context.get(cell) for cell in cells}
         codes = {code for code, _ in cells}
         if context and all(k in codes for k in context):
             return {cell: context.get(cell[0]) for cell in cells}
@@ -666,7 +664,7 @@ def summon(
             code,
             (
                 code,
-                code_event_type.value,
+                str(code_event_type),
                 sorted(m.view_cols.get(View.DRAFT, set())),
                 sorted(m.view_cols.get(View.GAME, set())),
                 sorted(c.signature or "" for c in m.col_def_map.values()),
@@ -742,8 +740,6 @@ def card_ratings_view(
 
     cells = _event_type_cells(event_type, codes)
 
-    time_period = TimePeriod(time_period)
-
     m = None
 
     concat_dfs = []
@@ -795,7 +791,6 @@ def lazy_select(
         for ext in extensions:
             specs.update(ext)
 
-    event_type = EventType(event_type)
     cell = (set_code, event_type)
     col_def_map = _hydrate_col_defs(
         set_code,

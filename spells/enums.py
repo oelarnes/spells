@@ -23,6 +23,7 @@ class ColType(StrEnum):
 
 class EventType(StrEnum):
     PREMIER = "PremierDraft"
+    PREMIER_COMBINED = "PremierDraftCombined"
     TRADITIONAL = "TradDraft"
     PICK_TWO = "PickTwoDraft"
 
@@ -30,6 +31,7 @@ class EventType(StrEnum):
 class TimePeriod(StrEnum):
     ALL_TIME = "ALL_TIME"
     ALL_EXCEPT_FIRST_WEEK = "ALL_EXCEPT_FIRST_WEEK"
+    LAST_TWO_EVENTS = "LAST_TWO_EVENTS"
     LATEST_EVENT = "LATEST_EVENT"
     LAST_TWO_WEEKS = "LAST_TWO_WEEKS"
     LAST_WEEK = "LAST_WEEK"
