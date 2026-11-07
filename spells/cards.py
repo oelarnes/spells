@@ -3,6 +3,7 @@ import os
 from enum import StrEnum
 
 import polars as pl
+import requests
 
 from spells import cache
 from spells import console
@@ -137,6 +138,74 @@ def names_from_parquet(draft_set_code: str, event_type: EventType) -> list[str]:
     columns = pl.scan_parquet(draft_filepath).collect_schema().names()
     prefix = "pack_card_"
     return [col[len(prefix) :] for col in columns if col.startswith(prefix)]
+
+
+class CardListUnavailable(LookupError):
+    """MTGJSON has no card list for the set yet."""
+
+
+def _seventeen_lands_name(card_dict: dict) -> str:
+    """17Lands names split cards in full and every other multi-face card by its
+    front face."""
+    if card_dict.get("layout") == "split":
+        return card_dict["name"]
+    return card_dict.get("faceName") or card_dict["name"]
+
+
+def draftable_names(draft_set_code: str) -> list[str]:
+    """The set's own booster cards, for use before 17Lands has draft data.
+
+    These are the cards numbered before the set's first basic land, leaving out
+    alternate printings. Bonus-sheet cards from other sets aren't included.
+    """
+    try:
+        set_json = _fetch_mtg_json(draft_set_code)
+    except requests.HTTPError as e:
+        if e.response is not None and e.response.status_code == 404:
+            raise CardListUnavailable(
+                f"MTGJSON has no card list for {draft_set_code} yet"
+            ) from e
+        raise
+
+    numbered = sorted(
+        (
+            c
+            for c in set_json["data"]["cards"]
+            if c["number"].isdigit() and c.get("side") in (None, "a")
+        ),
+        key=lambda c: int(c["number"]),
+    )
+    first_basic = next(
+        (i for i, c in enumerate(numbered) if "Basic" in c.get("supertypes", [])),
+        None,
+    )
+    if first_basic is None:
+        raise ValueError(f"MTGJSON lists no basic lands for {draft_set_code}")
+
+    names = [_seventeen_lands_name(c) for c in numbered[:first_basic]]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        raise ValueError(
+            f"{draft_set_code} numbers these cards more than once before its "
+            f"basic lands: {', '.join(duplicates)}"
+        )
+
+    after_basics = sorted(
+        {
+            _seventeen_lands_name(c)
+            for c in numbered[first_basic:]
+            if "Basic" not in c.get("supertypes", [])
+        }
+        - set(names)
+    )
+    if after_basics:
+        console.info(
+            f"{len(after_basics)} cards numbered after {draft_set_code}'s basic "
+            "lands are left out:"
+        )
+        console.detail(", ".join(after_basics))
+
+    return names
 
 
 BASIC_LANDS = frozenset({"Plains", "Island", "Swamp", "Mountain", "Forest"})
