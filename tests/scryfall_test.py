@@ -1,7 +1,7 @@
 import gzip
 import json
+from contextlib import closing
 
-import polars as pl
 import pytest
 import requests
 
@@ -46,11 +46,18 @@ def bulk(monkeypatch, tmp_path):
     return state
 
 
-def test_sync_writes_printings_sorted_by_set_and_collector_number(bulk):
+def stored(sql: str) -> list:
+    with closing(scryfall.connect()) as db:
+        return [row[0] for row in db.execute(sql)]
+
+
+def test_sync_stores_each_printing_as_scryfall_sent_it(bulk):
     scryfall.sync()
 
-    printings = pl.read_parquet(scryfall.printings_path())
-    assert printings["id"].to_list() == ["2", "1", "4", "3"]
+    assert sorted(stored("select id from printings")) == ["1", "2", "3", "4"]
+    raw = stored("select data from printings where id = '3'")
+    assert json.loads(raw[0]) == PRINTINGS[0]
+    assert stored("select id from printings where name = 'Opt' and set_code = 'tst'")
     assert scryfall.meta()["bulk_type"] == scryfall.DEFAULT_CARDS
     assert scryfall.meta()["updated_at"] == bulk["updated_at"]
 
@@ -73,7 +80,7 @@ def test_a_language_comes_from_all_cards(bulk):
     scryfall.sync(lang="ja")
 
     assert bulk["downloads"] == ["https://data.example/all_cards.jsonl.gz"]
-    assert pl.read_parquet(scryfall.printings_path())["id"].to_list() == ["4"]
+    assert stored("select id from printings") == ["4"]
     assert scryfall.meta()["lang"] == "ja"
 
 
@@ -93,8 +100,8 @@ def test_a_language_with_no_printings_leaves_the_cache_alone(bulk, tmp_path):
         scryfall.sync(lang="xx")
 
     assert scryfall.meta()["bulk_type"] == scryfall.DEFAULT_CARDS
-    assert len(pl.read_parquet(scryfall.printings_path())) == len(PRINTINGS)
-    assert not list((tmp_path / "scryfall").glob("*.gz"))
+    assert len(stored("select id from printings")) == len(PRINTINGS)
+    assert sorted(p.name for p in (tmp_path / "scryfall").iterdir()) == ["cards.sqlite"]
 
 
 def test_a_scryfall_outage_does_not_fail_add(monkeypatch):
@@ -103,3 +110,21 @@ def test_a_scryfall_outage_does_not_fail_add(monkeypatch):
 
     monkeypatch.setattr(external.scryfall, "sync", outage)
     external._sync_scryfall()
+
+
+def test_multi_face_cards_are_found_by_face_name(bulk, monkeypatch):
+    PRINTINGS.append(
+        {
+            "id": "5",
+            "name": "Fire // Ice",
+            "set": "tst",
+            "collector_number": "20",
+            "lang": "en",
+            "card_faces": [{"name": "Fire"}, {"name": "Ice"}],
+        }
+    )
+    try:
+        scryfall.sync()
+        assert stored("select id from face_names where name = 'Ice'") == ["5"]
+    finally:
+        PRINTINGS.pop()

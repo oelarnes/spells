@@ -1,16 +1,18 @@
 """Local cache of Scryfall's bulk card data, the card source for spells and other apps.
 
-One Parquet file holds every printing in Scryfall's own schema, nested fields included,
-sorted by set and collector number. A `meta.json` beside it records which bulk file and
-language it came from and Scryfall's `updated_at`, which doubles as the cache version.
+One SQLite file holds every printing exactly as Scryfall sent it (`printings.data`),
+next to indexed columns for lookup by id, name, face name, set, collector number and
+language. Its `meta` table records which bulk file and language it came from and
+Scryfall's `updated_at`, which doubles as the cache version.
 """
 
 import datetime as dt
 import gzip
 import json
 import os
-
-import polars as pl
+import sqlite3
+from collections.abc import Iterator
+from contextlib import closing
 
 from spells import cache, console, http
 from spells.cache import DataDir
@@ -22,25 +24,49 @@ ALL_CARDS = "all_cards"
 # sync() keeps whatever bulk file and language the cache already holds
 KEEP = object()
 
+SCHEMA = """
+create table printings (
+    id text primary key,
+    oracle_id text,
+    name text not null,
+    set_code text not null,
+    collector_number text not null,
+    lang text not null,
+    data text not null
+);
+create table face_names (id text not null, name text not null);
+create table meta (key text primary key, value text);
+"""
+
+INDEXES = """
+create index printings_name on printings (name);
+create index printings_set on printings (set_code, collector_number);
+create index printings_lang on printings (lang);
+create index printings_oracle on printings (oracle_id);
+create index face_names_name on face_names (name);
+"""
+
 
 def scryfall_dir() -> str:
     return cache.data_dir_path(DataDir.SCRYFALL)
 
 
-def printings_path() -> str:
-    return os.path.join(scryfall_dir(), "printings.parquet")
+def db_path() -> str:
+    return os.path.join(scryfall_dir(), "cards.sqlite")
 
 
-def _meta_path() -> str:
-    return os.path.join(scryfall_dir(), "meta.json")
+def connect() -> sqlite3.Connection:
+    """A read-only connection to the cache."""
+    return sqlite3.connect(f"file:{db_path()}?mode=ro", uri=True)
 
 
 def meta() -> dict | None:
     """What the cache holds, or None if it has never been synced."""
-    if not (os.path.isfile(_meta_path()) and os.path.isfile(printings_path())):
+    if not os.path.isfile(db_path()):
         return None
-    with open(_meta_path()) as f:
-        return json.load(f)
+    with closing(connect()) as db:
+        stored = dict(db.execute("select key, value from meta"))
+    return {**stored, "lang": stored.get("lang") or None}
 
 
 def _bulk_entry(bulk_type: str) -> dict:
@@ -48,15 +74,51 @@ def _bulk_entry(bulk_type: str) -> dict:
     return next(entry for entry in listing if entry["type"] == bulk_type)
 
 
-def _read_bulk(gz_path: str, lang: str | None) -> pl.DataFrame:
-    with gzip.open(gz_path, "rb") as f:
-        if lang is None:
-            data = f.read()
-        else:
-            data = b"".join(line for line in f if json.loads(line)["lang"] == lang)
-    if not data:
-        raise ValueError(f"Scryfall's bulk data has no printings in language {lang!r}")
-    return pl.read_ndjson(data, infer_schema_length=None)
+def _printings(gz_path: str, lang: str | None) -> Iterator[tuple[dict, str]]:
+    with gzip.open(gz_path, "rt", encoding="utf-8") as f:
+        for line in f:
+            card = json.loads(line)
+            if lang is None or card["lang"] == lang:
+                yield card, line.rstrip("\n")
+
+
+def _build(gz_path: str, path: str, lang: str | None, meta_values: dict) -> int:
+    if os.path.exists(path):
+        os.remove(path)
+    db = sqlite3.connect(path)
+    try:
+        db.executescript(SCHEMA)
+        count = 0
+        for card, line in _printings(gz_path, lang):
+            db.execute(
+                "insert into printings values (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    card["id"],
+                    card.get("oracle_id"),
+                    card["name"],
+                    card["set"],
+                    card["collector_number"],
+                    card["lang"],
+                    line,
+                ),
+            )
+            db.executemany(
+                "insert into face_names values (?, ?)",
+                [(card["id"], face["name"]) for face in card.get("card_faces", [])],
+            )
+            count += 1
+        db.executescript(INDEXES)
+        db.executemany(
+            "insert into meta values (?, ?)",
+            [
+                (key, value)
+                for key, value in {**meta_values, "printings": count}.items()
+            ],
+        )
+        db.commit()
+    finally:
+        db.close()
+    return count
 
 
 def sync(lang: str | None | object = KEEP, force: bool = False) -> int:
@@ -84,35 +146,32 @@ def sync(lang: str | None | object = KEEP, force: bool = False) -> int:
 
     os.makedirs(scryfall_dir(), exist_ok=True)
     gz_path = os.path.join(scryfall_dir(), f"{bulk_type}.jsonl.gz")
+    part = f"{db_path()}.part"
     http.download(entry["jsonl_download_uri"], gz_path, description=bulk_type)
     try:
-        printings = _read_bulk(gz_path, lang).sort(
-            "set",
-            pl.col("collector_number")
-            .str.extract(r"^(\d+)")
-            .cast(pl.Int64, strict=False),
-            "collector_number",
-        )
-        part = f"{printings_path()}.part"
-        printings.write_parquet(part, compression="zstd")
-        os.replace(part, printings_path())
-    finally:
-        os.remove(gz_path)
-
-    with open(_meta_path(), "w") as f:
-        json.dump(
+        count = _build(
+            gz_path,
+            part,
+            lang,
             {
                 "bulk_type": bulk_type,
-                "lang": lang,
+                "lang": lang or "",
                 "updated_at": entry["updated_at"],
                 "synced_at": dt.datetime.now(dt.timezone.utc).isoformat(),
-                "printings": len(printings),
             },
-            f,
-            indent=2,
         )
+        if count == 0:
+            raise ValueError(
+                f"Scryfall's bulk data has no printings in language {lang!r}"
+            )
+        os.replace(part, db_path())
+    finally:
+        os.remove(gz_path)
+        if os.path.exists(part):
+            os.remove(part)
+
     console.info(
-        f"Wrote {len(printings)} printings to {printings_path()} "
+        f"Wrote {count} printings to {db_path()} "
         f"({bulk_type}{f', lang {lang}' if lang else ''}, {entry['updated_at']})"
     )
     return 0
