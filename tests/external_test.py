@@ -16,7 +16,7 @@ FAKE_NAMES = ["Card A", "Card B"]
 @pytest.fixture()
 def record_io(monkeypatch: pytest.MonkeyPatch):
     """Replace the IO steps of `_add` with recorders, returning the call log."""
-    calls: dict[str, list] = {"download": [], "card": [], "context": []}
+    calls: dict[str, list] = {"download": [], "card": [], "context": [], "scryfall": []}
 
     def fake_download(set_code, dataset_type, event_type=EventType.PREMIER, **kw):
         calls["download"].append((set_code, dataset_type, event_type))
@@ -37,6 +37,9 @@ def record_io(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(external.cards, "names_from_parquet", fake_names)
     monkeypatch.setattr(external.cards, "write_card_file", fake_card)
     monkeypatch.setattr(external, "get_set_context", fake_context)
+    monkeypatch.setattr(
+        external.scryfall, "sync", lambda **kw: calls["scryfall"].append(kw) or 0
+    )
     return calls
 
 
@@ -49,6 +52,7 @@ def test_add_premier_downloads_full_set(record_io):
     ]
     assert record_io["card"] == [("TST", FAKE_NAMES)]
     assert record_io["context"] == [("TST", EventType.PREMIER)]
+    assert record_io["scryfall"] == [{}]
 
 
 def test_add_traditional_downloads_full_set_with_context(record_io):
