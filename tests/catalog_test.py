@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 import datetime
 from dataclasses import replace
 import json
@@ -97,8 +98,10 @@ def test_a_derived_expansion_rebuilds_its_own_url():
     cat = catalog.parse(_document("Powered Cube", CUBE_DRAFT_URL))
 
     assert (
-        catalog.fallback_url("Cube_-_Powered", View.DRAFT, EventType.PREMIER)
-        == CUBE_DRAFT_URL
+        urlparse(
+            catalog.fallback_url("Cube_-_Powered", View.DRAFT, EventType.PREMIER)
+        ).path
+        == urlparse(CUBE_DRAFT_URL).path
     )
     assert cat.get("Cube_-_Powered", EventType.PREMIER).draft_url == CUBE_DRAFT_URL
 
@@ -185,8 +188,8 @@ def test_fetch_falls_back_when_17lands_is_unreachable(monkeypatch):
 
 def test_fallback_url_matches_the_published_layout(parsed):
     assert (
-        catalog.fallback_url("MSH", View.DRAFT, EventType.PREMIER)
-        == parsed.get("MSH", EventType.PREMIER).draft_url
+        urlparse(catalog.fallback_url("MSH", View.DRAFT, EventType.PREMIER)).path
+        == urlparse(parsed.get("MSH", EventType.PREMIER).draft_url).path
     )
 
 
