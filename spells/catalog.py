@@ -35,12 +35,11 @@ from spells.enums import EventType, View
 PRISMIC_API = "https://17lands.cdn.prismic.io/api/v2"
 PRISMIC_QUERY = '[[at(document.type,"public-data")]]'
 
-# Used when the catalog is unreachable. The catalog is authoritative when it
-# answers; these only keep `add` working offline-ish, and cannot enumerate.
+# Where `add` downloads from, and the fallback when the catalog is unreachable.
+# The catalog's own links may still point at the previous host; the files and
+# their paths are the same on both.
 DATASET_TEMPLATE = "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
-RESOURCE_TEMPLATE = (
-    "https://17lands-public.s3.amazonaws.com/analysis_data/{dataset_type}_data/"
-)
+RESOURCE_TEMPLATE = "https://data.17landscapes.com/analysis_data/{dataset_type}_data/"
 
 
 class Freshness(StrEnum):
