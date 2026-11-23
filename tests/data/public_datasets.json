@@ -1,0 +1,49 @@
+[
+  {
+    "expansion": "MSH",
+    "event_type": "PremierDraft",
+    "last_updated": "2026-07-26",
+    "urls": {
+      "draft": "https://data.17landscapes.com/analysis_data/draft_data/draft_data_public.MSH.PremierDraft.csv.gz",
+      "game": "https://data.17landscapes.com/analysis_data/game_data/game_data_public.MSH.PremierDraft.csv.gz",
+      "replay": "https://data.17landscapes.com/analysis_data/replay_data/replay_data_public.MSH.PremierDraft.csv.gz"
+    }
+  },
+  {
+    "expansion": "MSH",
+    "event_type": "PickTwoDraft",
+    "last_updated": "2026-07-26",
+    "urls": {
+      "draft": "https://data.17landscapes.com/analysis_data/draft_data/draft_data_public.MSH.PickTwoDraft.csv.gz",
+      "game": "https://data.17landscapes.com/analysis_data/game_data/game_data_public.MSH.PickTwoDraft.csv.gz",
+      "replay": "https://data.17landscapes.com/analysis_data/replay_data/replay_data_public.MSH.PickTwoDraft.csv.gz"
+    }
+  },
+  {
+    "expansion": "MSH",
+    "event_type": "Sealed",
+    "last_updated": "2026-07-26",
+    "urls": {
+      "game": "https://data.17landscapes.com/analysis_data/game_data/game_data_public.MSH.Sealed.csv.gz",
+      "replay": "https://data.17landscapes.com/analysis_data/replay_data/replay_data_public.MSH.Sealed.csv.gz"
+    }
+  },
+  {
+    "expansion": "BLB",
+    "event_type": "TradDraft",
+    "last_updated": "2024-09-05",
+    "urls": {
+      "draft": "https://data.17landscapes.com/analysis_data/draft_data/draft_data_public.BLB.TradDraft.csv.gz",
+      "game": "https://data.17landscapes.com/analysis_data/game_data/game_data_public.BLB.TradDraft.csv.gz",
+      "replay": "https://data.17landscapes.com/analysis_data/replay_data/replay_data_public.BLB.TradDraft.csv.gz"
+    }
+  },
+  {
+    "expansion": "KHM",
+    "event_type": "PremierDraft",
+    "last_updated": "2021-04-04",
+    "urls": {
+      "game": "https://data.17landscapes.com/analysis_data/game_data/game_data_public.KHM.PremierDraft.csv.gz"
+    }
+  }
+]
