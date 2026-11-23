@@ -40,13 +40,14 @@ def _dataset(expansion, event_type, updated=datetime.date(2026, 7, 26)):
 
 @pytest.fixture
 def cat():
-    """OLD predates the collection, TST is held, NEW is published after it."""
+    """Newest first, as 17Lands lists them: NEW is published after the
+    collection, TST is held, OLD predates it."""
     return Catalog(
         datasets=(
-            _dataset("OLD", EventType.PREMIER, datetime.date(2024, 1, 1)),
+            _dataset("NEW", EventType.PREMIER, datetime.date(2026, 8, 1)),
             _dataset("TST", EventType.PREMIER),
             _dataset("TST", EventType.TRADITIONAL),
-            _dataset("NEW", EventType.PREMIER, datetime.date(2026, 8, 1)),
+            _dataset("OLD", EventType.PREMIER, datetime.date(2024, 1, 1)),
         )
     )
 

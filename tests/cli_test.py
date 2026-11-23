@@ -214,7 +214,7 @@ def fake_catalog(monkeypatch):
     """A catalog publishing TST in two event types, and nothing for KHM."""
     import datetime
 
-    from spells.catalog import Catalog, Dataset, RemoteFile
+    from spells.catalog import Catalog, Dataset
 
     def dataset(event_type, draft=True):
         stub = f"https://example/{{}}_data_public.TST.{event_type}.csv.gz"
@@ -222,25 +222,17 @@ def fake_catalog(monkeypatch):
             expansion="TST",
             format_name=str(event_type),
             event_type=event_type,
-            last_updated=datetime.date(2026, 7, 26),
+            last_updated=datetime.date(2026, 7, 27),
             draft_url=stub.format("draft") if draft else None,
             game_url=stub.format("game"),
         )
 
     cat = Catalog(datasets=(dataset(EventType.PREMIER), dataset(EventType.TRADITIONAL)))
     monkeypatch.setattr(cli.catalog, "fetch", lambda *a, **k: cat)
-    monkeypatch.setattr(
-        cli.catalog,
-        "head",
-        lambda url: RemoteFile(
-            url=url,
-            last_modified=datetime.datetime(2026, 7, 27, tzinfo=datetime.timezone.utc),
-        ),
-    )
     return cat
 
 
-REMOTE_MTIME = 1785110400  # 2026-07-27, what fake_catalog's HEAD reports
+REMOTE_MTIME = 1785110400  # 2026-07-27, when fake_catalog's datasets were published
 
 
 def _set_mtime(data_home, when: int) -> None:

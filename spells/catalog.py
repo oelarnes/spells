@@ -1,43 +1,36 @@
 """What 17Lands publishes, and whether our copy of it is current.
 
-The Public Datasets page is a Prismic CMS document, not a 17Lands API. That
-document is public and unauthenticated, and its hyperlink spans carry the
-canonical S3 URLs — so it is the sanctioned way to discover what exists, rather
-than guessing filenames from a template. Two things follow from using it:
+17Lands lists its public datasets at `/api/public_datasets`, one entry per
+expansion and event type, newest expansion first, with each file's URL and the
+date it was last published. Two things follow from using it:
 
-- It *enumerates*. S3 objects are `public-read` but the bucket is not listable,
-  so nothing else can answer "what sets could I add?" It also distinguishes
-  "not published" from "published and you don't have it" — old expansions have
-  no draft data at all, and requesting one returns 403.
+- It *enumerates*. The bucket is not listable, so nothing else can answer
+  "what sets could I add?" It also distinguishes "not published" from
+  "published and you don't have it": old expansions have no draft data at all.
 - It reports formats spells does not model (Sealed, TradSealed, QuickDraft).
   Those are surfaced as unsupported rather than dropped, so `check` never
   silently hides published data.
 
-The catalog's own `last_updated` field is hand-maintained and lags, so it is
-display-only. Freshness decisions come from a HEAD on the URL the catalog gives
-us. Nothing here writes to the data home.
+Freshness compares a local file's write time with the entry's `last_updated`,
+which 17Lands sets each time it publishes a file. Nothing here writes to the
+data home.
 """
 
 from collections.abc import Collection, Iterable
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from email.utils import parsedate_to_datetime
 from enum import StrEnum
 import re
-import urllib.parse
 
 import requests
 
 from spells import http
 from spells.enums import EventType, View
 
-PRISMIC_API = "https://17lands.cdn.prismic.io/api/v2"
-PRISMIC_QUERY = '[[at(document.type,"public-data")]]'
+PUBLIC_DATASETS_API = "https://www.17lands.com/api/public_datasets"
 
 # Where `add` downloads from, and the fallback when the catalog is unreachable.
-# The catalog's own links may still point at the previous host; the files and
-# their paths are the same on both.
 DATASET_TEMPLATE = "{dataset_type}_data_public.{set_code}.{event_type}.csv.gz"
 RESOURCE_TEMPLATE = "https://data.17landscapes.com/analysis_data/{dataset_type}_data/"
 
@@ -106,28 +99,14 @@ class Catalog:
         return max(dates) if dates else None
 
 
-def _text(field) -> str:
-    return "".join(block.get("text", "") for block in field or []).strip()
-
-
-def _link(field) -> str | None:
-    """A dataset that is not published renders as a literal "-" with no span."""
-    for block in field or []:
-        for span in block.get("spans", []):
-            if span.get("type") == "hyperlink":
-                if url := span.get("data", {}).get("url", "").strip():
-                    return url
-    return None
-
-
 _URL_EXPANSION = re.compile(r"_data_public\.(?P<expansion>.+)\.[^.]+\.csv\.gz$")
 
 
 def _expansion(label: str, *urls: str | None) -> str:
     """The expansion as it appears in the filename, not as it is displayed.
 
-    The catalog's own field is prose — "Powered Cube" is published as
-    `Cube_-_Powered` — and the filename is what has to match both the download
+    The catalog's own field is prose ("Powered Cube" is published as
+    `Cube_-_Powered`), and the filename is what has to match both the download
     URL and the directory it lands in.
     """
     for url in urls:
@@ -150,39 +129,31 @@ def _parse_date(text: str) -> date | None:
         return None
 
 
-def parse(document: dict) -> Catalog:
-    """Build a Catalog from a Prismic `public-data` document.
+def parse(entries: list[dict]) -> Catalog:
+    """Build a Catalog from the `/api/public_datasets` response.
 
     Kept separate from fetching so it can be tested against a saved response.
     """
     datasets = []
-    for entry in document.get("data", {}).get("datasets", []):
-        label = _text(entry.get("expansion"))
-        format_name = _text(entry.get("format"))
-        if not label or not format_name:
+    for entry in entries:
+        label = entry.get("expansion")
+        event_type = entry.get("event_type")
+        if not label or not event_type:
             continue
-        draft_url = _link(entry.get("draft_data"))
-        game_url = _link(entry.get("game_data"))
+        urls = entry.get("urls") or {}
+        draft_url = urls.get("draft")
+        game_url = urls.get("game")
         datasets.append(
             Dataset(
                 expansion=_expansion(label, draft_url, game_url),
-                format_name=format_name,
-                event_type=_event_type(format_name),
-                last_updated=_parse_date(_text(entry.get("last_updated"))),
+                format_name=event_type,
+                event_type=_event_type(event_type),
+                last_updated=_parse_date(entry.get("last_updated") or ""),
                 draft_url=draft_url,
                 game_url=game_url,
             )
         )
     return Catalog(datasets=tuple(datasets))
-
-
-def _fetch_document() -> dict:
-    ref = http.get_json(PRISMIC_API)["refs"][0]["ref"]
-    query = urllib.parse.urlencode({"ref": ref, "q": PRISMIC_QUERY, "pageSize": 100})
-    results = http.get_json(f"{PRISMIC_API}/documents/search?{query}")["results"]
-    if not results:
-        raise ValueError("no public-data document in the 17Lands catalog")
-    return results[0]
 
 
 _cached: Catalog | None = None
@@ -199,8 +170,8 @@ def fetch(refresh: bool = False) -> Catalog:
         return _cached
 
     try:
-        _cached = parse(_fetch_document())
-    except (requests.RequestException, KeyError, ValueError):
+        _cached = parse(http.get_json(PUBLIC_DATASETS_API))
+    except (requests.RequestException, AttributeError, TypeError, ValueError):
         _cached = Catalog(datasets=(), is_fallback=True)
     return _cached
 
@@ -256,49 +227,36 @@ class CheckRow:
         return self.freshness in (Freshness.STALE, Freshness.ABSENT)
 
 
-def resolve(
-    targets: list[Target], cat: Catalog, max_workers: int = 8
-) -> list[CheckRow]:
-    """Classify each target against the catalog, doing the HEADs concurrently.
-
-    Only datasets we already hold are HEADed: the catalog alone is enough to
-    say a missing one is published, and skipping those keeps `check` to one
-    request per file actually on disk.
-    """
-    rows: list[CheckRow] = []
-    to_head: list[tuple[Target, str]] = []
-
+def resolve(targets: list[Target], cat: Catalog) -> list[CheckRow]:
+    """Classify each target against the catalog's publication dates."""
+    rows = []
     for target in targets:
         dataset = cat.get(target.expansion, target.event_type)
         url = dataset.url(target.view) if dataset else None
-        if url is None:
+        if dataset is None or url is None:
             freshness = Freshness.UNKNOWN if cat.is_fallback else Freshness.UNPUBLISHED
             rows.append(CheckRow(target, freshness))
-        elif target.local_mtime is None:
-            rows.append(CheckRow(target, Freshness.ABSENT, RemoteFile(url=url)))
-        else:
-            to_head.append((target, url))
-
-    if to_head:
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            remotes = pool.map(head, [url for _, url in to_head])
-        for (target, url), remote in zip(to_head, remotes):
-            rows.append(CheckRow(target, compare(target.local_mtime, remote), remote))
-
-    order = {t: i for i, t in enumerate(targets)}
-    return sorted(rows, key=lambda row: order[row.target])
+            continue
+        published = (
+            datetime.combine(dataset.last_updated, time(), tzinfo=timezone.utc)
+            if dataset.last_updated
+            else None
+        )
+        remote = RemoteFile(url=url, last_modified=published)
+        rows.append(CheckRow(target, compare(target.local_mtime, remote), remote))
+    return rows
 
 
 def in_release_order(cat: Catalog, expansions: Iterable[str]) -> list[str]:
-    """Newest expansion first, by catalog array position.
+    """Newest expansion first, by catalog position.
 
-    17Lands authors the array in release order, which is the order a drafter
-    thinks in; alphabetical ordering puts whatever they are currently drafting
-    at an arbitrary place in the list. Expansions the catalog no longer lists
-    sort to the end alphabetically rather than vanishing.
+    17Lands lists expansions newest first, which is the order a drafter thinks
+    in; alphabetical ordering puts whatever they are currently drafting at an
+    arbitrary place in the list. Expansions the catalog no longer lists sort to
+    the end alphabetically rather than vanishing.
     """
     order = {expansion: i for i, expansion in enumerate(cat.expansions)}
-    known = sorted((e for e in expansions if e in order), key=lambda e: -order[e])
+    known = sorted((e for e in expansions if e in order), key=lambda e: order[e])
     return known + sorted(e for e in expansions if e not in order)
 
 
@@ -310,30 +268,29 @@ def unadded(cat: Catalog, held: Collection[str]) -> list[str]:
     anchor the answer would be every expansion 17Lands has ever published,
     which is noise rather than news.
 
-    Ordering comes from the catalog array, which 17Lands authors in release
-    order, rather than from `last_updated` — regenerating an old set's files
+    Ordering comes from the catalog's position, which 17Lands keeps in release
+    order, rather than from `last_updated`: regenerating an old set's files
     bumps that date without making the set new.
     """
     order = cat.expansions
     position = {expansion: i for i, expansion in enumerate(order)}
-    anchor = min((position[e] for e in held if e in position), default=0)
-
-    return in_release_order(
-        cat,
-        (
-            expansion
-            for expansion in order[anchor:]
-            if expansion not in held and cat.is_addable(expansion)
-        ),
+    oldest_held = max(
+        (position[e] for e in held if e in position), default=len(order) - 1
     )
+
+    return [
+        expansion
+        for expansion in order[: oldest_held + 1]
+        if expansion not in held and cat.is_addable(expansion)
+    ]
 
 
 def compare(local_mtime: float | None, remote: RemoteFile | None) -> Freshness:
     """Classify one local file against its published counterpart.
 
-    Compares against the local parquet's mtime, which is when we wrote it — a
-    conversion always postdates the download, so a local file newer than the
-    remote object is genuinely current.
+    Compares the local parquet's mtime, which is when we wrote it, with when
+    17Lands published the file. A conversion always postdates the download, so
+    a local file written after publication is genuinely current.
     """
     if remote is None:
         return Freshness.UNPUBLISHED if local_mtime is None else Freshness.UNKNOWN

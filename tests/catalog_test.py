@@ -1,4 +1,3 @@
-from urllib.parse import urlparse
 import datetime
 from dataclasses import replace
 import json
@@ -10,7 +9,8 @@ from spells import catalog
 from spells.catalog import Catalog, Freshness, RemoteFile, Target
 from spells.enums import EventType, View
 
-FIXTURE = Path(__file__).parent / "data" / "prismic_public_data.json"
+# A slice of /api/public_datasets: MSH (three formats), BLB, KHM, newest first
+FIXTURE = Path(__file__).parent / "data" / "public_datasets.json"
 
 
 @pytest.fixture
@@ -30,54 +30,38 @@ def test_parse_maps_known_formats_to_event_types(parsed):
     assert premier.is_supported
 
 
-def test_parse_extracts_s3_urls_from_hyperlink_spans(parsed):
+def test_parse_reads_the_published_urls(parsed):
     premier = parsed.get("MSH", EventType.PREMIER)
     assert premier.draft_url == (
-        "https://17lands-public.s3.amazonaws.com/analysis_data/draft_data/"
+        "https://data.17landscapes.com/analysis_data/draft_data/"
         "draft_data_public.MSH.PremierDraft.csv.gz"
     )
     assert premier.url(View.GAME).endswith("game_data_public.MSH.PremierDraft.csv.gz")
 
 
 def test_parse_marks_unpublished_dataset_as_no_url(parsed):
-    """KHM renders a literal "-" for draft data; the object really is 403."""
+    """KHM has game data but no draft data."""
     khm = parsed.get("KHM", EventType.PREMIER)
     assert khm.draft_url is None
     assert khm.game_url is not None
 
 
-def _document(label: str, draft_url: str | None, game_url: str | None = None) -> dict:
-    def rich_text(text: str) -> list[dict]:
-        return [{"type": "paragraph", "text": text, "spans": []}]
-
-    def link(url: str | None) -> list[dict]:
-        if url is None:
-            return rich_text("-")
-        return [
-            {
-                "type": "paragraph",
-                "text": "link",
-                "spans": [{"type": "hyperlink", "data": {"url": url}}],
-            }
-        ]
-
-    return {
-        "data": {
-            "datasets": [
-                {
-                    "expansion": rich_text(label),
-                    "format": rich_text("PremierDraft"),
-                    "last_updated": rich_text("2026-07-26"),
-                    "draft_data": link(draft_url),
-                    "game_data": link(game_url),
-                }
-            ]
+def _entries(
+    label: str, draft_url: str | None, game_url: str | None = None
+) -> list[dict]:
+    urls = {"draft": draft_url, "game": game_url}
+    return [
+        {
+            "expansion": label,
+            "event_type": "PremierDraft",
+            "last_updated": "2026-07-26",
+            "urls": {kind: url for kind, url in urls.items() if url},
         }
-    }
+    ]
 
 
 CUBE_DRAFT_URL = (
-    "https://17lands-public.s3.amazonaws.com/analysis_data/draft_data/"
+    "https://data.17landscapes.com/analysis_data/draft_data/"
     "draft_data_public.Cube_-_Powered.PremierDraft.csv.gz"
 )
 
@@ -85,7 +69,7 @@ CUBE_DRAFT_URL = (
 def test_expansion_comes_from_the_filename_not_the_display_name():
     """17Lands displays the Powered Cube as prose but publishes it as
     `Cube_-_Powered`; the filename is what a download has to ask for."""
-    cat = catalog.parse(_document("Powered Cube", CUBE_DRAFT_URL))
+    cat = catalog.parse(_entries("Powered Cube", CUBE_DRAFT_URL))
 
     assert cat.expansions == ("Cube_-_Powered",)
     assert cat.get("Cube_-_Powered", EventType.PREMIER) is not None
@@ -95,40 +79,28 @@ def test_expansion_comes_from_the_filename_not_the_display_name():
 def test_a_derived_expansion_rebuilds_its_own_url():
     """The templated fallback and the published link have to agree, or an
     offline `add` would ask for a name that was never published."""
-    cat = catalog.parse(_document("Powered Cube", CUBE_DRAFT_URL))
+    cat = catalog.parse(_entries("Powered Cube", CUBE_DRAFT_URL))
 
     assert (
-        urlparse(
-            catalog.fallback_url("Cube_-_Powered", View.DRAFT, EventType.PREMIER)
-        ).path
-        == urlparse(CUBE_DRAFT_URL).path
+        catalog.fallback_url("Cube_-_Powered", View.DRAFT, EventType.PREMIER)
+        == CUBE_DRAFT_URL
     )
     assert cat.get("Cube_-_Powered", EventType.PREMIER).draft_url == CUBE_DRAFT_URL
 
 
 def test_expansion_falls_back_to_the_label_when_nothing_is_published():
-    cat = catalog.parse(_document("KHM", None, None))
+    cat = catalog.parse(_entries("KHM", None, None))
 
     assert cat.expansions == ("KHM",)
 
 
 def test_expansion_is_read_from_game_data_when_draft_is_unpublished():
     game_url = (
-        "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/"
+        "https://data.17landscapes.com/analysis_data/game_data/"
         "game_data_public.Cube_-_Powered.PremierDraft.csv.gz"
     )
-    cat = catalog.parse(_document("Powered Cube", None, game_url))
+    cat = catalog.parse(_entries("Powered Cube", None, game_url))
 
-    assert cat.expansions == ("Cube_-_Powered",)
-
-
-def test_urls_are_stripped_of_stray_whitespace():
-    """Several game links are authored with a leading space. requests happens
-    to tolerate it, so this keeps a latent break from becoming a real one."""
-    padded = f"  {CUBE_DRAFT_URL} "
-    cat = catalog.parse(_document("Powered Cube", padded))
-
-    assert cat.datasets[0].draft_url == CUBE_DRAFT_URL
     assert cat.expansions == ("Cube_-_Powered",)
 
 
@@ -154,7 +126,7 @@ def test_parse_reads_last_updated_as_a_date(parsed):
 
 
 def test_expansions_are_deduplicated_in_order(parsed):
-    assert parsed.expansions == ("MSH", "KHM", "BLB")
+    assert parsed.expansions == ("MSH", "BLB", "KHM")
 
 
 def test_for_expansion_groups_every_format(parsed):
@@ -162,13 +134,11 @@ def test_for_expansion_groups_every_format(parsed):
 
 
 def test_parse_skips_rows_missing_identity():
-    assert catalog.parse({"data": {"datasets": [{"expansion": [], "format": []}]}}) == (
-        Catalog(datasets=())
-    )
+    assert catalog.parse([{"expansion": "", "event_type": ""}]) == Catalog(datasets=())
 
 
-def test_parse_tolerates_an_empty_document():
-    assert catalog.parse({}).datasets == ()
+def test_parse_tolerates_an_empty_response():
+    assert catalog.parse([]).datasets == ()
 
 
 def test_fetch_falls_back_when_17lands_is_unreachable(monkeypatch):
@@ -186,10 +156,17 @@ def test_fetch_falls_back_when_17lands_is_unreachable(monkeypatch):
     assert result.datasets == ()
 
 
+def test_fetch_falls_back_on_an_unexpected_response(monkeypatch):
+    monkeypatch.setattr(catalog, "_cached", None)
+    monkeypatch.setattr(catalog.http, "get_json", lambda url: {"error": "nope"})
+
+    assert catalog.fetch().is_fallback
+
+
 def test_fallback_url_matches_the_published_layout(parsed):
     assert (
-        urlparse(catalog.fallback_url("MSH", View.DRAFT, EventType.PREMIER)).path
-        == urlparse(parsed.get("MSH", EventType.PREMIER).draft_url).path
+        catalog.fallback_url("MSH", View.DRAFT, EventType.PREMIER)
+        == parsed.get("MSH", EventType.PREMIER).draft_url
     )
 
 
@@ -227,58 +204,61 @@ def test_compare_will_not_call_a_local_file_unpublished():
     assert catalog.compare(local, None) == Freshness.UNKNOWN
 
 
-def test_compare_is_unknown_without_a_last_modified_header():
+def test_compare_is_unknown_without_a_publication_date():
     local = datetime.datetime(2026, 8, 5, tzinfo=UTC).timestamp()
     assert catalog.compare(local, _remote(None)) == Freshness.UNKNOWN
 
 
-STALE_MTIME = datetime.datetime(2026, 1, 1, tzinfo=UTC).timestamp()
+def _at(year: int, month: int, day: int, hour: int = 0) -> float:
+    return datetime.datetime(year, month, day, hour, tzinfo=UTC).timestamp()
 
 
 @pytest.fixture
-def no_head(monkeypatch):
-    """Every HEAD reports the same recent mtime, so freshness turns purely on
-    what the caller passes as the local mtime."""
-    calls = []
+def offline(monkeypatch):
+    """Fail any request, since resolving needs nothing beyond the catalog."""
 
-    def fake_head(url):
-        calls.append(url)
-        return RemoteFile(
-            url=url, last_modified=datetime.datetime(2026, 7, 27, tzinfo=UTC)
-        )
+    def no_request(url):
+        raise AssertionError(f"unexpected request to {url}")
 
-    monkeypatch.setattr(catalog, "head", fake_head)
-    return calls
+    monkeypatch.setattr(catalog, "head", no_request)
+    monkeypatch.setattr(catalog.http, "get_json", no_request)
 
 
-def test_resolve_heads_only_files_we_already_hold(parsed, no_head):
-    targets = [
-        Target("MSH", EventType.PREMIER, View.DRAFT, STALE_MTIME),
-        Target("MSH", EventType.PREMIER, View.GAME, None),
-    ]
-    rows = catalog.resolve(targets, parsed)
+@pytest.mark.parametrize(
+    "local_mtime, freshness",
+    [
+        (_at(2026, 7, 25, 23), Freshness.STALE),
+        (_at(2026, 7, 26, 1), Freshness.CURRENT),
+        (_at(2026, 8, 5), Freshness.CURRENT),
+    ],
+)
+def test_resolve_judges_held_files_by_publication_date(
+    parsed, offline, local_mtime, freshness
+):
+    """MSH was last published 2026-07-26: a file written before that day is stale."""
+    (row,) = catalog.resolve(
+        [Target("MSH", EventType.PREMIER, View.DRAFT, local_mtime)], parsed
+    )
+    assert row.freshness == freshness
+    assert row.remote.last_modified.date() == datetime.date(2026, 7, 26)
 
-    assert len(no_head) == 1
-    assert rows[0].freshness == Freshness.STALE
-    assert rows[1].freshness == Freshness.ABSENT
 
-
-def test_resolve_reports_absent_with_the_url_it_would_fetch(parsed, no_head):
+def test_resolve_reports_absent_with_the_url_it_would_fetch(parsed, offline):
     (row,) = catalog.resolve(
         [Target("MSH", EventType.PREMIER, View.GAME, None)], parsed
     )
+    assert row.freshness == Freshness.ABSENT
     assert row.remote.url.endswith("game_data_public.MSH.PremierDraft.csv.gz")
 
 
-def test_resolve_calls_an_unpublished_dataset_unpublished(parsed, no_head):
+def test_resolve_calls_an_unpublished_dataset_unpublished(parsed, offline):
     (row,) = catalog.resolve(
         [Target("KHM", EventType.PREMIER, View.DRAFT, None)], parsed
     )
     assert row.freshness == Freshness.UNPUBLISHED
-    assert not no_head
 
 
-def test_resolve_will_not_claim_unpublished_when_the_catalog_is_unreachable(no_head):
+def test_resolve_will_not_claim_unpublished_when_the_catalog_is_unreachable(offline):
     (row,) = catalog.resolve(
         [Target("MSH", EventType.PREMIER, View.DRAFT, None)],
         Catalog(datasets=(), is_fallback=True),
@@ -286,35 +266,31 @@ def test_resolve_will_not_claim_unpublished_when_the_catalog_is_unreachable(no_h
     assert row.freshness == Freshness.UNKNOWN
 
 
-def test_resolve_preserves_target_order(parsed, no_head):
+def test_resolve_preserves_target_order(parsed, offline):
     targets = [
         Target("KHM", EventType.PREMIER, View.DRAFT, None),
-        Target("MSH", EventType.PREMIER, View.DRAFT, STALE_MTIME),
+        Target("MSH", EventType.PREMIER, View.DRAFT, _at(2026, 1, 1)),
         Target("BLB", EventType.TRADITIONAL, View.GAME, None),
     ]
     rows = catalog.resolve(targets, parsed)
     assert [r.target for r in rows] == targets
 
 
-def test_needs_download_covers_stale_and_absent_only(parsed, no_head):
+def test_needs_download_covers_stale_and_absent_only(parsed, offline):
     rows = catalog.resolve(
         [
-            Target("MSH", EventType.PREMIER, View.DRAFT, STALE_MTIME),
+            Target("MSH", EventType.PREMIER, View.DRAFT, _at(2026, 1, 1)),
             Target("MSH", EventType.PREMIER, View.GAME, None),
             Target("KHM", EventType.PREMIER, View.DRAFT, None),
-            Target("BLB", EventType.TRADITIONAL, View.DRAFT, _now()),
+            Target("BLB", EventType.TRADITIONAL, View.DRAFT, _at(2026, 8, 7)),
         ],
         parsed,
     )
     assert [r.needs_download for r in rows] == [True, True, False, False]
 
 
-def _now() -> float:
-    return datetime.datetime(2026, 8, 7, tzinfo=UTC).timestamp()
-
-
 def test_is_addable_requires_published_draft_data(parsed):
-    """KHM's game data is published but its draft data 403s, so it cannot be added."""
+    """KHM's game data is published but its draft data is not, so it cannot be added."""
     assert parsed.is_addable("MSH")
     assert not parsed.is_addable("KHM")
 
@@ -323,23 +299,22 @@ def test_updated_takes_the_newest_across_event_types(parsed):
     assert parsed.updated("MSH") == datetime.date(2026, 7, 26)
 
 
-def test_unadded_reports_missing_expansions_newest_first(parsed):
-    """Catalog order is MSH, KHM, BLB; holding KHM anchors at position 1."""
-    assert catalog.unadded(parsed, {"KHM"}) == ["BLB"]
+def test_unadded_reports_newer_expansions_than_the_oldest_held(parsed):
+    """Catalog order is MSH, BLB, KHM, newest first; holding BLB anchors there."""
+    assert catalog.unadded(parsed, {"BLB"}) == ["MSH"]
 
 
 def test_unadded_ignores_expansions_predating_the_collection(parsed):
-    """BLB is last in this fixture, so holding it means nothing is newer."""
-    assert catalog.unadded(parsed, {"BLB"}) == []
+    """MSH is the newest in this fixture, so holding it means nothing is newer."""
+    assert catalog.unadded(parsed, {"MSH"}) == []
 
 
 def test_unadded_never_offers_a_set_with_no_draft_data(parsed):
-    """KHM sits at position 1, so it is in range but still must not be offered."""
-    assert "KHM" not in catalog.unadded(parsed, {"MSH"})
+    assert "KHM" not in catalog.unadded(parsed, set())
 
 
 def test_unadded_with_nothing_held_offers_everything_addable(parsed):
-    assert catalog.unadded(parsed, set()) == ["BLB", "MSH"]
+    assert catalog.unadded(parsed, set()) == ["MSH", "BLB"]
 
 
 def test_unadded_is_empty_when_everything_is_held(parsed):
@@ -348,29 +323,28 @@ def test_unadded_is_empty_when_everything_is_held(parsed):
 
 def test_unadded_ignores_held_sets_absent_from_the_catalog(parsed):
     """A local set 17Lands has retired must not break the anchor."""
-    assert catalog.unadded(parsed, {"BLB", "NOTASET"}) == []
+    assert catalog.unadded(parsed, {"MSH", "NOTASET"}) == []
 
 
 def test_unadded_orders_by_catalog_position_not_last_updated(parsed):
-    """17Lands bumps last_updated when regenerating old files; array order is
+    """17Lands bumps last_updated when regenerating old files; catalog order is
     the stable release signal, so a regenerated old set must not look new."""
-    stale_first = Catalog(
+    regenerated = Catalog(
         datasets=tuple(
             d
-            if d.expansion != "KHM"
+            if d.expansion != "BLB"
             else replace(d, last_updated=datetime.date(2099, 1, 1))
             for d in parsed.datasets
         )
     )
-    assert catalog.unadded(stale_first, set()) == ["BLB", "MSH"]
+    assert catalog.unadded(regenerated, set()) == ["MSH", "BLB"]
 
 
 def test_in_release_order_is_newest_first(parsed):
-    """Fixture array order is MSH, KHM, BLB, so BLB is the most recent."""
     assert catalog.in_release_order(parsed, ["KHM", "MSH", "BLB"]) == [
+        "MSH",
         "BLB",
         "KHM",
-        "MSH",
     ]
 
 

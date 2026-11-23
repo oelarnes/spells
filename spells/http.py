@@ -30,10 +30,10 @@ USER_AGENT = "spells-mtg"
 # for a long time and still be healthy.
 TIMEOUT = (5, 30)
 
-# S3 and the Prismic CDN are both occasionally flaky, and the nightly DEq run is
+# 17Lands' API and data host are occasionally flaky, and the nightly DEq run is
 # unattended, so idempotent requests get a few automatic attempts. Connections
 # are the exception: an address that never answers costs the full timeout each
-# time, and `catalog.resolve` waits on every one of them before it can return.
+# time.
 RETRY = Retry(
     total=3,
     connect=1,
@@ -46,8 +46,7 @@ _local = threading.local()
 
 
 def session() -> requests.Session:
-    """A Session per thread: `catalog.resolve` HEADs concurrently, and Session
-    is not documented as thread-safe."""
+    """A Session per thread, since Session is not documented as thread-safe."""
     if (existing := getattr(_local, "session", None)) is not None:
         return existing
 
