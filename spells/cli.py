@@ -9,6 +9,7 @@ from rich.padding import Padding
 from rich.table import Table
 
 from spells import cache, cards as cards_module, catalog, external, inventory, render
+from spells import scryfall as scryfall_module
 from spells import console as spells_console
 from spells.console import sizeof_fmt
 from spells.render import console, err_console
@@ -384,6 +385,30 @@ def cards(
     raise typer.Exit(
         _guard_card_file(external._add_card_only, set_code, event_type=event_type)
     )
+
+
+@app.command()
+def scryfall(
+    lang: Annotated[
+        str | None,
+        typer.Option(
+            "--lang",
+            help="Keep only this language's printings (e.g. ja), from Scryfall's "
+            "all-languages file. `default` switches back to the default file.",
+        ),
+    ] = None,
+    force: Annotated[
+        bool, typer.Option("--force", help="Download even if the cache is current.")
+    ] = False,
+) -> None:
+    """Update the local Scryfall card cache."""
+    if lang is None:
+        choice = scryfall_module.KEEP
+    elif lang == "default":
+        choice = None
+    else:
+        choice = lang
+    raise typer.Exit(scryfall_module.sync(choice, force=force))
 
 
 @app.command()

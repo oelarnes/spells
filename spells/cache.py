@@ -34,6 +34,7 @@ class DataDir(StrEnum):
     RATINGS = "ratings"
     DECK_COLOR = "deck_color"
     DRAFT = "draft"
+    SCRYFALL = "scryfall"
 
 
 def set_test_env():
@@ -145,6 +146,7 @@ def data_dir_path(cache_dir: DataDir) -> str:
         DataDir.RATINGS: "Ratings" if is_win else "ratings",
         DataDir.DECK_COLOR: "DeckColor" if is_win else "deck_color",
         DataDir.DRAFT: "Draft" if is_win else "draft",
+        DataDir.SCRYFALL: "Scryfall" if is_win else "scryfall",
     }[cache_dir]
 
     data_dir = os.path.join(data_home(), ext)

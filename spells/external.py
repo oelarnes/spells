@@ -9,12 +9,14 @@ import shutil
 from enum import StrEnum
 
 import polars as pl
+import requests
 from polars.exceptions import ComputeError
 
 from spells import cards
 from spells import cache
 from spells import console
 from spells import http
+from spells import scryfall
 from spells.catalog import DATASET_TEMPLATE, RESOURCE_TEMPLATE
 from spells.enums import View, ColName, EventType
 from spells.schema import schema
@@ -46,7 +48,17 @@ def _add(
     )
 
     get_set_context(set_code, event_type=event_type, force_download=force_download)
+    _sync_scryfall()
     return 0
+
+
+def _sync_scryfall() -> None:
+    """Keep the card cache current alongside 17Lands data, without letting a
+    Scryfall outage fail the 17Lands download."""
+    try:
+        scryfall.sync()
+    except requests.RequestException as e:
+        console.error(f"Scryfall cache not updated: {e}")
 
 
 def _add_card_only(set_code: str, event_type: EventType) -> int:
