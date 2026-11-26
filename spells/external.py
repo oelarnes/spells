@@ -145,27 +145,32 @@ def _remove_event_type(set_code: str, event_type: EventType) -> int:
 
 def _process_zipped_file(gzip_path, target_path):
     csv_path = gzip_path[:-3]
-    # if polars supports streaming from file obj, we can just stream straight
-    # from urllib.Request through GzipFile to sink_parquet without intermediate files
-    with gzip.open(gzip_path, "rb") as f_in:
-        with open(csv_path, "wb") as f_out:
-            shutil.copyfileobj(f_in, f_out)  # type: ignore
-
-    os.remove(gzip_path)
-    df = pl.scan_csv(csv_path, schema=schema(csv_path))
+    part_path = f"{target_path}.part"
     try:
-        df.sink_parquet(target_path)
-    except ComputeError:
-        df = pl.scan_csv(csv_path)
-        console.info(
-            "Bad schema found, loading dataset into memory "
-            "and attempting to cast to the correct schema"
-        )
-        select = [pl.col(name).cast(dtype) for name, dtype in schema(csv_path).items()]
-        cast_df = df.select(select).collect()
-        cast_df.write_parquet(target_path)
+        # if polars supports streaming from file obj, we can just stream straight
+        # from urllib.Request through GzipFile to sink_parquet without intermediate files
+        with gzip.open(gzip_path, "rb") as f_in:
+            with open(csv_path, "wb") as f_out:
+                shutil.copyfileobj(f_in, f_out)  # type: ignore
+        os.remove(gzip_path)
 
-    os.remove(csv_path)
+        dtypes = schema(csv_path)
+        try:
+            pl.scan_csv(csv_path, schema=dtypes).sink_parquet(part_path)
+        except ComputeError:
+            console.info(
+                "Bad schema found, loading dataset into memory "
+                "and attempting to cast to the correct schema"
+            )
+            inferred = pl.scan_csv(csv_path, new_columns=list(dtypes))
+            inferred.select(
+                pl.col(name).cast(dtype) for name, dtype in dtypes.items()
+            ).collect().write_parquet(part_path)
+        os.replace(part_path, target_path)
+    finally:
+        for path in (gzip_path, csv_path, part_path):
+            if os.path.exists(path):
+                os.remove(path)
 
 
 def download_data_set(

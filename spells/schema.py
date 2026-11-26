@@ -31,6 +31,8 @@ COLUMN_TYPES = (
     (re.compile(r"^pick_2$"), pl.String),
     (re.compile(r"^pick_maindeck_rate$"), pl.Float64),
     (re.compile(r"^pick_sideboard_in_rate$"), pl.Float64),
+    (re.compile(r"^pick_2_maindeck_rate$"), pl.Float64),
+    (re.compile(r"^pick_2_sideboard_in_rate$"), pl.Float64),
     (re.compile(r"^pool_.*"), pl.Int8),
     (re.compile(r"^pack_card_.*"), pl.Int8),
     # Game + Replay
@@ -139,20 +141,30 @@ COLUMN_TYPES = (
 )
 
 
-def schema(
-    filename: str, print_missing: bool = False
-) -> Dict[str, pl.datatypes.DataType]:
-    dtypes: Dict[str, pl.datatypes.DataType] = {}
-    with open(filename, encoding="utf-8") as f:
-        columns = csv.DictReader(f).fieldnames
-    if columns is None:
+def header(filename: str) -> list[str]:
+    """Column names as the CSV defines them, with quoting undone, which polars'
+    own header parsing doesn't do for names containing escaped quotes."""
+    with open(filename, encoding="utf-8", newline="") as f:
+        columns = next(csv.reader(f), None)
+    if not columns:
         raise ValueError(f"Could not read fieldnames from {filename}")
-    for column in columns:
-        for regex, column_type in COLUMN_TYPES:
-            if regex.match(column):
-                dtypes[column] = column_type
-                break
-            else:
-                if print_missing:
-                    logging.warning("No column type matched %s", column)
+    return columns
+
+
+def schema(filename: str) -> Dict[str, pl.datatypes.DataType]:
+    """A dtype for every column in the file. Columns no pattern knows are read as
+    strings, so a column 17Lands adds can't break reading the rest."""
+    dtypes: Dict[str, pl.datatypes.DataType] = {}
+    unknown = []
+    for column in header(filename):
+        column_type = next(
+            (column_type for regex, column_type in COLUMN_TYPES if regex.match(column)),
+            None,
+        )
+        if column_type is None:
+            unknown.append(column)
+            column_type = pl.String
+        dtypes[column] = column_type
+    if unknown:
+        logging.warning("No column type matched %s; reading as strings", unknown)
     return dtypes
